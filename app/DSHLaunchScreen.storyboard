@@ -15,20 +15,18 @@
                         <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
-                            <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="OpenMind Harness" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="YES" minimumScaleFactor="0.65" translatesAutoresizingMaskIntoConstraints="NO" id="LS-label">
-                                <rect key="frame" x="0.0" y="400" width="393" height="52"/>
-                                <fontDescription key="fontDescription" name="Menlo-Bold" family="Menlo" pointSize="27"/>
-                                <color key="textColor" red="0" green="0.898039216" blue="1" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
-                                <nil key="highlightedColor"/>
-                            </label>
+                            <imageView userInteractionEnabled="NO" contentMode="scaleAspectFit" image="OpenMindLogo" translatesAutoresizingMaskIntoConstraints="NO" id="LS-label">
+                                <rect key="frame" x="24" y="382" width="345" height="88"/>
+                                <constraints><constraint firstAttribute="height" constant="88" id="LS-height"/></constraints>
+                            </imageView>
                         </subviews>
                         <viewLayoutGuide key="safeArea" id="LS-safe"/>
                         <color key="backgroundColor" name="DSHBackground"/>
                         <constraints>
                             <constraint firstItem="LS-label" firstAttribute="centerX" secondItem="LS-view" secondAttribute="centerX" id="LS-c1"/>
                             <constraint firstItem="LS-label" firstAttribute="centerY" secondItem="LS-view" secondAttribute="centerY" id="LS-c2"/>
-                            <constraint firstItem="LS-label" firstAttribute="leading" secondItem="LS-safe" secondAttribute="leading" id="LS-c3"/>
-                            <constraint firstItem="LS-safe" firstAttribute="trailing" secondItem="LS-label" secondAttribute="trailing" id="LS-c4"/>
+                            <constraint firstItem="LS-label" firstAttribute="leading" secondItem="LS-safe" secondAttribute="leading" constant="24" id="LS-c3"/>
+                            <constraint firstItem="LS-safe" firstAttribute="trailing" secondItem="LS-label" secondAttribute="trailing" constant="24" id="LS-c4"/>
                         </constraints>
                     </view>
                 </viewController>
@@ -38,6 +36,7 @@
         </scene>
     </scenes>
     <resources>
+        <image name="OpenMindLogo" width="900" height="300"/>
         <namedColor name="DSHBackground">
             <color red="0.0196078431" green="0.0313725490" blue="0.0862745098" alpha="1" colorSpace="custom" customColorSpace="sRGB"/>
         </namedColor>

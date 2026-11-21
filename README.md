@@ -1,5 +1,7 @@
 # omh-iOS — OpenMind Harness for iOS / iPadOS
 
+<img src="app/DSHAssets.xcassets/OpenMindLogo.imageset/logo.png" alt="OpenMind Harness" width="360">
+
 The iOS / iPad app that runs the [OpenMind Harness](https://github.com/tjcrims0nx/openmind-harness) (OpenCode) inside an iSH Linux guest on your iPhone or iPad. Same harness, same providers, same config — packaged as an unsigned IPA you sign yourself.
 
 ## What lives here

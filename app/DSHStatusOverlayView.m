@@ -6,7 +6,6 @@
 #import "DSHStatusOverlayView.h"
 
 @interface DSHStatusOverlayView ()
-@property (nonatomic) UILabel *titleLabel;
 @property (nonatomic) UILabel *subtitleLabel;
 @property (nonatomic) UILabel *messageLabel;
 @property (nonatomic) UILabel *elapsedLabel;
@@ -31,15 +30,14 @@
         self.backgroundColor = [UIColor colorNamed:@"DSHBackground"] ?: UIColor.systemBackgroundColor;
         self.accessibilityIdentifier = @"dsh.overlay";
 
-        UILabel *title = [UILabel new];
-        title.text = @"OpenMind Harness";
-        title.font = [UIFont monospacedSystemFontOfSize:40 weight:UIFontWeightBold];
-        title.textColor = [UIColor colorNamed:@"DSHAccent"] ?: UIColor.labelColor;
-        title.textAlignment = NSTextAlignmentCenter;
-        self.titleLabel = title;
+        UIImageView *title = [[UIImageView alloc] initWithImage:[UIImage imageNamed:@"OpenMindLogo"]];
+        title.contentMode = UIViewContentModeScaleAspectFit;
+        title.isAccessibilityElement = YES;
+        title.accessibilityLabel = @"OpenMind Harness";
+        [title.heightAnchor constraintEqualToConstant:64].active = YES;
 
         UILabel *subtitle = [UILabel new];
-        subtitle.text = @"OpenMind Harness · on-device Linux guest";
+        subtitle.text = @"On-device Linux guest";
         subtitle.font = [UIFont systemFontOfSize:14 weight:UIFontWeightRegular];
         subtitle.textColor = UIColor.secondaryLabelColor;
         subtitle.textAlignment = NSTextAlignmentCenter;
@@ -98,6 +96,7 @@
         self.buttons = buttons;
 
         UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[title, subtitle, spinner, message, progress, elapsed, buttons, log]];
+        [title.widthAnchor constraintEqualToAnchor:stack.widthAnchor].active = YES;
         stack.axis = UILayoutConstraintAxisVertical;
         stack.alignment = UIStackViewAlignmentCenter;
         stack.spacing = 10;
