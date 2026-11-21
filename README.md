@@ -17,7 +17,9 @@ This repo is the iOS app **only**. The harness itself — `opencode.json`, skill
 
 Both CI and local builds fetch the exact OMH revision recorded in [harness.rev](harness.rev). Update that file to advance the engine. For development, set `HARNESS_DIR` to a checkout containing the launcher and Python package.
 
-The app opens the existing OpenCode coding workspace on launch. The guest terminal also includes the standalone OMH engine. Run `openmind-harness --help` to verify the installation, then `openmind-harness --model "your-model-id"` with credentials for your configured endpoint. The standalone engine keeps chat history in memory.
+The app opens **OpenMind Chat** in a blue and neon workspace. To connect an OpenAI-compatible provider, open Terminal, run `openmind-set-custom-endpoint`, and restart the harness after saving the URL, model and key. Chat history lasts until the server restarts.
+
+For coding tools and the configured OpenCode providers, use **More → Switch to Coding Workspace**. The app remembers your choice. Use the same menu to return to OpenMind Chat.
 
 ## Build
 
@@ -38,9 +40,9 @@ brackets.
 
 1. **Install** — sign the IPA with your Apple ID and sideload it. Open the
    app. [The app opens; a progress overlay shows the guest starting.]
-2. **First boot** — wait for the overlay to clear and the OpenCode web UI
+2. **First boot** — wait for the overlay to clear and OpenMind Chat
    to appear. [The status dot reads `ready` and the chat input is visible.]
-3. **Sign in with ChatGPT Plus** — open the Terminal (`>_` in the control
+3. **Switch to Coding Workspace and sign in with ChatGPT Plus** — open the Terminal (`>_` in the control
    bar) and run `opencode auth login --provider openai --method "ChatGPT Pro/Plus (headless)"`.
    Enter the shown code at `auth.openai.com/codex/device` in Safari.
    [The terminal reports the login succeeded; no key was typed anywhere.]

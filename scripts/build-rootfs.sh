@@ -138,7 +138,7 @@ log "Guest phase 3: verify opencode boots and serves"
 ish <<'EOF'
 set -e
 export HOME=/root
-chmod +x /usr/local/bin/opencode /usr/local/bin/opencode-serve /usr/local/bin/opencode-selftest
+chmod +x /usr/local/bin/openmind-serve /usr/local/bin/opencode /usr/local/bin/opencode-serve /usr/local/bin/opencode-selftest
 mkdir -p /root/workspace
 opencode --version
 node --version
@@ -158,7 +158,7 @@ EOF
 # CLI emulator — the first build failed here with HTTP 000 after ~35s even
 # though the binary runs fine — so the host probe is authoritative.
 PORT=4099
-"$ISH_BUILD/ish" -f "$WORK/fakefs" /bin/sh -c "DSH_PORT=$PORT /usr/local/bin/opencode-serve" > "$WORK/opencode-serve.log" 2>&1 &
+"$ISH_BUILD/ish" -f "$WORK/fakefs" /bin/sh -c "DSH_PORT=$PORT /usr/local/bin/openmind-serve" > "$WORK/opencode-serve.log" 2>&1 &
 SERVER_ISH_PID=$!
 stop_server() {
     kill "$SERVER_ISH_PID" 2>/dev/null || true
@@ -178,7 +178,7 @@ if [ "$up" != 1 ]; then
     stop_server
     die "guest opencode web UI did not answer on 127.0.0.1:$PORT within 180s"
 fi
-grep -o '<title>[^<]*</title>' "$WORK/opencode-index.html" | head -1
+grep -Fq '<title>OpenMind Harness</title>' "$WORK/opencode-index.html"
 stop_server
 echo "guest opencode serves its web UI on 127.0.0.1:$PORT"
 

@@ -110,7 +110,7 @@ static NSString *const kDSHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     title.translatesAutoresizingMaskIntoConstraints = NO;
     title.text = @"OpenMind Harness";
     title.font = [UIFont monospacedSystemFontOfSize:12 weight:UIFontWeightSemibold];
-    title.textColor = UIColor.secondaryLabelColor;
+    title.textColor = [UIColor colorNamed:@"DSHAccent"] ?: UIColor.labelColor;
     title.accessibilityIdentifier = @"dsh.title";
     self.titleLabel = title;
 
@@ -126,6 +126,9 @@ static NSString *const kDSHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
 
     UIButton *terminal = [self barButtonWithSymbol:@"terminal" action:@selector(presentTerminal) identifier:@"dsh.terminal"];
     terminal.accessibilityLabel = @"Terminal";
+    UIButtonConfiguration *terminalStyle = terminal.configuration;
+    terminalStyle.baseForegroundColor = [UIColor colorNamed:@"DSHHighlight"] ?: UIColor.systemPinkColor;
+    terminal.configuration = terminalStyle;
     self.terminalButton = terminal;
 
     UIButton *menu = [self barButtonWithSymbol:@"ellipsis.circle" action:nil identifier:@"dsh.menu"];
@@ -194,7 +197,22 @@ static NSString *const kDSHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
         if (url) [UIApplication.sharedApplication openURL:url options:@{} completionHandler:nil];
     }];
     UIAction *about = [UIAction actionWithTitle:@"About OpenMind Harness" image:[UIImage systemImageNamed:@"info.circle"] identifier:@"dsh.about" handler:^(UIAction *a) { [weakSelf presentAbout]; }];
-    NSMutableArray<UIMenuElement *> *children = [NSMutableArray arrayWithObjects:reload, terminal, nil];
+    BOOL coding = [NSUserDefaults.standardUserDefaults boolForKey:@"OMHUseCodingWorkspace"];
+    NSString *switchTitle = coding ? @"Switch to OpenMind Chat" : @"Switch to Coding Workspace";
+    UIAction *switchWorkspace = [UIAction actionWithTitle:switchTitle image:[UIImage systemImageNamed:@"arrow.left.arrow.right"] identifier:nil handler:^(UIAction *action) {
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:switchTitle
+            message:@"Switching restarts the server and clears the current OpenMind chat."
+            preferredStyle:UIAlertControllerStyleAlert];
+        [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+        [alert addAction:[UIAlertAction actionWithTitle:@"Switch" style:UIAlertActionStyleDefault handler:^(UIAlertAction *choice) {
+            [NSUserDefaults.standardUserDefaults setBool:!coding forKey:@"OMHUseCodingWorkspace"];
+            DSHHarness.shared.serverExecutable = coding ? @"/usr/local/bin/openmind-serve" : @"/usr/local/bin/opencode-serve";
+            weakSelf.menuButton.menu = [weakSelf buildMenu];
+            [DSHHarness.shared restart];
+        }]];
+        [weakSelf presentViewController:alert animated:YES completion:nil];
+    }];
+    NSMutableArray<UIMenuElement *> *children = [NSMutableArray arrayWithObjects:reload, terminal, switchWorkspace, nil];
     [children addObjectsFromArray:@[capabilities, activity, log, [UIMenu menuWithTitle:@"" image:nil identifier:nil options:UIMenuOptionsDisplayInline children:@[safari, restart, repair]], about]];
     return [UIMenu menuWithChildren:children];
 }
@@ -233,7 +251,7 @@ static NSString *const kDSHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     DSHHarness *h = DSHHarness.shared;
     UIColor *dotColor;
     switch (h.state) {
-        case DSHHarnessStateReady: dotColor = UIColor.systemGreenColor; break;
+        case DSHHarnessStateReady: dotColor = [UIColor colorNamed:@"DSHReady"] ?: UIColor.systemGreenColor; break;
         case DSHHarnessStateFailed: dotColor = UIColor.systemRedColor; break;
         case DSHHarnessStateStopped: dotColor = UIColor.systemGrayColor; break;
         default: dotColor = UIColor.systemOrangeColor; break;
@@ -390,7 +408,7 @@ static NSString *const kDSHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
                          [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"],
                          [NSBundle.mainBundle objectForInfoDictionaryKey:(NSString *) kCFBundleVersionKey]];
     NSString *message = [NSString stringWithFormat:
-                         @"OpenMind Harness %@\n\nOpenCode running in an Alpine Linux guest (iSH ARM64 emulator) inside this app.\n\nServer: %@\nState: %@\nStartup: %.1fs · restarts: %lu\n\n%@",
+                         @"OpenMind Harness %@\n\nYour workspace runs on this device in an Alpine Linux guest. The native shell is adapted from DSH-iOS and uses iSH-ARM64.\n\nServer: %@\nState: %@\nStartup: %.1fs · restarts: %lu\n\n%@",
                          version, h.baseURL.absoluteString ?: @"–", DSHHarnessStateName(h.state), h.lastStartupDuration,
                          (unsigned long) h.restartCount, DSHStartupMetrics.shared.summary];
     UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"About OpenMind Harness" message:message preferredStyle:UIAlertControllerStyleAlert];
@@ -511,6 +529,19 @@ static const NSTimeInterval kActivityIndicatorVisible = 6;
 }
 
 - (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation {
+    if ([self isHarnessURL:webView.URL]) {
+        NSDataAsset *theme = [[NSDataAsset alloc] initWithName:@"OpenMindWorkspace"];
+        NSString *css = [[NSString alloc] initWithData:theme.data encoding:NSUTF8StringEncoding];
+        if (css.length) {
+            [webView callAsyncJavaScript:
+                @"let style = document.getElementById('openmind-workspace-theme');"
+                 "if (!style) { style = document.createElement('style');"
+                 "style.id = 'openmind-workspace-theme'; document.head.append(style); }"
+                 "style.textContent = css; document.title = 'OpenMind Harness';"
+                arguments:@{@"css": css} inFrame:nil inContentWorld:WKContentWorld.defaultClientWorld
+                completionHandler:nil];
+        }
+    }
     self.pageLoaded = YES;
     [DSHHarness.shared.log append:[NSString stringWithFormat:@"[perf] web interface loaded (harness %.3fs)", DSHHarness.shared.lastStartupDuration]];
     [DSHStartupMetrics.shared mark:@"web_ready"];
