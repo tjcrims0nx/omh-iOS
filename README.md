@@ -15,10 +15,9 @@ The iOS / iPad app that runs the [OpenMind Harness](https://github.com/tjcrims0n
 
 This repo is the iOS app **only**. The harness itself — `opencode.json`, skills, plugins, scripts, commands — lives in [tjcrims0nx/openmind-harness](https://github.com/tjcrims0nx/openmind-harness) and is the single source of truth. The build fetches it:
 
-- **CI:** the workflow checks the harness repo out into `harness/` before building the rootfs.
-- **Local:** `scripts/build-rootfs.sh` clones it into `harness/` when it is missing (shallow, `main`). Point `HARNESS_DIR` at a local harness checkout to use that instead, or `HARNESS_REF` for a different ref.
+Both CI and local builds fetch the exact OMH revision recorded in [harness.rev](harness.rev). Update that file to advance the engine. For development, set `HARNESS_DIR` to a checkout containing the launcher and Python package.
 
-So a fresh clone of this repo builds straight away — it just needs git and network for the one harness fetch.
+The app opens the existing OpenCode coding workspace on launch. The guest terminal also includes the standalone OMH engine. Run `openmind-harness --help` to verify the installation, then `openmind-harness --model "your-model-id"` with credentials for your configured endpoint. The standalone engine keeps chat history in memory.
 
 ## Build
 

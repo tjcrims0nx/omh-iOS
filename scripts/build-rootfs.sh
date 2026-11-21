@@ -20,8 +20,8 @@ OUT="${OUT:-$ROOT/build/root.tar.gz}"
 # clone of omh-iOS can build straight away. Override with HARNESS_DIR to
 # point at a local harness checkout, or HARNESS_REF for a different ref.
 HARNESS_REPO="${HARNESS_REPO:-https://github.com/tjcrims0nx/openmind-harness.git}"
-HARNESS_REF="${HARNESS_REF:-main}"
-HARNESS_DIR="${HARNESS_DIR:-$ROOT/harness}"
+HARNESS_REF="${HARNESS_REF:-$(cat "$ROOT/harness.rev")}"
+HARNESS_DIR="${HARNESS_DIR:-$WORK/harness-$HARNESS_REF}"
 
 ALPINE_VER=3.21
 ALPINE_TARBALL="alpine-minirootfs-${ALPINE_VER}.0-aarch64.tar.gz"
@@ -54,8 +54,11 @@ ish() {
 # Fetch the harness when it is missing (a shallow clone of its repo).
 if [ ! -f "$HARNESS_DIR/opencode.json" ]; then
     log "Harness not found at $HARNESS_DIR — cloning $HARNESS_REPO ($HARNESS_REF)"
-    git clone --depth 1 --branch "$HARNESS_REF" "$HARNESS_REPO" "$HARNESS_DIR" \
-        || die "could not clone the harness repo (set HARNESS_DIR to a local checkout instead)"
+    mkdir -p "$HARNESS_DIR"
+    git -C "$HARNESS_DIR" init -q
+    git -C "$HARNESS_DIR" fetch --depth 1 "$HARNESS_REPO" "$HARNESS_REF"
+    git -C "$HARNESS_DIR" checkout --detach FETCH_HEAD
+
 fi
 [ -f "$HARNESS_DIR/opencode.json" ] || die "harness config missing at $HARNESS_DIR/opencode.json"
 
@@ -81,7 +84,7 @@ set -e
 echo "nameserver 8.8.8.8" > /etc/resolv.conf
 echo "nameserver 1.1.1.1" >> /etc/resolv.conf
 apk update >/dev/null
-apk add --no-progress bash git curl openssh-client ca-certificates libstdc++ libgcc nodejs 2>&1 | tail -1
+apk add --no-progress bash git curl openssh-client ca-certificates libstdc++ libgcc nodejs python3
 EOF
 
 log "Guest phase 2: install opencode + overlay"
@@ -89,6 +92,10 @@ log "Guest phase 2: install opencode + overlay"
 # polyfills, our overlay) and stream it into the guest in a single pass.
 rm -rf payload && mkdir -p payload/usr/local/bin payload/lib
 install -m 0755 opencode-bin/opencode payload/usr/local/bin/opencode
+mkdir -p payload/usr/local/lib/openmind/openmind_engine
+install -m 0755 "$HARNESS_DIR/openmind-harness" payload/usr/local/lib/openmind/openmind-harness
+cp "$HARNESS_DIR"/openmind_engine/*.py "$HARNESS_DIR/openmind_engine/workspace.html" payload/usr/local/lib/openmind/openmind_engine/
+ln -s ../lib/openmind/openmind-harness payload/usr/local/bin/openmind-harness
 cp "$ISH_SRC"/app/RootfsPatch.bundle/files/lib/*.js payload/lib/
 # Record the overlay version so the app does not re-apply (and downgrade) the
 # same RootfsPatch files on first launch.
@@ -135,6 +142,7 @@ chmod +x /usr/local/bin/opencode /usr/local/bin/opencode-serve /usr/local/bin/op
 mkdir -p /root/workspace
 opencode --version
 node --version
+openmind-harness --help >/dev/null
 opencode models | grep -q "openai/gpt-5"
 opencode models | grep -q "experientiallabs/deepseek-v4.1-flash:free"
 opencode models | grep -q "google/gemini-3.8-flash"
