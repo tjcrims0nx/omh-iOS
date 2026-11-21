@@ -6,6 +6,21 @@ name: Build unsigned IPA
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - 'rootfs/**'
+      - 'scripts/**'
+      - 'tests/**'
+      - 'ish-arm64/**'
+      - 'DSH.xcodeproj/**'
+      - 'Makefile'
+      - 'harness.rev'
+      - '.github/workflows/build-ipa.yml'
+
+permissions:
+  contents: read
 
 jobs:
   build:
