@@ -101,6 +101,22 @@ find payload -name '._*' -delete
 # so the iOS app ships the identical config.
 mkdir -p payload/root/.config/opencode
 cp "$HARNESS_DIR/opencode.json" payload/root/.config/opencode/opencode.json
+# Verify the harness configuration before packaging it. Fail fast rather than
+# shipping a mobile app with a missing default provider or incomplete agents.
+node - "$HARNESS_DIR/opencode.json" <<'NODE'
+const fs = require('fs');
+const config = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+if (config.model !== 'google/gemini-3.8-flash') {
+  throw new Error('OMH iOS requires the Gemini default from the harness');
+}
+for (const agent of ['fast', 'reviewer']) {
+  if (!config.agents?.[agent]) throw new Error('Missing harness agent: ' + agent);
+}
+for (const provider of ['google', 'openai', 'anthropic', 'deepseek', 'openrouter', 'custom']) {
+  if (!config.provider?.[provider]) throw new Error('Missing harness provider: ' + provider);
+}
+console.log('OMH iOS: canonical Gemini, agents, and universal providers configured');
+NODE
 # Same for the starter skill (OpenCode's global skills source).
 mkdir -p payload/root/.config/opencode/skills
 cp -R "$HARNESS_DIR/skills/." payload/root/.config/opencode/skills/
