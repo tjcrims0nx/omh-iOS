@@ -84,6 +84,8 @@ jobs:
         run: |
           node --version
           bash -n scripts/build-rootfs.sh
+          bash -n scripts/sync-omh-branding.sh
+          bash scripts/sync-omh-branding.sh
           for wrapper in omh-runtime omh-dashboard omh-live omh-vercel-mcp omh-sandbox-check; do
             test -s "rootfs/overlay/usr/local/bin/$wrapper" || exit 1
           done
@@ -183,6 +185,8 @@ jobs:
         run: |
           node --version
           bash -n scripts/build-rootfs.sh
+          bash -n scripts/sync-omh-branding.sh
+          bash scripts/sync-omh-branding.sh
           for wrapper in omh-runtime omh-dashboard omh-live omh-vercel-mcp omh-sandbox-check; do
             test -s "rootfs/overlay/usr/local/bin/$wrapper" || exit 1
           done
