@@ -76,16 +76,18 @@
         [self finish:NO];
         return;
     }
+    // GET, not HEAD: the guest's Python workspace server (openmind-harness
+    // --web) has no HEAD handler, so it answers HEAD with 501 and the probe
+    // would never see the server as ready. GET returns 200 for the same
+    // page, and the body is discarded here — the status is the signal.
     NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:self.url];
-    req.HTTPMethod = @"HEAD";
+    req.HTTPMethod = @"GET";
     req.cachePolicy = NSURLRequestReloadIgnoringLocalAndRemoteCacheData;
     __weak typeof(self) weakSelf = self;
     NSURLSessionDataTask *task = [self.session dataTaskWithRequest:req completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         BOOL ok = NO;
         if ([response isKindOfClass:NSHTTPURLResponse.class]) {
             NSInteger code = ((NSHTTPURLResponse *) response).statusCode;
-            // HEAD may be refused with 405 by some servers; any HTTP answer
-            // still proves the listener is up.
             ok = code > 0 && code < 500;
         }
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -111,7 +113,9 @@
     config.requestCachePolicy = NSURLRequestReloadIgnoringLocalAndRemoteCacheData;
     NSURLSession *session = [NSURLSession sessionWithConfiguration:config];
     NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
-    req.HTTPMethod = @"HEAD";
+    // GET, not HEAD: same reason as the probe above — the guest workspace
+    // server answers HEAD with 501, which is not a readiness signal.
+    req.HTTPMethod = @"GET";
     [[session dataTaskWithRequest:req completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         BOOL ok = NO;
         if ([response isKindOfClass:NSHTTPURLResponse.class])
