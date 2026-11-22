@@ -41,7 +41,7 @@ static NSString *const kDSHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.view.backgroundColor = [UIColor colorNamed:@"DSHBackground"] ?: UIColor.systemBackgroundColor;
+    self.view.backgroundColor = [UIColor colorWithRed:0.018 green:0.031 blue:0.071 alpha:1.0];
     self.downloadDestinations = [NSMutableDictionary dictionary];
 
     [self buildWebView];
@@ -92,7 +92,9 @@ static NSString *const kDSHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
 - (void)buildControlBar {
     UIView *bar = [UIView new];
     bar.translatesAutoresizingMaskIntoConstraints = NO;
-    bar.backgroundColor = UIColor.clearColor;
+    bar.backgroundColor = [UIColor colorWithRed:0.025 green:0.055 blue:0.11 alpha:1.0];
+    bar.layer.borderColor = [UIColor colorWithRed:0.0 green:0.75 blue:0.95 alpha:0.45].CGColor;
+    bar.layer.borderWidth = 0.5;
     bar.accessibilityIdentifier = @"dsh.controlbar";
     self.controlBar = bar;
     [self.view addSubview:bar];
@@ -110,7 +112,7 @@ static NSString *const kDSHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     title.translatesAutoresizingMaskIntoConstraints = NO;
     title.text = @"OpenMind Harness";
     title.font = [UIFont monospacedSystemFontOfSize:12 weight:UIFontWeightSemibold];
-    title.textColor = UIColor.secondaryLabelColor;
+    title.textColor = [UIColor colorWithRed:0.0 green:0.89 blue:1.0 alpha:1.0];
     title.accessibilityIdentifier = @"dsh.title";
     self.titleLabel = title;
 
@@ -134,14 +136,36 @@ static NSString *const kDSHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     menu.menu = [self buildMenu];
     self.menuButton = menu;
 
-    UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[dot, title, [UIView new], activity, terminal, menu]];
+    // Use the actual bundled app icon as the in-app brand mark; never substitute
+    // an unrelated illustration. Some iOS asset pipelines do not expose the
+    // primary icon through imageNamed:, so retain the OMH title as fallback.
+    NSDictionary *icons = NSBundle.mainBundle.infoDictionary[@"CFBundleIcons"];
+    NSArray<NSString *> *iconFiles = icons[@"CFBundlePrimaryIcon"][@"CFBundleIconFiles"];
+    UIImage *brandImage = nil;
+    for (NSString *name in [iconFiles reverseObjectEnumerator]) {
+        brandImage = [UIImage imageNamed:name];
+        if (brandImage) break;
+    }
+    if (!brandImage) brandImage = [UIImage imageNamed:@"AppIcon"];
+    UIImageView *brandIcon = [[UIImageView alloc] initWithImage:brandImage];
+    brandIcon.translatesAutoresizingMaskIntoConstraints = NO;
+    brandIcon.contentMode = UIViewContentModeScaleAspectFit;
+    brandIcon.layer.cornerRadius = 5;
+    brandIcon.clipsToBounds = YES;
+    brandIcon.hidden = brandImage == nil;
+    brandIcon.accessibilityLabel = @"OpenMind Harness app icon";
+    brandIcon.accessibilityIdentifier = @"omh.brand.icon";
+    [brandIcon.widthAnchor constraintEqualToConstant:24].active = YES;
+    [brandIcon.heightAnchor constraintEqualToConstant:24].active = YES;
+
+    UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[brandIcon, dot, title, [UIView new], activity, terminal, menu]];
     stack.translatesAutoresizingMaskIntoConstraints = NO;
     stack.axis = UILayoutConstraintAxisHorizontal;
     stack.alignment = UIStackViewAlignmentCenter;
     stack.spacing = 8;
     [bar addSubview:stack];
 
-    self.controlBarHeight = [bar.heightAnchor constraintEqualToConstant:32];
+    self.controlBarHeight = [bar.heightAnchor constraintEqualToConstant:40];
     [NSLayoutConstraint activateConstraints:@[
         [bar.topAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],
         [bar.leadingAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.leadingAnchor],
