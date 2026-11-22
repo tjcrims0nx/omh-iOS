@@ -128,6 +128,21 @@
     [server stop];
 }
 
+- (void)testReadinessProbeRejectsMethodNotAllowedUntilTimeout {
+    DSHTestHTTPServer *server = [[DSHTestHTTPServer alloc] initWithPort:0];
+    server.statusCode = 405;
+    DSHReadinessProbe *probe = [[DSHReadinessProbe alloc] initWithURL:server.baseURL interval:0.1 timeout:1];
+    XCTestExpectation *done = [self expectationWithDescription:@"HTTP 405 is not readiness"];
+    [probe startWithHandler:^(BOOL ready, NSTimeInterval elapsed) {
+        XCTAssertFalse(ready, @"HTTP 405 must not mark the guest server ready");
+        XCTAssertGreaterThanOrEqual(elapsed, 1.0);
+        [done fulfill];
+    }];
+    [self waitForExpectations:@[done] timeout:4];
+    XCTAssertGreaterThan(server.requestCount, 0u);
+    [server stop];
+}
+
 - (void)testReadinessProbeTimesOutOnClosedPort {
     uint16_t port = [DSHPortAllocator freeLoopbackPortStartingAt:39000 span:100];
     NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"http://127.0.0.1:%u/", port]];
