@@ -74,19 +74,11 @@ test('new IPA identity is OMH.app and the legacy bundle is rejected',async()=>{
 
 test('native iPad workspace and iPhone dashboard share a supervised OMH runtime',async()=>{
  const scene=await read('app/OMHSceneDelegate.m');
- assert.match(scene,/@interface OMHNativeIPadController : UIViewController/);
+ const editor=await read('app/OMHRootViewController.m');
  assert.match(scene,/UIDevice\.currentDevice\.userInterfaceIdiom == UIUserInterfaceIdiomPad/);
- assert.match(scene,/\[OMHNativeIPadController new\] : \[OMHDashboardViewController new\]/);
- assert.match(scene,/omh\.native\.ipad\.sidebar/);
- assert.match(scene,/omh\.native\.ipad\.content/);
- assert.match(scene,/URLByAppendingPathComponent:@"api\/state"/);
- assert.match(scene,/WKContentModeRecommended/);
- assert.match(scene,/self\.sidebarWidthConstraint = \[self\.sectionsTable\.widthAnchor constraintEqualToConstant:246\]/);
- assert.match(scene,/floor\(width \* 0\.32\)/);
- assert.match(scene,/self\.detailTable\.tableHeaderView = header/);
- assert.match(scene,/selectRowAtIndexPath:indexPath animated:NO/);
- // iPad restores dashboard connectivity when foregrounded and must never
- // keep stale tasks or a stale worker status when guest runtime disconnects.
+ assert.match(scene,/isIPad \? \[OMHRootViewController new\] : \[OMHDashboardViewController new\]/);
+ assert.match(scene,/\[nav setNavigationBarHidden:isIPad animated:NO\]/);
+ assert.doesNotMatch(scene,/@interface OMHNativeIPadController/);
  assert.match(scene,/@interface OMHStartupViewController : UIViewController/);
  assert.match(scene,/omh\.startup\.status/);
  assert.match(scene,/OMHBootStateDidChangeNotification/);
@@ -95,24 +87,23 @@ test('native iPad workspace and iPhone dashboard share a supervised OMH runtime'
  assert.match(scene,/editor\.state == OMHHarnessStateReady/);
  assert.match(scene,/omh\.startup\.toggle-logs/);
  assert.match(scene,/editor\.log\.diagnosticReport/);
- const boot=await read('app/OMHBootCoordinator.m');
- assert.match(boot,/\[OMHHarness\.dashboard start\];\s*\[OMHHarness\.shared start\];/);
-
  assert.match(scene,/\[strongNav setViewControllers:@\[home\] animated:NO\]/);
  assert.match(scene,/initWithRootViewController:isIPad \? startup : home/);
- assert.match(scene,/\[root isKindOfClass:OMHNativeIPadController\.class\]/);
- assert.match(scene,/\[OMHHarness\.dashboard verifyAliveWithCompletion:nil\]/);
- assert.match(scene,/\+\+self\.requestGeneration;/);
- assert.match(scene,/self\.runtimeState = nil;/);
- assert.match(scene,/strongSelf\.runtimeState = state;/);
- assert.match(scene,/\[state\[@"worker"\]\[@"online"\] boolValue\]/);
-
+ const boot=await read('app/OMHBootCoordinator.m');
+ assert.match(boot,/\[OMHHarness\.dashboard start\];\s*\[OMHHarness\.shared start\];/);
+ assert.match(editor,/self\.sidebarWidth\.constant = desktop \? 68 : 0/);
+ assert.match(editor,/config\.title = compactRail \? nil : title/);
+ assert.match(editor,/button\.accessibilityLabel = title/);
+ assert.match(editor,/omh\.webview/);
+ assert.match(editor,/\[self\.webView loadRequest:req\]/);
  const ui=await read('tests/OMHUITests/OMHLaunchUITests.m');
  assert.match(ui,/testIOSPhoneNativeDashboardAndEditor/);
  assert.match(ui,/testHarnessBootsAndShowsWebUI/);
  assert.match(ui,/omh\.startup\.status/);
  assert.match(ui,/omh\.startup\.toggle-logs/);
- assert.match(ui,/waitForExistenceWithTimeout:kBootTimeout/);
+ assert.match(ui,/omh\.webview/);
+ assert.match(ui,/conversation text composer/);
+ assert.match(ui,/The redundant blank iPad navigation\/back button/);
 
  const ci=await read('.github/workflows/build-ipa.yml');
  assert.match(ci,/^  iphone-simulator-smoke:/m);
