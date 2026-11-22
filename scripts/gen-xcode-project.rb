@@ -166,7 +166,7 @@ SH
 meson.always_out_of_date = '1'
 meson.show_env_vars_in_log = '0'
 
-copy_root = dsh.new_shell_script_build_phase('Copy DSH Root')
+copy_root = dsh.new_shell_script_build_phase('Copy OMH Root')
 copy_root.shell_script = <<~SH
   set -e
   if [ ! -f "$DSH_ROOTFS_TARBALL" ]; then
@@ -223,7 +223,7 @@ tests.build_configuration_list.build_configurations.each do |bc|
   bc.build_settings.merge!(common_test_settings, {
     'PRODUCT_BUNDLE_IDENTIFIER' => 'com.xnuapp.dsh.tests',
     'INFOPLIST_FILE' => '$(SRCROOT)/tests/DSHTests/Info.plist',
-    'TEST_HOST' => '$(BUILT_PRODUCTS_DIR)/DSH.app/DSH',
+    'TEST_HOST' => '$(BUILT_PRODUCTS_DIR)/OMH.app/OMH',
     'BUNDLE_LOADER' => '$(TEST_HOST)',
   })
 end
