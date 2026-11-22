@@ -89,6 +89,12 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCTAssertTrue([tasksSection waitForExistenceWithTimeout:10]);
     [tasksSection tap];
     XCTAssertTrue(self.app.staticTexts[@"Tasks"].exists);
+    // A native view appearing isn't enough: confirm it can read the guest
+    // dashboard API before the test switches into the secondary WebKit UI.
+    XCTAssertTrue([self.app.staticTexts[@"● Connected to local runtime"]
+        waitForExistenceWithTimeout:kBootTimeout],
+        @"Native iPad workspace must connect to the guest runtime");
+    [self attachScreenshot:@"00-ipad-native-runtime-connected"];
     XCUIElement *advanced = self.app.buttons[@"omh.native.advanced-web"];
     XCTAssertTrue([advanced waitForExistenceWithTimeout:10]);
     [advanced tap];
