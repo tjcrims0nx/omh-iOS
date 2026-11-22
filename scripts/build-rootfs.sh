@@ -106,7 +106,7 @@ cp "$HARNESS_DIR/opencode.json" payload/root/.config/opencode/opencode.json
 node - "$HARNESS_DIR/opencode.json" <<'NODE'
 const fs = require('fs');
 const config = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-if (config.model !== 'google/gemini-3.8-flash') {
+if (config.model !== 'google/gemini-3.5-flash-lite') {
   throw new Error('OMH iOS requires the Gemini default from the harness');
 }
 for (const agent of ['fast', 'reviewer']) {
@@ -167,8 +167,8 @@ node --version
   omh-runtime task:add '{"kind":"workspace.read","input":{"path":"check.txt"}}' >/dev/null
   omh-runtime task:run | node -e 'const t=JSON.parse(require("node:fs").readFileSync(0)); if(t.status!=="completed" || t.result.trim()!=="ready") process.exit(1)'
 )
-node -e 'const c=require("/root/.config/opencode/opencode.json"); if(c.model !== "google/gemini-3.8-flash") { console.error("Expected Gemini default, got",c.model); process.exit(1) }'
-opencode models | grep -q "google/gemini-3.8-flash"
+node -e 'const c=require("/root/.config/opencode/opencode.json"); if(c.model !== "google/gemini-3.5-flash-lite") { console.error("Expected Gemini default, got",c.model); process.exit(1) }'
+opencode models | grep -q "google/gemini-3.5-flash-lite"
 opencode models | grep -q "experientiallabs/deepseek-v4.1-flash:free"
 opencode models | grep -q "antigravity/gemini-3-flash"
 echo "guest opencode: $(opencode --version), Gemini default + fallback + antigravity models present"
