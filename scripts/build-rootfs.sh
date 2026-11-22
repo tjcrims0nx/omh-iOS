@@ -81,7 +81,7 @@ set -e
 echo "nameserver 8.8.8.8" > /etc/resolv.conf
 echo "nameserver 1.1.1.1" >> /etc/resolv.conf
 apk update >/dev/null
-apk add --no-progress bash git curl openssh-client ca-certificates libstdc++ libgcc nodejs 2>&1 | tail -1
+apk add --no-progress bash git curl openssh-client ca-certificates libstdc++ libgcc nodejs bubblewrap 2>&1 | tail -1
 EOF
 
 log "Guest phase 2: install opencode + overlay"
@@ -121,10 +121,23 @@ NODE
 runtime=payload/usr/local/share/omh-runtime
 mkdir -p "$runtime/scripts"
 cp -R "$HARNESS_DIR/modules" "$HARNESS_DIR/dashboard" "$runtime/"
-cp "$HARNESS_DIR"/scripts/omh-{dashboard,runtime,mcp,daemon}.mjs "$runtime/scripts/"
-cat > "$runtime/ipad-opencode.json" <<'JSON'
-{"mcp":{"omh-runtime":{"type":"local","command":["/usr/bin/node","/usr/local/share/omh-runtime/scripts/omh-mcp.mjs"],"enabled":true,"timeout":10000}}}
-JSON
+cp "$HARNESS_DIR"/scripts/omh-{dashboard,runtime,mcp,daemon,live}.mjs "$runtime/scripts/"
+cp "$HARNESS_DIR/scripts/connect-vercel-mcp.mjs" "$runtime/scripts/"
+# OpenCode reads OPENCODE_CONFIG as the iPad config path. Bundle the full
+# verified harness provider/agent config together with our local MCP entry:
+# a bare MCP-only override would mask the canonical model on some versions.
+node - "$HARNESS_DIR/opencode.json" "$runtime/ipad-opencode.json" <<'NODE'
+const fs=require('node:fs');
+const config=JSON.parse(fs.readFileSync(process.argv[2],'utf8'));
+config.mcp={...config.mcp,'omh-runtime':{
+  type:'local',
+  command:['/usr/bin/node','/usr/local/share/omh-runtime/scripts/omh-mcp.mjs'],
+  enabled:true,timeout:10000
+}};
+if(config.model!=='google/gemini-3.5-flash-lite'||!config.provider?.google)
+  throw Error('iPad guest config lost canonical provider/model settings');
+fs.writeFileSync(process.argv[3],JSON.stringify(config,null,2)+'\n');
+NODE
 # Same for the starter skill (OpenCode's global skills source).
 mkdir -p payload/root/.config/opencode/skills
 cp -R "$HARNESS_DIR/skills/." payload/root/.config/opencode/skills/
@@ -159,6 +172,14 @@ chmod +x /usr/local/bin/opencode /usr/local/bin/opencode-serve /usr/local/bin/op
 mkdir -p /root/workspace
 opencode --version
 node --version
+bwrap --version
+test -f /usr/local/share/omh-runtime/scripts/omh-live.mjs
+test -f /usr/local/share/omh-runtime/scripts/connect-vercel-mcp.mjs
+node -e 'const c=require("/usr/local/share/omh-runtime/ipad-opencode.json"); if(c.model!=="google/gemini-3.5-flash-lite"||c.mcp?.["omh-runtime"]?.enabled!==true||!c.provider?.google)process.exit(1)'
+# Alpine iSH emulates Linux but cannot be assumed to provide namespace mounts.
+# This check only records support; failed isolation must not break app startup.
+omh-runtime doctor > /tmp/omh-sandbox-diagnostic.json
+node -e 'const d=require("/tmp/omh-sandbox-diagnostic.json"); if(d.schema!=="omh.doctor.v1"||d.sandbox.engine!=="bubblewrap"||typeof d.sandbox.verified!=="boolean")process.exit(1); console.log("iPad sandbox verified:",d.sandbox.verified,"reason:",d.sandbox.reason)'
 # Exercise the packaged CLI in a temporary workspace, leaving the shipped workspace clean.
 (
   export OMH_WORKSPACE=/tmp/omh-runtime-smoke
