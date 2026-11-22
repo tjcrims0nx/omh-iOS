@@ -17,6 +17,11 @@ on:
       - 'Makefile'
       - '.github/workflows/build-ipa.yml'
 
+# Only the newest iPadOS port build should occupy the expensive macOS runner.
+concurrency:
+  group: omh-ipados-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
 jobs:
   build:
     runs-on: macos-26
@@ -28,7 +33,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: tjcrims0nx/openmind-harness
-          ref: main
+          # Pin the verified OMH Linux release so both Xcode jobs package
+          # identical models, assets, MCP modules, and sandbox policy.
+          ref: 55f62a9ad23fa897c21fa40948716b5c5504e626
           path: harness
 
       - name: Select Xcode 27
@@ -56,7 +63,7 @@ jobs:
           path: |
             ish-arm64/build-arm64-release
             build/root.tar.gz
-          key: omh-v1-${{ hashFiles('ish-arm64/**', 'rootfs/overlay/**', 'scripts/build-rootfs.sh', 'Makefile', 'harness/opencode.json', 'harness/dashboard/**', 'harness/modules/**', 'harness/scripts/omh-*.mjs', 'harness/plugins/**', 'harness/skills/**', 'harness/scripts/delete-env.sh', 'harness/commands/**') }}
+          key: omh-v1-${{ hashFiles('ish-arm64/**', 'rootfs/overlay/**', 'scripts/build-rootfs.sh', 'Makefile', 'harness/opencode.json', 'harness/dashboard/**', 'harness/modules/**', 'harness/scripts/omh-*.mjs', 'harness/scripts/connect-vercel-mcp.mjs', 'harness/plugins/**', 'harness/skills/**', 'harness/scripts/delete-env.sh', 'harness/commands/**') }}
 
       - name: Build emulator
         if: steps.build-cache.outputs.cache-hit != 'true'
@@ -72,6 +79,19 @@ jobs:
         if: steps.build-cache.outputs.cache-hit != 'true'
         run: |
           make rootfs
+
+      - name: Validate pinned OMH components and guest wrappers
+        run: |
+          node --version
+          bash -n scripts/build-rootfs.sh
+          for wrapper in omh-runtime omh-dashboard omh-live omh-vercel-mcp omh-sandbox-check; do
+            test -s "rootfs/overlay/usr/local/bin/$wrapper" || exit 1
+          done
+          node --check harness/scripts/omh-live.mjs
+          node --check harness/scripts/connect-vercel-mcp.mjs
+          node --check harness/scripts/omh-dashboard.mjs
+          git -C harness rev-parse HEAD
+          node -e "const c=require('./harness/opencode.json');if(c.model!=='google/gemini-3.5-flash-lite')process.exit(1)"
 
       - name: Regenerate Xcode project
         run: make project
@@ -117,7 +137,9 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: tjcrims0nx/openmind-harness
-          ref: main
+          # Pin the verified OMH Linux release so both Xcode jobs package
+          # identical models, assets, MCP modules, and sandbox policy.
+          ref: 55f62a9ad23fa897c21fa40948716b5c5504e626
           path: harness
 
       - name: Select Xcode 27
@@ -141,7 +163,7 @@ jobs:
           path: |
             ish-arm64/build-arm64-release
             build/root.tar.gz
-          key: omh-v1-${{ hashFiles('ish-arm64/**', 'rootfs/overlay/**', 'scripts/build-rootfs.sh', 'Makefile', 'harness/opencode.json', 'harness/dashboard/**', 'harness/modules/**', 'harness/scripts/omh-*.mjs', 'harness/plugins/**', 'harness/skills/**', 'harness/scripts/delete-env.sh', 'harness/commands/**') }}
+          key: omh-v1-${{ hashFiles('ish-arm64/**', 'rootfs/overlay/**', 'scripts/build-rootfs.sh', 'Makefile', 'harness/opencode.json', 'harness/dashboard/**', 'harness/modules/**', 'harness/scripts/omh-*.mjs', 'harness/scripts/connect-vercel-mcp.mjs', 'harness/plugins/**', 'harness/skills/**', 'harness/scripts/delete-env.sh', 'harness/commands/**') }}
 
       - name: Build emulator
         if: steps.build-cache.outputs.cache-hit != 'true'
@@ -157,6 +179,19 @@ jobs:
         run: |
           make rootfs
 
+      - name: Validate pinned OMH components and guest wrappers
+        run: |
+          node --version
+          bash -n scripts/build-rootfs.sh
+          for wrapper in omh-runtime omh-dashboard omh-live omh-vercel-mcp omh-sandbox-check; do
+            test -s "rootfs/overlay/usr/local/bin/$wrapper" || exit 1
+          done
+          node --check harness/scripts/omh-live.mjs
+          node --check harness/scripts/connect-vercel-mcp.mjs
+          node --check harness/scripts/omh-dashboard.mjs
+          git -C harness rev-parse HEAD
+          node -e "const c=require('./harness/opencode.json');if(c.model!=='google/gemini-3.5-flash-lite')process.exit(1)"
+
       - name: Regenerate Xcode project
         run: make project
 
@@ -164,6 +199,9 @@ jobs:
         run: |
           SIM="$(scripts/pick-simulator.sh)"
           echo "Simulator: $SIM"
+          # Boot and settle SpringBoard before XCTest launches the emulator app.
+          xcrun simctl boot "$SIM" || true
+          xcrun simctl bootstatus "$SIM" -b
           xcodebuild -project DSH.xcodeproj -scheme DSH -configuration Release \
             -destination "platform=iOS Simulator,name=$SIM" \
             -parallel-testing-enabled NO -resultBundlePath "$RUNNER_TEMP/ipad.xcresult" \
