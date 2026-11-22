@@ -707,7 +707,10 @@
         // The dashboard adapts its own viewport; the editor is available
         // through the same labeled navigation action on either device.
         BOOL isIPad = UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad;
-        UIViewController *home = isIPad ? [OMHNativeIPadController new] : [OMHDashboardViewController new];
+        // iPad first: land in the actual OpenCode conversation composer,
+        // not the read-only workspace search/dashboard. Operational views
+        // remain available through the editor's More menu and tools rail.
+        UIViewController *home = isIPad ? [OMHRootViewController new] : [OMHDashboardViewController new];
         // Show real native startup progress BEFORE the iPad workspace appears.
         // The Linux guest is started asynchronously; never block scene launch.
         OMHStartupViewController *startup = [OMHStartupViewController new];
@@ -723,6 +726,9 @@
         nav.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
         nav.navigationBar.tintColor = [UIColor colorWithRed:0.17 green:0.87 blue:0.94 alpha:1];
         nav.navigationBar.prefersLargeTitles = NO;
+        // The iPad editor already provides its own labeled native control
+        // bar. Hide the redundant navigation bar/back circle entirely.
+        [nav setNavigationBarHidden:isIPad animated:NO];
         self.window.rootViewController = nav;
     }
     [self.window makeKeyAndVisible];
