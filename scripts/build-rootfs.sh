@@ -135,11 +135,12 @@ chmod +x /usr/local/bin/opencode /usr/local/bin/opencode-serve /usr/local/bin/op
 mkdir -p /root/workspace
 opencode --version
 node --version
-opencode models | grep -q "openai/gpt-5"
+node -e 'const c=require("/root/.config/opencode/opencode.json"); if(c.model !== "google/gemini-3.8-flash") { console.error("Expected Gemini default, got",c.model); process.exit(1) }'
+opencode models | grep -q "google/gemini-3.8-flash"
 opencode models | grep -q "experientiallabs/deepseek-v4.1-flash:free"
 opencode models | grep -q "google/gemini-3.8-flash"
 opencode models | grep -q "antigravity/gemini-3-flash"
-echo "guest opencode: $(opencode --version), default + fallback + gemini + antigravity models present"
+echo "guest opencode: $(opencode --version), Gemini default + fallback + antigravity models present"
 rm -rf /var/cache/apk/* /tmp/*
 EOF
 
