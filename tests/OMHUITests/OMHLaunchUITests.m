@@ -79,6 +79,19 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 
 - (void)testHarnessBootsAndShowsWebUI {
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationLandscapeLeft;
+    // Native UIKit is now the primary iPad home screen; the old web
+    // dashboard remains an optional compatibility/diagnostic destination.
+    XCTAssertTrue([self.app.tables[@"omh.native.ipad.sidebar"] waitForExistenceWithTimeout:15],
+                  @"iPad must launch its native UIKit navigation sidebar");
+    XCTAssertTrue(self.app.tables[@"omh.native.ipad.content"].exists,
+                  @"iPad must render native data panes without browser scaling");
+    XCUIElement *tasksSection = self.app.cells[@"omh.native.ipad.section.2"];
+    XCTAssertTrue([tasksSection waitForExistenceWithTimeout:10]);
+    [tasksSection tap];
+    XCTAssertTrue(self.app.staticTexts[@"Tasks"].exists);
+    XCUIElement *advanced = self.app.buttons[@"omh.native.advanced-web"];
+    XCTAssertTrue([advanced waitForExistenceWithTimeout:10]);
+    [advanced tap];
     // Native UIKit shell must remain visible while the guest WebKit app loads.
     // This is deliberately separate from the embedded dashboard DOM.
     XCUIElement *nativeRefresh = self.app.buttons[@"omh.native.refresh"];
