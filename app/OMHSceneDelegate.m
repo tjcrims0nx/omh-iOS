@@ -252,6 +252,7 @@
 @interface OMHNativeIPadController : UIViewController <UITableViewDataSource, UITableViewDelegate>
 @property (nonatomic) UITableView *sectionsTable;
 @property (nonatomic) UITableView *detailTable;
+@property (nonatomic) NSLayoutConstraint *sidebarWidthConstraint;
 @property (nonatomic) UILabel *heading;
 @property (nonatomic) UILabel *connection;
 @property (nonatomic) NSArray<NSString *> *sections;
@@ -333,13 +334,14 @@
     self.toolbarItems = @[refresh];
     self.navigationController.toolbarHidden = NO;
 
-    // A fixed-width native sidebar on iPad; content expands with Stage Manager
-    // or rotation and does not rely on web CSS viewport or pinch scaling.
+    // Keep the sidebar native while adapting its width to Stage Manager and rotation.
+    // A fixed 246pt sidebar can squeeze the detail pane in narrow iPad windows.
+    self.sidebarWidthConstraint = [self.sectionsTable.widthAnchor constraintEqualToConstant:246];
     [NSLayoutConstraint activateConstraints:@[
         [self.sectionsTable.leadingAnchor constraintEqualToAnchor:layout.leadingAnchor],
         [self.sectionsTable.topAnchor constraintEqualToAnchor:layout.topAnchor],
         [self.sectionsTable.bottomAnchor constraintEqualToAnchor:layout.bottomAnchor],
-        [self.sectionsTable.widthAnchor constraintEqualToConstant:246],
+        self.sidebarWidthConstraint,
         [self.detailTable.leadingAnchor constraintEqualToAnchor:self.sectionsTable.trailingAnchor],
         [self.detailTable.trailingAnchor constraintEqualToAnchor:layout.trailingAnchor],
         [self.detailTable.topAnchor constraintEqualToAnchor:layout.topAnchor],
@@ -356,6 +358,27 @@
 
 - (void)dealloc {
     [NSNotificationCenter.defaultCenter removeObserver:self];
+}
+- (void)viewDidLayoutSubviews {
+    [super viewDidLayoutSubviews];
+    // Adapt the native pane widths to the *window*, not the device screen.
+    // This covers iPad multitasking, Stage Manager and orientation changes.
+    CGFloat width = CGRectGetWidth(self.view.safeAreaLayoutGuide.layoutFrame);
+    if (width > 0) {
+        CGFloat sidebar = MIN(246.0, MAX(140.0, floor(width * 0.32)));
+        if (fabs(self.sidebarWidthConstraint.constant - sidebar) > 0.5)
+            self.sidebarWidthConstraint.constant = sidebar;
+    }
+    // UITableView does not automatically resize a tableHeaderView's frame.
+    // Without this, the 400pt heading can be clipped in narrow content panes.
+    UIView *header = self.detailTable.tableHeaderView;
+    CGFloat contentWidth = CGRectGetWidth(self.detailTable.bounds);
+    if (header && contentWidth > 0 && fabs(CGRectGetWidth(header.frame) - contentWidth) > 0.5) {
+        CGRect frame = header.frame;
+        frame.size.width = contentWidth;
+        header.frame = frame;
+        self.detailTable.tableHeaderView = header;
+    }
 }
 - (void)viewWillAppear:(BOOL)animated {
     [super viewWillAppear:animated];
@@ -469,6 +492,7 @@
     self.selection = indexPath.row;
     self.heading.text = self.sections[self.selection];
     [self.sectionsTable reloadData];
+    [self.sectionsTable selectRowAtIndexPath:indexPath animated:NO scrollPosition:UITableViewScrollPositionNone];
     [self.detailTable reloadData];
 }
 @end
