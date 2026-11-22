@@ -40,7 +40,7 @@ The iOS/iPadOS rootfs now packages the harness at verified commit `55f62a9`, inc
 make emulator   # build the iSH-ARM64 CLI
 make rootfs     # build build/root.tar.gz (Alpine + OpenCode + harness config)
 bash scripts/sync-omh-branding.sh  # (macOS) derive Xcode icons from official OMH artwork
-make project    # (re)generate DSH.xcodeproj
+make project    # (re)generate OMH.xcodeproj
 make app        # unsigned device build (OMH.app)
 ```
 
