@@ -38,8 +38,8 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
         [self waitForExpectations:@[[self expectationForPredicate:enabled evaluatedWithObject:open handler:nil]] timeout:kBootTimeout];
         [open tap];
     }
-    XCUIElement *overlay = self.app.staticTexts[@"dsh.overlay.message"];
-    XCUIElement *dot = self.app.otherElements[@"dsh.statusdot"];
+    XCUIElement *overlay = self.app.staticTexts[@"omh.overlay.message"];
+    XCUIElement *dot = self.app.otherElements[@"omh.statusdot"];
     NSPredicate *gone = [NSPredicate predicateWithFormat:@"exists == NO OR hittable == NO"];
     XCTestExpectation *e = [self expectationForPredicate:gone evaluatedWithObject:overlay handler:nil];
     [self waitForExpectations:@[e] timeout:kBootTimeout];
@@ -151,7 +151,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCTAssertTrue([workspace waitForExistenceWithTimeout:8], @"iPad landscape should show desktop navigation");
     XCUIElement *log = self.app.buttons[@"omh.sidebar.log"];
     [log tap];
-    XCUIElement *logView = self.app.textViews[@"dsh.logview"];
+    XCUIElement *logView = self.app.textViews[@"omh.logview"];
     XCTAssertTrue([logView waitForExistenceWithTimeout:8]);
     NSString *startupLog = logView.value;
     XCTAssertTrue([startupLog containsString:@"server answered"]);
@@ -163,18 +163,18 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     [self.app.buttons[@"Done"] tap];
     XCTAssertFalse(logView.exists);
     [self.app.buttons[@"omh.sidebar.activity"] tap];
-    XCTAssertTrue([self.app.tables[@"dsh.activity"] waitForExistenceWithTimeout:8]);
+    XCTAssertTrue([self.app.tables[@"omh.activity"] waitForExistenceWithTimeout:8]);
     [workspace tap];
     [self.app.buttons[@"omh.sidebar.capabilities"] tap];
-    XCTAssertTrue([self.app.tables[@"dsh.capabilities"] waitForExistenceWithTimeout:8]);
+    XCTAssertTrue([self.app.tables[@"omh.capabilities"] waitForExistenceWithTimeout:8]);
     [workspace tap];
     XCTAssertTrue(web.hittable);
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationPortrait;
-    XCTAssertTrue([self.app.buttons[@"dsh.menu"] waitForExistenceWithTimeout:8]);
+    XCTAssertTrue([self.app.buttons[@"omh.menu"] waitForExistenceWithTimeout:8]);
     [self attachScreenshot:@"05-ipad-portrait"];
 
     // Title shows the port the server listens on.
-    XCUIElement *title = self.app.staticTexts[@"dsh.title"];
+    XCUIElement *title = self.app.staticTexts[@"omh.title"];
     XCTAssertTrue(title.exists);
     XCTAssertTrue([title.label containsString:@":30"], @"title should show the port, got %@", title.label);
     [self.app.navigationBars.buttons.firstMatch tap];
@@ -185,13 +185,13 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 
 - (void)testServerLogIsReachableFromMenu {
     [self waitForHarnessReady];
-    XCUIElement *menu = self.app.buttons[@"dsh.menu"];
+    XCUIElement *menu = self.app.buttons[@"omh.menu"];
     XCTAssertTrue([menu waitForExistenceWithTimeout:10]);
     [menu tap];
     XCUIElement *logItem = self.app.buttons[@"Server Log"];
     XCTAssertTrue([logItem waitForExistenceWithTimeout:5], @"menu should list Server Log");
     [logItem tap];
-    XCUIElement *logView = self.app.textViews[@"dsh.logview"];
+    XCUIElement *logView = self.app.textViews[@"omh.logview"];
     XCTAssertTrue([logView waitForExistenceWithTimeout:10]);
     NSString *text = (NSString *) logView.value;
     XCTAssertTrue([text containsString:@"server answered"], @"log should record readiness, got: %@", text);
@@ -210,27 +210,27 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 /// OMHHealthCapabilityTests.testCapabilityCanAskForItsSystemPermission.
 - (void)testCapabilitiesScreenTogglesACapability {
     [self waitForHarnessReady];
-    XCUIElement *menu = self.app.buttons[@"dsh.menu"];
+    XCUIElement *menu = self.app.buttons[@"omh.menu"];
     XCTAssertTrue([menu waitForExistenceWithTimeout:10]);
     [menu tap];
     XCUIElement *item = self.app.buttons[@"Capabilities"];
     XCTAssertTrue([item waitForExistenceWithTimeout:5], @"menu should list Capabilities");
     [item tap];
 
-    XCUIElement *table = self.app.tables[@"dsh.capabilities"];
+    XCUIElement *table = self.app.tables[@"omh.capabilities"];
     XCTAssertTrue([table waitForExistenceWithTimeout:10]);
     // The sensitive capabilities must at least be listed, or there is no way
     // for a user to reach them — reads in one section, writes in the other.
-    XCTAssertTrue([self.app.switches[@"dsh.capability.switch.health.read"] waitForExistenceWithTimeout:10],
+    XCTAssertTrue([self.app.switches[@"omh.capability.switch.health.read"] waitForExistenceWithTimeout:10],
                   @"Apple Health should be listed");
-    XCTAssertTrue(self.app.switches[@"dsh.capability.switch.calendar.read"].exists,
+    XCTAssertTrue(self.app.switches[@"omh.capability.switch.calendar.read"].exists,
                   @"Calendar should be listed");
     XCTAssertTrue(self.app.staticTexts[@"What the agent can read"].exists,
                   @"reads and writes should be separated");
     XCTAssertTrue(self.app.staticTexts[@"What the agent can change"].exists);
     [self attachScreenshot:@"05-capabilities"];
 
-    XCUIElement *device = self.app.switches[@"dsh.capability.switch.device.info"];
+    XCUIElement *device = self.app.switches[@"omh.capability.switch.device.info"];
     XCTAssertTrue([device waitForExistenceWithTimeout:10]);
     NSPredicate *isOn = [NSPredicate predicateWithFormat:@"value == '1'"];
     NSPredicate *isOff = [NSPredicate predicateWithFormat:@"value == '0'"];
@@ -270,14 +270,14 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 /// monospaced rows and multi-line details have the least room.
 - (void)testActivityScreenIsReachableAndReadable {
     [self waitForHarnessReady];
-    XCUIElement *menu = self.app.buttons[@"dsh.menu"];
+    XCUIElement *menu = self.app.buttons[@"omh.menu"];
     XCTAssertTrue([menu waitForExistenceWithTimeout:10]);
     [menu tap];
     XCUIElement *item = self.app.buttons[@"Activity"];
     XCTAssertTrue([item waitForExistenceWithTimeout:5], @"menu should list Activity");
     [item tap];
 
-    XCUIElement *table = self.app.tables[@"dsh.activity"];
+    XCUIElement *table = self.app.tables[@"omh.activity"];
     XCTAssertTrue([table waitForExistenceWithTimeout:10]);
     [self attachScreenshot:@"06-activity"];
 
@@ -303,7 +303,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCTAssertTrue([web waitForExistenceWithTimeout:10]);
     CGRect frame = web.frame;
     XCTAssertGreaterThan(frame.size.width, frame.size.height, @"web view should be wider than tall in landscape (%@)", NSStringFromCGRect(frame));
-    XCTAssertTrue(self.app.buttons[@"dsh.menu"].isHittable, @"control bar stays reachable in landscape");
+    XCTAssertTrue(self.app.buttons[@"omh.menu"].isHittable, @"control bar stays reachable in landscape");
     [self attachScreenshot:@"06-landscape"];
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationPortrait;
     sleep(1);
@@ -312,7 +312,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 
 - (void)testTerminalOpensAndDismisses {
     [self waitForHarnessReady];
-    XCUIElement *terminal = self.app.buttons[@"dsh.terminal"];
+    XCUIElement *terminal = self.app.buttons[@"omh.terminal"];
     XCTAssertTrue([terminal waitForExistenceWithTimeout:10]);
     [terminal tap];
     // The iSH terminal is an hterm web view inside a sheet.

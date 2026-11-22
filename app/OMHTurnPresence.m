@@ -81,7 +81,7 @@ static const NSTimeInterval kWorkingWindow = 20;
     if (_backgroundTask != UIBackgroundTaskInvalid) return;
     __weak typeof(self) weakSelf = self;
     _backgroundTask = [UIApplication.sharedApplication
-        beginBackgroundTaskWithName:@"dsh.turn-in-flight"
+        beginBackgroundTaskWithName:@"omh.turn-in-flight"
                   expirationHandler:^{ [weakSelf endBackgroundTask]; }];
 }
 

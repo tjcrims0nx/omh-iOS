@@ -16,7 +16,7 @@
 static NSString *const kInstalledRootHashKey = @"OMHInstalledRootHash";
 static NSString *const kPendingMigrationRootKey = @"OMHPendingMigrationRoot";
 static NSString *const kRepairRootOnNextLaunchKey = @"OMHRepairRootOnNextLaunch";
-static NSString *const kPrevMountPoint = @"/mnt/dsh-previous-root";
+static NSString *const kPrevMountPoint = @"/mnt/omh-previous-root";
 
 /// Bridges Roots' import progress to a block.
 @interface OMHImportProgress : NSObject <ProgressReporter>

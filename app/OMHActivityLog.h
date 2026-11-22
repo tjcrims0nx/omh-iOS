@@ -28,7 +28,7 @@ NS_ASSUME_NONNULL_BEGIN
 
 typedef NS_ENUM(NSInteger, OMHActivitySource) {
     OMHActivitySourceCapability = 0,  // a bridge route, from the app's side
-    OMHActivitySourceGuestTool,       // a dsh tool inside the guest
+    OMHActivitySourceGuestTool,       // a guest tool
     OMHActivitySourceConfirmation,    // the user was asked, and answered
 };
 

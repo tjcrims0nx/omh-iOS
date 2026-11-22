@@ -109,7 +109,7 @@ static const NSTimeInterval kSocketTimeout = 15;
     if (self = [super init]) {
         _listenFD = -1;
         _routes = [NSMutableDictionary dictionary];
-        _queue = dispatch_queue_create("app.dsh.hostbridge", DISPATCH_QUEUE_CONCURRENT);
+        _queue = dispatch_queue_create("app.omh.hostbridge", DISPATCH_QUEUE_CONCURRENT);
         _token = [self freshToken];
         [self registerBuiltInRoutes];
     }

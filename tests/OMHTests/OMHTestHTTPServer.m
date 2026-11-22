@@ -22,7 +22,7 @@
 - (instancetype)initWithPort:(uint16_t)port {
     if (self = [super init]) {
         _statusCode = 200;
-        _queue = dispatch_queue_create("dsh.test.http", DISPATCH_QUEUE_CONCURRENT);
+        _queue = dispatch_queue_create("omh.test.http", DISPATCH_QUEUE_CONCURRENT);
         int fd = socket(AF_INET, SOCK_STREAM, 0);
         if (fd < 0)
             return nil;

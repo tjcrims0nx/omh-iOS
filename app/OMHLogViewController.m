@@ -30,7 +30,7 @@
     tv.backgroundColor = UIColor.systemBackgroundColor;
     tv.textContainerInset = UIEdgeInsetsMake(12, 12, 12, 12);
     tv.alwaysBounceVertical = YES;
-    tv.accessibilityIdentifier = @"dsh.logview";
+    tv.accessibilityIdentifier = @"omh.logview";
     tv.translatesAutoresizingMaskIntoConstraints = NO;
     [self.view addSubview:tv];
     self.textView = tv;

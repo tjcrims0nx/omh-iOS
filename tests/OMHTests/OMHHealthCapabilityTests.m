@@ -87,7 +87,7 @@ static NSString *const kHealthRead = @"health.read";
 /// tester's own privacy choices.
 - (void)testReportHealthAuthorizationState {
     BOOL available = HKHealthStore.isHealthDataAvailable;
-    NSLog(@"[dsh-test] HealthKit available on this device: %@", available ? @"YES" : @"NO");
+    NSLog(@"[omh-test] HealthKit available on this device: %@", available ? @"YES" : @"NO");
     if (!available)
         return;
 
@@ -106,7 +106,7 @@ static NSString *const kHealthRead = @"health.read";
     NSString *name = status == HKAuthorizationRequestStatusShouldRequest ? @"shouldRequest (iOS has never asked)"
                    : status == HKAuthorizationRequestStatusUnnecessary ? @"unnecessary (already asked)"
                    : @"unknown";
-    NSLog(@"[dsh-test] HealthKit request status: %@%@", name, failure ? [@" error: " stringByAppendingString:failure.description] : @"");
+    NSLog(@"[omh-test] HealthKit request status: %@%@", name, failure ? [@" error: " stringByAppendingString:failure.description] : @"");
     if (status != HKAuthorizationRequestStatusUnnecessary)
         return;  // nothing has been granted yet, so the queries would only report the note
 
@@ -124,7 +124,7 @@ static NSString *const kHealthRead = @"health.read";
         NSInteger routeStatus = 0;
         NSDictionary *json = [self get:path status:&routeStatus];
         NSString *key = shape[path];
-        NSLog(@"[dsh-test] %@ → %ld, %lu %@%@", path, (long) routeStatus,
+        NSLog(@"[omh-test] %@ → %ld, %lu %@%@", path, (long) routeStatus,
               (unsigned long) [json[key] count], key,
               json[@"note"] ? @", note present (no data, or the category was declined)" : @"");
     }

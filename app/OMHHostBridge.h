@@ -5,11 +5,11 @@
 //  A loopback HTTP listener inside the app that the Linux guest calls to reach
 //  iOS capabilities (see docs/host-bridge.md). The guest's sockets are
 //  pass-through host sockets, so `fetch('http://127.0.0.1:<port>/v1/…')` from a
-//  dsh tool lands here.
+//  guest tool lands here.
 //
 //  The bearer token keeps *other apps on the device* out; it cannot keep the
 //  agent out (it runs as root in the guest and inherits the environment we
-//  hand to dsh-serve), so every capability is additionally gated by
+//  hand to opencode-serve), so every capability is additionally gated by
 //  OMHCapabilityRegistry — that gate lives here, in the app.
 //
 
@@ -64,7 +64,7 @@ typedef OMHHostBridgeResponse *_Nonnull (^OMHHostBridgeHandler)(OMHHostBridgeReq
 @property (nonatomic, readonly, copy) NSString *token;
 /// e.g. http://127.0.0.1:49213 — nil until started.
 @property (nonatomic, readonly, nullable) NSString *baseURLString;
-/// Environment for dsh-serve: OMH_HOST_BRIDGE_URL / _TOKEN (empty when stopped).
+/// Environment for opencode-serve: OMH_HOST_BRIDGE_URL / _TOKEN (empty when stopped).
 @property (nonatomic, readonly, copy) NSDictionary<NSString *, NSString *> *guestEnvironment;
 
 /// Registers a route. `capability` may be nil for infrastructure routes

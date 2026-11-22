@@ -93,7 +93,7 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     self.webView.backgroundColor = UIColor.clearColor;
     self.webView.scrollView.backgroundColor = UIColor.clearColor;
     self.webView.translatesAutoresizingMaskIntoConstraints = NO;
-    self.webView.accessibilityIdentifier = @"dsh.webview";
+    self.webView.accessibilityIdentifier = @"omh.webview";
 #if DEBUG
     if (@available(iOS 16.4, *))
         self.webView.inspectable = YES;
@@ -108,7 +108,7 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     bar.backgroundColor = [UIColor colorWithRed:0.025 green:0.055 blue:0.11 alpha:1.0];
     bar.layer.borderColor = [UIColor colorWithRed:0.0 green:0.75 blue:0.95 alpha:0.45].CGColor;
     bar.layer.borderWidth = 0.5;
-    bar.accessibilityIdentifier = @"dsh.controlbar";
+    bar.accessibilityIdentifier = @"omh.controlbar";
     self.controlBar = bar;
     [self.view addSubview:bar];
 
@@ -116,7 +116,7 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     dot.translatesAutoresizingMaskIntoConstraints = NO;
     dot.layer.cornerRadius = 4;
     dot.backgroundColor = UIColor.systemOrangeColor;
-    dot.accessibilityIdentifier = @"dsh.statusdot";
+    dot.accessibilityIdentifier = @"omh.statusdot";
     dot.isAccessibilityElement = YES;
     dot.accessibilityLabel = @"Harness status";
     self.statusDot = dot;
@@ -126,24 +126,24 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     title.text = @"OpenMind Harness";
     title.font = [UIFont monospacedSystemFontOfSize:12 weight:UIFontWeightSemibold];
     title.textColor = [UIColor colorWithRed:0.0 green:0.89 blue:1.0 alpha:1.0];
-    title.accessibilityIdentifier = @"dsh.title";
+    title.accessibilityIdentifier = @"omh.title";
     self.titleLabel = title;
 
     // Mirrors iOS's own privacy indicator: something on the device was just
     // used, here is where to look. Hidden until it has something to say.
     UIButton *activity = [self barButtonWithSymbol:@"antenna.radiowaves.left.and.right"
                                             action:@selector(presentActivity)
-                                        identifier:@"dsh.activityindicator"];
+                                        identifier:@"omh.activityindicator"];
     activity.accessibilityLabel = @"Recent capability use";
     activity.tintColor = UIColor.systemOrangeColor;
     activity.hidden = YES;
     self.activityIndicatorButton = activity;
 
-    UIButton *terminal = [self barButtonWithSymbol:@"terminal" action:@selector(presentTerminal) identifier:@"dsh.terminal"];
+    UIButton *terminal = [self barButtonWithSymbol:@"terminal" action:@selector(presentTerminal) identifier:@"omh.terminal"];
     terminal.accessibilityLabel = @"Terminal";
     self.terminalButton = terminal;
 
-    UIButton *menu = [self barButtonWithSymbol:@"ellipsis.circle" action:nil identifier:@"dsh.menu"];
+    UIButton *menu = [self barButtonWithSymbol:@"ellipsis.circle" action:nil identifier:@"omh.menu"];
     menu.accessibilityLabel = @"More";
     menu.showsMenuAsPrimaryAction = YES;
     menu.menu = [self buildMenu];
@@ -340,19 +340,19 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
 
 - (UIMenu *)buildMenu {
     __weak typeof(self) weakSelf = self;
-    UIAction *reload = [UIAction actionWithTitle:@"Reload" image:[UIImage systemImageNamed:@"arrow.clockwise"] identifier:@"dsh.reload" handler:^(UIAction *a) { [weakSelf reloadWebView]; }];
-    UIAction *terminal = [UIAction actionWithTitle:@"Terminal" image:[UIImage systemImageNamed:@"terminal"] identifier:@"dsh.terminal.menu" handler:^(UIAction *a) { [weakSelf presentTerminal]; }];
-    UIAction *capabilities = [UIAction actionWithTitle:@"Capabilities" image:[UIImage systemImageNamed:@"switch.2"] identifier:@"dsh.capabilities" handler:^(UIAction *a) { [weakSelf presentCapabilities]; }];
-    UIAction *activity = [UIAction actionWithTitle:@"Activity" image:[UIImage systemImageNamed:@"list.bullet.rectangle"] identifier:@"dsh.activity" handler:^(UIAction *a) { [weakSelf presentActivity]; }];
-    UIAction *log = [UIAction actionWithTitle:@"Server Log" image:[UIImage systemImageNamed:@"doc.text.magnifyingglass"] identifier:@"dsh.log" handler:^(UIAction *a) { [weakSelf presentLog]; }];
-    UIAction *restart = [UIAction actionWithTitle:@"Restart Harness" image:[UIImage systemImageNamed:@"arrow.triangle.2.circlepath"] identifier:@"dsh.restart" handler:^(UIAction *a) { [weakSelf confirmRestart]; }];
+    UIAction *reload = [UIAction actionWithTitle:@"Reload" image:[UIImage systemImageNamed:@"arrow.clockwise"] identifier:@"omh.reload" handler:^(UIAction *a) { [weakSelf reloadWebView]; }];
+    UIAction *terminal = [UIAction actionWithTitle:@"Terminal" image:[UIImage systemImageNamed:@"terminal"] identifier:@"omh.terminal.menu" handler:^(UIAction *a) { [weakSelf presentTerminal]; }];
+    UIAction *capabilities = [UIAction actionWithTitle:@"Capabilities" image:[UIImage systemImageNamed:@"switch.2"] identifier:@"omh.capabilities" handler:^(UIAction *a) { [weakSelf presentCapabilities]; }];
+    UIAction *activity = [UIAction actionWithTitle:@"Activity" image:[UIImage systemImageNamed:@"list.bullet.rectangle"] identifier:@"omh.activity" handler:^(UIAction *a) { [weakSelf presentActivity]; }];
+    UIAction *log = [UIAction actionWithTitle:@"Server Log" image:[UIImage systemImageNamed:@"doc.text.magnifyingglass"] identifier:@"omh.log" handler:^(UIAction *a) { [weakSelf presentLog]; }];
+    UIAction *restart = [UIAction actionWithTitle:@"Restart Harness" image:[UIImage systemImageNamed:@"arrow.triangle.2.circlepath"] identifier:@"omh.restart" handler:^(UIAction *a) { [weakSelf confirmRestart]; }];
     restart.attributes = UIMenuElementAttributesDestructive;
-    UIAction *repair = [UIAction actionWithTitle:@"Repair Linux Environment" image:[UIImage systemImageNamed:@"wrench.and.screwdriver"] identifier:@"dsh.repair" handler:^(UIAction *a) { [weakSelf confirmRepair]; }];
-    UIAction *safari = [UIAction actionWithTitle:@"Open in Safari" image:[UIImage systemImageNamed:@"safari"] identifier:@"dsh.safari" handler:^(UIAction *a) {
+    UIAction *repair = [UIAction actionWithTitle:@"Repair Linux Environment" image:[UIImage systemImageNamed:@"wrench.and.screwdriver"] identifier:@"omh.repair" handler:^(UIAction *a) { [weakSelf confirmRepair]; }];
+    UIAction *safari = [UIAction actionWithTitle:@"Open in Safari" image:[UIImage systemImageNamed:@"safari"] identifier:@"omh.safari" handler:^(UIAction *a) {
         NSURL *url = OMHHarness.shared.baseURL;
         if (url) [UIApplication.sharedApplication openURL:url options:@{} completionHandler:nil];
     }];
-    UIAction *about = [UIAction actionWithTitle:@"About OpenMind Harness" image:[UIImage systemImageNamed:@"info.circle"] identifier:@"dsh.about" handler:^(UIAction *a) { [weakSelf presentAbout]; }];
+    UIAction *about = [UIAction actionWithTitle:@"About OpenMind Harness" image:[UIImage systemImageNamed:@"info.circle"] identifier:@"omh.about" handler:^(UIAction *a) { [weakSelf presentAbout]; }];
     NSMutableArray<UIMenuElement *> *children = [NSMutableArray arrayWithObjects:reload, terminal, nil];
     [children addObjectsFromArray:@[capabilities, activity, log, [UIMenu menuWithTitle:@"" image:nil identifier:nil options:UIMenuOptionsDisplayInline children:@[safari, restart, repair]], about]];
     return [UIMenu menuWithChildren:children];

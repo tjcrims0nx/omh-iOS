@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Integration test for build/root.tar.gz: import it exactly like the app does
-# (fakefsify), then boot dsh inside the iSH-ARM64 CLI emulator and probe it
+# (fakefsify), then boot the guest inside the iSH-ARM64 CLI emulator and probe it
 # from the macOS host over loopback.
 #
 # Usage: tests/rootfs-test.sh [path/to/root.tar.gz]
@@ -66,10 +66,10 @@ rm -rf "$WORK" && mkdir -p "$WORK"
 check "root.tar.gz imports via fakefsify" test -f "$WORK/fakefs/meta.db"
 
 echo "== guest sanity"
-guest 'node -v; openmind-harness --version; opencode-selftest' > "$WORK/sanity.txt"
+guest 'node -v; opencode --version; opencode-selftest' > "$WORK/sanity.txt"
 sed 's/^/     /' "$WORK/sanity.txt"
 check "node >= 22.19 in guest" grep -Eq '^v(22\.(19|[2-9][0-9])|2[3-9]|[3-9][0-9])' "$WORK/sanity.txt"
-check "dsh 0.1.x in guest"      grep -Eq '^0\.1\.' "$WORK/sanity.txt"
+check "opencode 1.19.x in guest" grep -q '1\.19\.' "$WORK/sanity.txt"
 check "opencode-selftest passes"     grep -q 'selftest OK' "$WORK/sanity.txt"
 check "sharp keeps musl arm64 runtime" test -d "$WORK/fakefs/data/usr/local/lib/node_modules/@img/sharp-linuxmusl-arm64"
 check "sharp drops unusable glibc runtime" test ! -e "$WORK/fakefs/data/usr/local/lib/node_modules/@img/sharp-linux-arm64"

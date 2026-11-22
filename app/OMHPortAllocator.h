@@ -2,7 +2,7 @@
 //  OMHPortAllocator.h
 //  OMH
 //
-//  Picks the loopback TCP port the guest's dsh web server should listen on.
+//  Picks the loopback TCP port the guest's opencode web server should listen on.
 //  The guest's sockets are pass-through host sockets, so a port that is free
 //  on the host loopback interface is free for the guest as well.
 //

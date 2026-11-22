@@ -136,7 +136,7 @@
     [self waitForExpectations:@[done] timeout:180];
 }
 
-/// dsh must have been handed the bridge coordinates, otherwise the plugin
+/// omh must have been handed the bridge coordinates, otherwise the plugin
 /// registers no tools.
 - (void)testHarnessEnvironmentCarriesBridgeCoordinates {
     [self waitForReady];
@@ -232,16 +232,16 @@
                   @"the model got neither health data nor an actionable refusal:\n%@", out);
 }
 
-- (void)testGuestNodeAndDshVersions {
+- (void)testGuestNodeAndOpencodeVersions {
     [self waitForReady];
     XCTestExpectation *done = [self expectationWithDescription:@"versions"];
     NSMutableString *out = [NSMutableString string];
-    [ISHShellExecutor executeCommand:@"node -v; openmind-harness --version" lineCallback:^(NSString *line, BOOL isStdErr) {
+    [ISHShellExecutor executeCommand:@"node -v; opencode --version" lineCallback:^(NSString *line, BOOL isStdErr) {
         if (![line containsString:@"expose_wasm"]) [out appendFormat:@"%@\n", line];
     } completion:^(ISHShellExecutionResult *result) {
         XCTAssertEqual(result.exitCode, 0);
         XCTAssertTrue([out containsString:@"v22."], @"node 22 expected: %@", out);
-        XCTAssertTrue([out containsString:@"0.1."], @"dsh 0.1.x expected: %@", out);
+        XCTAssertTrue([out containsString:@"1.19."], @"opencode 1.19.x expected: %@", out);
         [done fulfill];
     }];
     [self waitForExpectations:@[done] timeout:120];

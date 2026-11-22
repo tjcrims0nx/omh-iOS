@@ -175,7 +175,7 @@
     launcher.onLaunch = ^(NSDictionary *env, void (^line)(NSString *, BOOL), void (^exit)(int)) {
         uint16_t port = (uint16_t) [env[@"OMH_PORT"] intValue];
         server = [[OMHTestHTTPServer alloc] initWithPort:port];
-        line([NSString stringWithFormat:@"dsh web: http://127.0.0.1:%u", port], NO);
+        line([NSString stringWithFormat:@"omh web: http://127.0.0.1:%u", port], NO);
         line(@"Warning: disabling flag --expose_wasm due to conflicting flags", YES);
     };
     OMHHarness *h = [[OMHHarness alloc] initWithLauncher:launcher];
@@ -200,7 +200,7 @@
     [self waitForExpectations:@[ready] timeout:10];
 
     XCTAssertEqualObjects(h.baseURL.absoluteString, ([NSString stringWithFormat:@"http://127.0.0.1:%u/", h.port]));
-    XCTAssertTrue([[h.log tail:50] containsString:@"dsh web: http://127.0.0.1:"]);
+    XCTAssertTrue([[h.log tail:50] containsString:@"omh web: http://127.0.0.1:"]);
     XCTAssertFalse([[h.log tail:50] containsString:@"expose_wasm"], @"noise is filtered");
     XCTAssertTrue([[h.log tail:50] containsString:@"server answered"]);
     XCTAssertGreaterThan(h.guestPid, 0);

@@ -27,7 +27,7 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.tableView.accessibilityIdentifier = @"dsh.capabilities";
+    self.tableView.accessibilityIdentifier = @"omh.capabilities";
     self.navigationItem.rightBarButtonItem =
         [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone target:self action:@selector(done)];
     [NSNotificationCenter.defaultCenter addObserver:self selector:@selector(reload)
@@ -102,7 +102,7 @@
             cell.textLabel.text = @"Activity";
             cell.detailTextLabel.text = @"Everything the agent has done — the tools it ran and the capabilities it used.";
             cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-            cell.accessibilityIdentifier = @"dsh.capability.activity";
+            cell.accessibilityIdentifier = @"omh.capability.activity";
             return cell;
         }
         OMHHostBridge *bridge = OMHHostBridge.shared;
@@ -111,7 +111,7 @@
             ? [NSString stringWithFormat:@"%@ · %lu requests served", bridge.baseURLString, (unsigned long) bridge.requestCount]
             : @"The guest cannot reach any device capability.";
         cell.selectionStyle = UITableViewCellSelectionStyleNone;
-        cell.accessibilityIdentifier = @"dsh.capability.bridge";
+        cell.accessibilityIdentifier = @"omh.capability.bridge";
         return cell;
     }
 
@@ -120,14 +120,14 @@
         cell.textLabel.text = @"Still starting…";
         cell.detailTextLabel.text = @"Capabilities appear once the guest has booted.";
         cell.selectionStyle = UITableViewCellSelectionStyleNone;
-        cell.accessibilityIdentifier = @"dsh.capability.empty";
+        cell.accessibilityIdentifier = @"omh.capability.empty";
         return cell;
     }
 
     OMHCapabilityState state = [OMHCapabilityRegistry.shared stateForIdentifier:capability.identifier];
     cell.textLabel.text = capability.title;
     cell.selectionStyle = UITableViewCellSelectionStyleNone;
-    cell.accessibilityIdentifier = [NSString stringWithFormat:@"dsh.capability.%@", capability.identifier];
+    cell.accessibilityIdentifier = [NSString stringWithFormat:@"omh.capability.%@", capability.identifier];
 
     NSMutableString *detail = [capability.details mutableCopy];
     if (!capability.available)
@@ -152,7 +152,7 @@
     toggle.enabled = capability.available;
     // Encodes both coordinates: the switch's action has no index path of its own.
     toggle.tag = indexPath.section * 1000 + indexPath.row;
-    toggle.accessibilityIdentifier = [NSString stringWithFormat:@"dsh.capability.switch.%@", capability.identifier];
+    toggle.accessibilityIdentifier = [NSString stringWithFormat:@"omh.capability.switch.%@", capability.identifier];
     [toggle addTarget:self action:@selector(toggled:) forControlEvents:UIControlEventValueChanged];
     cell.accessoryView = toggle;
     return cell;

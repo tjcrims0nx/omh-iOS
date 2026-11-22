@@ -25,7 +25,7 @@
         _reply = @"MOCK-REPLY: hello from the in-app mock model";
         _toolArguments = @"{}";
         _offeredToolsPerRequest = @[];
-        _queue = dispatch_queue_create("dsh.test.mockllm", DISPATCH_QUEUE_CONCURRENT);
+        _queue = dispatch_queue_create("omh.test.mockllm", DISPATCH_QUEUE_CONCURRENT);
         int fd = socket(AF_INET, SOCK_STREAM, 0);
         if (fd < 0)
             return nil;

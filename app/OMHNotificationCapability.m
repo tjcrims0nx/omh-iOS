@@ -113,7 +113,7 @@ static NSLock *sLock = nil;
             content.body = body.length > 500 ? [body substringToIndex:500] : body;
         content.sound = UNNotificationSound.defaultSound;
 
-        NSString *identifier = [@"dsh." stringByAppendingString:NSUUID.UUID.UUIDString];
+        NSString *identifier = [@"omh." stringByAppendingString:NSUUID.UUID.UUIDString];
         UNNotificationRequest *notification =
             [UNNotificationRequest requestWithIdentifier:identifier content:content trigger:nil];
         __block NSError *failure = nil;

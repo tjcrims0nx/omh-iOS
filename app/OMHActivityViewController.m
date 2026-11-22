@@ -46,7 +46,7 @@ typedef NS_ENUM(NSInteger, OMHActivityFilter) {
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.tableView.accessibilityIdentifier = @"dsh.activity";
+    self.tableView.accessibilityIdentifier = @"omh.activity";
     self.tableView.rowHeight = UITableViewAutomaticDimension;
     self.tableView.estimatedRowHeight = 64;
 
@@ -150,7 +150,7 @@ typedef NS_ENUM(NSInteger, OMHActivityFilter) {
         cell.detailTextLabel.text = self.filter == OMHActivityFilterAll
             ? @"Every tool the agent runs, and every capability it uses, appears here."
             : nil;
-        cell.accessibilityIdentifier = @"dsh.activity.empty";
+        cell.accessibilityIdentifier = @"omh.activity.empty";
         return cell;
     }
 
@@ -173,7 +173,7 @@ typedef NS_ENUM(NSInteger, OMHActivityFilter) {
     if (entry.detail) [lines addObject:entry.detail];
     if (entry.result) [lines addObject:[@"→ " stringByAppendingString:entry.result]];
     cell.detailTextLabel.text = [lines componentsJoinedByString:@"\n"];
-    cell.accessibilityIdentifier = [NSString stringWithFormat:@"dsh.activity.%@", entry.name];
+    cell.accessibilityIdentifier = [NSString stringWithFormat:@"omh.activity.%@", entry.name];
     return cell;
 }
 

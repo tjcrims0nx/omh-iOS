@@ -115,7 +115,7 @@ static OMHActivityOutcome OutcomeFromName(NSString *name) {
 - (instancetype)init {
     if (self = [super init]) {
         _storage = [NSMutableArray array];
-        _queue = dispatch_queue_create("app.dsh.activitylog", DISPATCH_QUEUE_SERIAL);
+        _queue = dispatch_queue_create("app.omh.activitylog", DISPATCH_QUEUE_SERIAL);
         [self load];
     }
     return self;
@@ -269,7 +269,7 @@ static OMHActivityOutcome OutcomeFromName(NSString *name) {
                                                             inDomains:NSUserDomainMask].firstObject;
     [NSFileManager.defaultManager createDirectoryAtURL:directory withIntermediateDirectories:YES
                                             attributes:nil error:nil];
-    return [directory URLByAppendingPathComponent:@"dsh-activity.json"];
+    return [directory URLByAppendingPathComponent:@"omh-activity.json"];
 }
 
 - (void)load {

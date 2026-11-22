@@ -52,7 +52,7 @@ NSNotificationName const OMHBootStateDidChangeNotification = @"OMHBootStateDidCh
     if (self = [super init]) {
         // Serial and high priority: the whole guest lives on this thread until
         // init is started, and the user is staring at a spinner meanwhile.
-        _queue = dispatch_queue_create("app.dsh.boot", dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, 0));
+        _queue = dispatch_queue_create("app.omh.boot", dispatch_queue_attr_make_with_qos_class(DISPATCH_QUEUE_SERIAL, QOS_CLASS_USER_INITIATED, 0));
         _statusMessage = @"Preparing the Linux environment…";
         _progress = -1;
     }
@@ -128,7 +128,7 @@ NSNotificationName const OMHBootStateDidChangeNotification = @"OMHBootStateDidCh
 
 - (void)finishReady {
     [self setPhase:OMHBootPhaseReady message:@"Starting OpenMind Harness…" progress:-1];
-    // The host bridge must be listening before dsh-serve starts: its URL and
+    // The host bridge must be listening before opencode-serve starts: its URL and
     // token reach the guest through the server's environment.
     OMHHostBridge *bridge = OMHHostBridge.shared;
     [OMHDeviceCapability installOn:bridge];

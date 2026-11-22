@@ -29,7 +29,7 @@
 - (instancetype)initWithFrame:(CGRect)frame {
     if (self = [super initWithFrame:frame]) {
         self.backgroundColor = [UIColor colorNamed:@"OMHBackground"] ?: UIColor.systemBackgroundColor;
-        self.accessibilityIdentifier = @"dsh.overlay";
+        self.accessibilityIdentifier = @"omh.overlay";
 
         UILabel *title = [UILabel new];
         title.text = @"OpenMind Harness";
@@ -54,7 +54,7 @@
         message.textColor = UIColor.labelColor;
         message.textAlignment = NSTextAlignmentCenter;
         message.numberOfLines = 0;
-        message.accessibilityIdentifier = @"dsh.overlay.message";
+        message.accessibilityIdentifier = @"omh.overlay.message";
         [message.heightAnchor constraintGreaterThanOrEqualToConstant:40].active = YES;
         self.messageLabel = message;
 
@@ -63,14 +63,14 @@
         progress.progressTintColor = [UIColor colorNamed:@"OMHAccent"] ?: UIColor.systemBlueColor;
         progress.layer.cornerRadius = 2;
         progress.clipsToBounds = YES;
-        progress.accessibilityIdentifier = @"dsh.overlay.progress";
+        progress.accessibilityIdentifier = @"omh.overlay.progress";
         self.progress = progress;
 
         UILabel *elapsed = [UILabel new];
         elapsed.font = [UIFont monospacedDigitSystemFontOfSize:12 weight:UIFontWeightRegular];
         elapsed.textColor = UIColor.tertiaryLabelColor;
         elapsed.textAlignment = NSTextAlignmentCenter;
-        elapsed.accessibilityIdentifier = @"dsh.overlay.elapsed";
+        elapsed.accessibilityIdentifier = @"omh.overlay.elapsed";
         [elapsed.heightAnchor constraintEqualToConstant:16].active = YES;
         self.elapsedLabel = elapsed;
 
@@ -82,11 +82,11 @@
         log.backgroundColor = [UIColor.secondarySystemBackgroundColor colorWithAlphaComponent:0.6];
         log.layer.cornerRadius = 8;
         log.textContainerInset = UIEdgeInsetsMake(8, 8, 8, 8);
-        log.accessibilityIdentifier = @"dsh.overlay.log";
+        log.accessibilityIdentifier = @"omh.overlay.log";
         self.logView = log;
 
         self.retryButton = [self buttonWithTitle:@"Retry" symbol:@"arrow.clockwise" action:@selector(retryTapped) prominent:YES];
-        self.retryButton.accessibilityIdentifier = @"dsh.overlay.retry";
+        self.retryButton.accessibilityIdentifier = @"omh.overlay.retry";
         self.terminalButton = [self buttonWithTitle:@"Terminal" symbol:@"terminal" action:@selector(terminalTapped) prominent:NO];
         self.logButton = [self buttonWithTitle:@"Full log" symbol:@"doc.text" action:@selector(logTapped) prominent:NO];
 

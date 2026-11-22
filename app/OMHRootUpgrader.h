@@ -5,7 +5,7 @@
 //  Keeps the imported guest root in sync with the root.tar.gz shipped in the
 //  app bundle. When an update carries a different image, the new one is
 //  imported as a fresh root, becomes the default, and after boot the user's
-//  data (/root/.dsh — sessions, credentials, settings — and /root/workspace)
+//  data (/root/.config/opencode — sessions, credentials, settings — and /root/workspace)
 //  is copied over from the previous root, which is then deleted.
 //
 

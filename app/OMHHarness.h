@@ -2,7 +2,7 @@
 //  OMHHarness.h
 //  OMH
 //
-//  Supervises the `dsh-serve` process inside the Linux guest: chooses the
+//  Supervises the `opencode-serve` process inside the Linux guest: chooses the
 //  loopback port, launches the server, waits until it answers HTTP, restarts
 //  it with back-off when it dies, and publishes state for the UI.
 //
@@ -62,7 +62,7 @@ extern NSNotificationName const OMHHarnessStateDidChangeNotification;
 /// When the current launch started (nil when not starting).
 @property (nonatomic, readonly, nullable) NSDate *launchStartedAt;
 
-/// Guest command that serves the web UI. Default /usr/local/bin/dsh-serve.
+/// Guest command that serves the web UI. Default /usr/local/bin/opencode-serve.
 @property (nonatomic, copy) NSString *serverExecutable;
 /// Extra environment passed to the server (OMH_PORT is always set).
 @property (nonatomic, copy) NSDictionary<NSString *, NSString *> *extraEnvironment;

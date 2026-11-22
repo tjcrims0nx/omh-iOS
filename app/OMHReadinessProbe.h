@@ -3,7 +3,7 @@
 //  OMH
 //
 //  Polls an HTTP URL until it answers, then reports success once. Used to
-//  find out when the guest's dsh web server is accepting connections.
+//  find out when the guest's opencode web server is accepting connections.
 //
 
 #import <Foundation/Foundation.h>

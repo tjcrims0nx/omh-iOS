@@ -19,7 +19,7 @@ typedef NS_ENUM(NSInteger, OMHBootPhase) {
     OMHBootPhaseIdle = 0,
     OMHBootPhaseImportingImage,   // first launch, or an app update with a new image
     OMHBootPhaseBootingKernel,    // mounting the fakefs and starting init
-    OMHBootPhaseMigratingData,    // copying ~/.dsh and the workspace from the previous root
+    OMHBootPhaseMigratingData,    // copying ~/.config/opencode and the workspace from the previous root
     OMHBootPhaseReady,            // the guest is up; the harness may start
     OMHBootPhaseFailed,
 };

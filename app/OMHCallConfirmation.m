@@ -143,7 +143,7 @@ NSString *OMHDisplayValue(NSString *value, NSUInteger limit) {
             outcome = OMHConfirmationGranted;
             dispatch_semaphore_signal(answered);
         }]];
-        alert.view.accessibilityIdentifier = @"dsh.confirmation";
+        alert.view.accessibilityIdentifier = @"omh.confirmation";
         [presenter presentViewController:alert animated:YES completion:nil];
 
         // The alert has to come down on timeout too, or it sits there long
