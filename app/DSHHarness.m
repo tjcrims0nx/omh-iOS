@@ -206,7 +206,12 @@ NSString *DSHHarnessStateName(DSHHarnessState state) {
 
     // A shorter interval trims up to 250 ms from the visible startup tail
     // without adding meaningful work during the roughly 20-second guest boot.
-    self.probe = [[DSHReadinessProbe alloc] initWithURL:self.baseURL interval:0.25 timeout:self.startupTimeout];
+    // The dashboard is only ready when the real runtime state API answers
+    // successfully, not merely when an unrelated loopback listener returns 405.
+    NSURL *readinessURL = self.baseURL;
+    if ([self.serverExecutable hasSuffix:@"/omh-dashboard"])
+        readinessURL = [NSURL URLWithString:@"api/state" relativeToURL:self.baseURL].absoluteURL;
+    self.probe = [[DSHReadinessProbe alloc] initWithURL:readinessURL interval:0.25 timeout:self.startupTimeout];
     [self.probe startWithHandler:^(BOOL ready, NSTimeInterval elapsed) {
         typeof(self) self = weakSelf;
         if (self == nil || generation != self.launchGeneration)
