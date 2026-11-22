@@ -604,6 +604,8 @@
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(updateStartup)
         name:OMHHarnessStateDidChangeNotification object:OMHHarness.dashboard];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(updateStartup)
+        name:OMHHarnessStateDidChangeNotification object:OMHHarness.shared];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(updateStartup)
         name:OMHLogBufferDidChangeNotification object:nil];
     [self updateStartup];
 }
@@ -629,7 +631,14 @@
 }
 - (void)retryRuntime {
     OMHBootCoordinator *boot = OMHBootCoordinator.shared;
-    if (boot.phase == OMHBootPhaseReady) [OMHHarness.dashboard restart];
+    if (boot.phase == OMHBootPhaseReady) {
+        if (OMHHarness.dashboard.state == OMHHarnessStateFailed ||
+            OMHHarness.dashboard.state == OMHHarnessStateStopped)
+            [OMHHarness.dashboard restart];
+        if (OMHHarness.shared.state == OMHHarnessStateFailed ||
+            OMHHarness.shared.state == OMHHarnessStateStopped)
+            [OMHHarness.shared restart];
+    }
     [self updateStartup];
 }
 - (void)updateStartup {
@@ -640,9 +649,13 @@
     if (self.transitioned || !self.isViewLoaded) return;
     OMHBootCoordinator *boot = OMHBootCoordinator.shared;
     OMHHarness *server = OMHHarness.dashboard;
-    self.logView.text = self.fullLogs ? server.log.diagnosticReport : [server.log tail:12];
+    OMHHarness *editor = OMHHarness.shared;
+    NSString *dashboardLog = self.fullLogs ? server.log.diagnosticReport : [server.log tail:8];
+    NSString *editorLog = self.fullLogs ? editor.log.diagnosticReport : [editor.log tail:8];
+    self.logView.text = [NSString stringWithFormat:@"Dashboard:\\n%@\\n\\nOpenCode:\\n%@",        dashboardLog ?: @"", editorLog ?: @""];
     if (boot.phase == OMHBootPhaseReady && server.state == OMHHarnessStateReady &&
-        server.baseURL != nil) {
+        server.baseURL != nil && editor.state == OMHHarnessStateReady &&
+        editor.baseURL != nil) {
         self.statusLabel.text = @"Local runtime ready";
         self.progress.progress = 1;
         self.transitioned = YES;
@@ -653,7 +666,9 @@
     }
     BOOL bootFailed = boot.phase == OMHBootPhaseFailed;
     BOOL serverFailed = server.state == OMHHarnessStateFailed ||
-        server.state == OMHHarnessStateStopped;
+        server.state == OMHHarnessStateStopped ||
+        editor.state == OMHHarnessStateFailed ||
+        editor.state == OMHHarnessStateStopped;
     self.retryButton.hidden = !serverFailed || boot.phase != OMHBootPhaseReady;
     if (bootFailed) {
         self.statusLabel.text = boot.statusMessage ?: @"Linux guest failed. Relaunch the app.";
@@ -661,8 +676,9 @@
         self.statusLabel.text = boot.statusMessage ?: @"Preparing the Linux environment…";
     } else {
         self.statusLabel.text = serverFailed ?
-            (server.lastError ?: @"Runtime stopped. Retry to continue.") :
-            @"Starting the local runtime…";
+            (server.lastError ?: editor.lastError ?: @"Runtime stopped. Retry to continue.") :
+            server.state != OMHHarnessStateReady ? @"Starting the dashboard service…" :
+            @"Starting the OpenCode editor service…";
     }
     if (bootFailed || serverFailed) [self.spinner stopAnimating];
     else [self.spinner startAnimating];
@@ -671,7 +687,8 @@
     double fraction = boot.progress;
     self.progress.progress = boot.phase == OMHBootPhaseImportingImage &&
         fraction >= 0 && fraction <= 1 ? (float)(0.05 + 0.75 * fraction) :
-        boot.phase == OMHBootPhaseReady ? 0.90f : 0.80f;
+        boot.phase == OMHBootPhaseReady ?
+            (server.state == OMHHarnessStateReady ? 0.95f : 0.90f) : 0.80f;
 }
 @end
 
