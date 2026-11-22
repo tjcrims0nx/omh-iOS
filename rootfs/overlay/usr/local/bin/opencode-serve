@@ -1,5 +1,5 @@
 #!/bin/sh
-# Launch the OpenCode web UI inside the OpenMind Harness iOS app's Linux guest.
+# Launch the full OpenCode web UI inside the OpenMind Harness iOS app's Linux guest.
 #
 # The iOS app runs this as the supervised foreground process and points its
 # WKWebView at http://127.0.0.1:$DSH_PORT once the server answers.
@@ -39,4 +39,4 @@ if command -v node >/dev/null 2>&1 && [ -f /usr/local/bin/openmind-antigravity-b
   (node /usr/local/bin/openmind-antigravity-bridge.mjs >> /root/antigravity-bridge.log 2>&1 &) || true
 fi
 
-exec /usr/local/bin/opencode serve --hostname 127.0.0.1 --port "$PORT" "$@"
+exec /usr/local/bin/opencode web --hostname 127.0.0.1 --port "$PORT" "$@"
