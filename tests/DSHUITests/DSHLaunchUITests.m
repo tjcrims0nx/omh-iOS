@@ -47,6 +47,33 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
         XCTAssertEqualObjects(dot.value, @"ready", @"status dot should report ready");
 }
 
+/// iPhone-specific native shell smoke: the same OMH landing screen must
+/// remain touch-usable in portrait and landscape, not only on an iPad.
+- (void)testIOSPhoneNativeDashboardAndEditor {
+    XCUIDevice.sharedDevice.orientation = UIDeviceOrientationPortrait;
+    XCUIElement *refresh = self.app.buttons[@"omh.native.refresh"];
+    XCUIElement *editor = self.app.buttons[@"omh.open-editor"];
+    XCTAssertTrue([refresh waitForExistenceWithTimeout:15], @"iPhone must open the native OMH dashboard shell");
+    XCTAssertTrue([editor waitForExistenceWithTimeout:15], @"OpenCode must be reachable on iPhone");
+    XCTAssertTrue([self.app.images[@"omh.native.brand.logo"] waitForExistenceWithTimeout:10]);
+    XCTAssertGreaterThanOrEqual(CGRectGetHeight(refresh.frame), 40);
+    XCTAssertTrue(self.app.webViews.firstMatch.exists, @"iOS includes the embedded dashboard");
+    [self attachScreenshot:@"ios-phone-portrait-native-dashboard"];
+
+    XCUIDevice.sharedDevice.orientation = UIDeviceOrientationLandscapeLeft;
+    XCTAssertTrue([refresh waitForExistenceWithTimeout:10], @"Native actions survive iPhone rotation");
+    XCTAssertTrue([editor waitForExistenceWithTimeout:10]);
+    [self attachScreenshot:@"ios-phone-landscape-native-dashboard"];
+
+    NSPredicate *ready = [NSPredicate predicateWithFormat:@"enabled == YES"];
+    [self waitForExpectations:@[[self expectationForPredicate:ready evaluatedWithObject:editor handler:nil]]
+                     timeout:kBootTimeout];
+    [editor tap];
+    XCTAssertTrue([self.app.otherElements[@"dsh.controlbar"] waitForExistenceWithTimeout:30],
+                  @"iOS editor must open inside native OMH navigation");
+    [self attachScreenshot:@"ios-phone-open-code-editor"];
+}
+
 - (void)testHarnessBootsAndShowsWebUI {
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationLandscapeLeft;
     // Native UIKit shell must remain visible while the guest WebKit app loads.
