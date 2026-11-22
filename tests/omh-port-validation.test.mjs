@@ -72,13 +72,15 @@ test('new IPA identity is OMH.app and the legacy bundle is rejected',async()=>{
  assert.match(make,/Release-iphoneos\/OMH\.app/);
 });
 
-test('one native OMH dashboard shell supports both iOS iPhone and iPadOS',async()=>{
+test('native iPad workspace and iPhone dashboard share a supervised OMH runtime',async()=>{
  const scene=await read('app/OMHSceneDelegate.m');
- assert.match(scene,/One native UIKit shell on both iPhone/);
- assert.match(scene,/CGRectGetWidth\(self\.view\.bounds\)/);
- assert.match(scene,/available < 620 \? @"OMH"/);
+ assert.match(scene,/@interface OMHNativeIPadController : UIViewController/);
+ assert.match(scene,/UIDevice\.currentDevice\.userInterfaceIdiom == UIUserInterfaceIdiomPad/);
+ assert.match(scene,/\[OMHNativeIPadController new\] : \[OMHDashboardViewController new\]/);
+ assert.match(scene,/omh\.native\.ipad\.sidebar/);
+ assert.match(scene,/omh\.native\.ipad\.content/);
+ assert.match(scene,/URLByAppendingPathComponent:@"api\/state"/);
  assert.match(scene,/WKContentModeRecommended/);
- assert.match(scene,/initWithRootViewController:\[OMHDashboardViewController new\]/);
  const ui=await read('tests/OMHUITests/OMHLaunchUITests.m');
  assert.match(ui,/testIOSPhoneNativeDashboardAndEditor/);
  assert.match(ui,/testHarnessBootsAndShowsWebUI/);
