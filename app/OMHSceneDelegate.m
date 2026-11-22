@@ -503,6 +503,173 @@
 }
 @end
 
+
+#pragma mark - Native startup gate
+
+// The OS launch storyboard is intentionally static. Once the scene exists,
+// this controller reports actual boot progress until the local dashboard is
+// ready; the workspace must not be presented as usable prematurely.
+@interface OMHStartupViewController : UIViewController
+@property (nonatomic, copy) void (^didBecomeReady)(void);
+@property (nonatomic) UILabel *statusLabel;
+@property (nonatomic) UIProgressView *progress;
+@property (nonatomic) UIActivityIndicatorView *spinner;
+@property (nonatomic) UITextView *logView;
+@property (nonatomic) UIButton *retryButton;
+@property (nonatomic) NSTimer *pollTimer;
+@property (nonatomic) BOOL transitioned;
+@end
+
+@implementation OMHStartupViewController
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.title = @"Starting OMH";
+    self.view.backgroundColor = [UIColor colorWithRed:0.012 green:0.027 blue:0.047 alpha:1];
+    self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    UIColor *cyan = [UIColor colorWithRed:0.20 green:0.89 blue:1 alpha:1];
+    UILabel *brand = [UILabel new];
+    brand.text = @"OpenMind Harness";
+    brand.font = [UIFont preferredFontForTextStyle:UIFontTextStyleLargeTitle];
+    brand.adjustsFontForContentSizeCategory = YES;
+    brand.textAlignment = NSTextAlignmentCenter;
+    brand.textColor = UIColor.whiteColor;
+    brand.numberOfLines = 0;
+    brand.accessibilityIdentifier = @"omh.startup.brand";
+    UILabel *subtitle = [UILabel new];
+    subtitle.text = @"On-device Linux guest";
+    subtitle.textAlignment = NSTextAlignmentCenter;
+    subtitle.textColor = UIColor.secondaryLabelColor;
+    self.spinner = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleLarge];
+    self.spinner.color = cyan;
+    [self.spinner startAnimating];
+    self.statusLabel = [UILabel new];
+    self.statusLabel.text = @"Preparing the Linux environment…";
+    self.statusLabel.font = [UIFont preferredFontForTextStyle:UIFontTextStyleBody];
+    self.statusLabel.adjustsFontForContentSizeCategory = YES;
+    self.statusLabel.textColor = UIColor.whiteColor;
+    self.statusLabel.textAlignment = NSTextAlignmentCenter;
+    self.statusLabel.numberOfLines = 0;
+    self.statusLabel.accessibilityIdentifier = @"omh.startup.status";
+    self.progress = [UIProgressView new];
+    self.progress.progressTintColor = cyan;
+    self.progress.trackTintColor = [UIColor colorWithWhite:0.35 alpha:0.5];
+    self.progress.accessibilityIdentifier = @"omh.startup.progress";
+    self.logView = [UITextView new];
+    self.logView.backgroundColor = [UIColor colorWithWhite:0.10 alpha:1];
+    self.logView.textColor = UIColor.secondaryLabelColor;
+    self.logView.font = [UIFont monospacedSystemFontOfSize:12 weight:UIFontWeightRegular];
+    self.logView.editable = NO;
+    self.logView.selectable = YES;
+    self.logView.scrollEnabled = YES;
+    self.logView.textContainerInset = UIEdgeInsetsMake(12,12,12,12);
+    self.logView.layer.cornerRadius = 10;
+    self.logView.accessibilityIdentifier = @"omh.startup.logs";
+    UIButton *logsButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    [logsButton setTitle:@"Full log" forState:UIControlStateNormal];
+    [logsButton addTarget:self action:@selector(toggleLogs) forControlEvents:UIControlEventTouchUpInside];
+    logsButton.accessibilityIdentifier = @"omh.startup.toggle-logs";
+    [logsButton.heightAnchor constraintGreaterThanOrEqualToConstant:44].active = YES;
+    self.retryButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    [self.retryButton setTitle:@"Retry runtime" forState:UIControlStateNormal];
+    [self.retryButton addTarget:self action:@selector(retryRuntime) forControlEvents:UIControlEventTouchUpInside];
+    self.retryButton.hidden = YES;
+    self.retryButton.accessibilityIdentifier = @"omh.startup.retry";
+    [self.retryButton.heightAnchor constraintGreaterThanOrEqualToConstant:44].active = YES;
+    UIStackView *buttons = [[UIStackView alloc] initWithArrangedSubviews:@[logsButton,self.retryButton]];
+    buttons.axis = UILayoutConstraintAxisHorizontal;
+    buttons.alignment = UIStackViewAlignmentCenter;
+    buttons.distribution = UIStackViewDistributionEqualSpacing;
+    buttons.spacing = 24;
+    UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[
+        brand,subtitle,self.spinner,self.statusLabel,self.progress,buttons,self.logView]];
+    stack.axis = UILayoutConstraintAxisVertical;
+    stack.alignment = UIStackViewAlignmentFill;
+    stack.spacing = 15;
+    stack.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:stack];
+    [NSLayoutConstraint activateConstraints:@[
+        [stack.centerXAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.centerXAnchor],
+        [stack.centerYAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.centerYAnchor],
+        [stack.leadingAnchor constraintGreaterThanOrEqualToAnchor:self.view.safeAreaLayoutGuide.leadingAnchor constant:20],
+        [stack.trailingAnchor constraintLessThanOrEqualToAnchor:self.view.safeAreaLayoutGuide.trailingAnchor constant:-20],
+        [stack.widthAnchor constraintLessThanOrEqualToConstant:560],
+        [self.logView.heightAnchor constraintEqualToConstant:170],
+        [self.progress.heightAnchor constraintEqualToConstant:6]
+    ]];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(updateStartup)
+        name:OMHBootStateDidChangeNotification object:nil];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(updateStartup)
+        name:OMHHarnessStateDidChangeNotification object:OMHHarness.dashboard];
+    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(updateStartup)
+        name:OMHLogBufferDidChangeNotification object:nil];
+    [self updateStartup];
+}
+- (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
+    self.pollTimer = [NSTimer scheduledTimerWithTimeInterval:0.5 target:self
+        selector:@selector(updateStartup) userInfo:nil repeats:YES];
+    [self updateStartup];
+}
+- (void)viewWillDisappear:(BOOL)animated {
+    [super viewWillDisappear:animated];
+    [self.pollTimer invalidate];
+    self.pollTimer = nil;
+}
+- (void)dealloc {
+    [self.pollTimer invalidate];
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+- (void)toggleLogs {
+    self.logView.hidden = !self.logView.hidden;
+}
+- (void)retryRuntime {
+    OMHBootCoordinator *boot = OMHBootCoordinator.shared;
+    if (boot.phase == OMHBootPhaseReady) [OMHHarness.dashboard restart];
+    [self updateStartup];
+}
+- (void)updateStartup {
+    if (!NSThread.isMainThread) {
+        dispatch_async(dispatch_get_main_queue(), ^{ [self updateStartup]; });
+        return;
+    }
+    if (self.transitioned || !self.isViewLoaded) return;
+    OMHBootCoordinator *boot = OMHBootCoordinator.shared;
+    OMHHarness *server = OMHHarness.dashboard;
+    self.logView.text = [server.log tail:40];
+    if (boot.phase == OMHBootPhaseReady && server.state == OMHHarnessStateReady &&
+        server.baseURL != nil) {
+        self.statusLabel.text = @"Local runtime ready";
+        self.progress.progress = 1;
+        self.transitioned = YES;
+        [self.pollTimer invalidate];
+        self.pollTimer = nil;
+        if (self.didBecomeReady) self.didBecomeReady();
+        return;
+    }
+    BOOL bootFailed = boot.phase == OMHBootPhaseFailed;
+    BOOL serverFailed = server.state == OMHHarnessStateFailed ||
+        server.state == OMHHarnessStateStopped;
+    self.retryButton.hidden = !serverFailed || boot.phase != OMHBootPhaseReady;
+    if (bootFailed) {
+        self.statusLabel.text = boot.statusMessage ?: @"Linux guest failed. Relaunch the app.";
+    } else if (boot.phase != OMHBootPhaseReady) {
+        self.statusLabel.text = boot.statusMessage ?: @"Preparing the Linux environment…";
+    } else {
+        self.statusLabel.text = serverFailed ?
+            (server.lastError ?: @"Runtime stopped. Retry to continue.") :
+            @"Starting the local runtime…";
+    }
+    if (bootFailed || serverFailed) [self.spinner stopAnimating];
+    else [self.spinner startAnimating];
+    // Use measured image-import progress only, and avoid showing a made-up
+    // countdown while the guest kernel or HTTP server is still starting.
+    double fraction = boot.progress;
+    self.progress.progress = boot.phase == OMHBootPhaseImportingImage &&
+        fraction >= 0 && fraction <= 1 ? (float)(0.05 + 0.75 * fraction) :
+        boot.phase == OMHBootPhaseReady ? 0.90f : 0.80f;
+}
+@end
+
 @implementation OMHSceneDelegate
 
 - (void)scene:(UIScene *)scene willConnectToSession:(UISceneSession *)session options:(UISceneConnectionOptions *)connectionOptions {
@@ -517,9 +684,20 @@
         // One native UIKit shell on both iPhone (iOS) and iPad (iPadOS).
         // The dashboard adapts its own viewport; the editor is available
         // through the same labeled navigation action on either device.
-        UIViewController *home = UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad
-            ? [OMHNativeIPadController new] : [OMHDashboardViewController new];
-        UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:home];
+        BOOL isIPad = UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad;
+        UIViewController *home = isIPad ? [OMHNativeIPadController new] : [OMHDashboardViewController new];
+        // Show real native startup progress BEFORE the iPad workspace appears.
+        // The Linux guest is started asynchronously; never block scene launch.
+        OMHStartupViewController *startup = [OMHStartupViewController new];
+        UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:isIPad ? startup : home];
+        if (isIPad) {
+            __weak UINavigationController *weakNav = nav;
+            startup.didBecomeReady = ^{
+                UINavigationController *strongNav = weakNav;
+                if (strongNav && strongNav.topViewController == startup)
+                    [strongNav setViewControllers:@[home] animated:NO];
+            };
+        }
         nav.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
         nav.navigationBar.tintColor = [UIColor colorWithRed:0.17 green:0.87 blue:0.94 alpha:1];
         nav.navigationBar.prefersLargeTitles = NO;
