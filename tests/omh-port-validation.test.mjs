@@ -74,3 +74,20 @@ test('new IPA identity is OMH.app and legacy DSH.app is rejected',async()=>{
  const make=await read('Makefile');
  assert.match(make,/Release-iphoneos\/OMH\.app/);
 });
+
+test('one native OMH dashboard shell supports both iOS iPhone and iPadOS',async()=>{
+ const scene=await read('app/DSHSceneDelegate.m');
+ assert.match(scene,/One native UIKit shell on both iPhone/);
+ assert.match(scene,/CGRectGetWidth\(self\.view\.bounds\)/);
+ assert.match(scene,/available < 620 \? @"OMH"/);
+ assert.match(scene,/WKContentModeRecommended/);
+ assert.match(scene,/initWithRootViewController:\[OMHDashboardViewController new\]/);
+ const ui=await read('tests/DSHUITests/DSHLaunchUITests.m');
+ assert.match(ui,/testIOSPhoneNativeDashboardAndEditor/);
+ assert.match(ui,/testHarnessBootsAndShowsWebUI/);
+ const ci=await read('.github/workflows/build-ipa.yml');
+ assert.match(ci,/^  iphone-smoke:/m);
+ assert.match(ci,/^  simulator-smoke:/m);
+ assert.match(ci,/pick-iphone-simulator\.sh/);
+ assert.match(ci,/testIOSPhoneNativeDashboardAndEditor/);
+});
