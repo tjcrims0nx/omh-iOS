@@ -1,95 +1,81 @@
-# omh-iOS — OpenMind Harness for iOS / iPadOS
+# OpenMind Harness — iOS & iPadOS
 
-The iOS / iPad app that runs the [OpenMind Harness](https://github.com/tjcrims0nx/openmind-harness) (OpenCode) inside an iSH Linux guest on your iPhone or iPad. The guest image packages the pinned, tested OMH runtime, providers, MCP adapters, dashboard, and Linux-only Bubblewrap diagnostic. It is packaged as an unsigned IPA you sign yourself. Linux isolation is available only if the emulated kernel actually supports Bubblewrap namespace mounts; unsupported iSH kernels fail closed.
+**A native iOS/iPadOS home for [OpenMind Harness](https://github.com/tjcrims0nx/openmind-harness), powered by an on-device iSH-ARM64 Linux guest.**
 
-## What lives here
+OMH bundles an Alpine guest, the OpenCode editor, a loopback runtime/dashboard, and host-side UIKit navigation. The app uses the **OMH** Xcode project and scheme and produces an **unsigned IPA**; installation on a physical device requires signing.
 
-- `app/` — the iOS app (WKWebView + guest launcher + host bridge)
-- `ish-arm64/` — the vendored iSH-ARM64 emulator
-- `rootfs/` — the guest overlay (launcher, self-test) staged into the image
-- `scripts/build-rootfs.sh` — builds the guest image: Alpine 3.21 + OpenCode 1.19.6
-- `Makefile` — `emulator`, `rootfs`, `project`, `app`, `install`, `run`, `test`, `archive`
-- `.github/workflows/build-ipa.yml` — builds the unsigned IPA on a macOS runner
+> **Development status · November 22, 2026:** The original OMH rebrand is merged into `main`. The new **native iPad workspace** and responsive Stage Manager layout are being reviewed in [PR #4](https://github.com/tjcrims0nx/omh-iOS/pull/4) on `rebrand/omh`. A passing build is not a substitute for a passing iPad launch test, screenshot review, or real-device verification. [CI runs](https://github.com/tjcrims0nx/omh-iOS/actions).
 
-## The harness comes from its own repo
+## Experience
 
-This repo is the iOS app **only**. The harness itself — `opencode.json`, skills, plugins, scripts, commands — lives in [tjcrims0nx/openmind-harness](https://github.com/tjcrims0nx/openmind-harness) and is the single source of truth. The build fetches it:
+| Platform | Home screen | Secondary screens |
+| --- | --- | --- |
+| iPadOS (PR #4 branch) | Native UIKit sidebar + detail pane, displaying data from the local `/api/state` endpoint | **Web dashboard** (diagnostics/compatibility), **OpenCode** editor |
+| iOS / iPhone | OMH-branded native navigation shell containing the local WebKit dashboard | **OpenCode** editor |
+| Both | Dark navy/cyan OMH branding, on-device guest boot, independent runtime readiness | Activity, logs, capabilities and guest tools via existing editor shell |
 
-- **CI:** the workflow checks the harness repo out into `harness/` before building the rootfs.
-- **Local:** `scripts/build-rootfs.sh` clones it into `harness/` when it is missing (shallow, `main`). Point `HARNESS_DIR` at a local harness checkout to use that instead, or `HARNESS_REF` for a different ref.
+The native iPad view has Overview, Agent teams, Tasks, Workflows, Skills, Plugins, Trace, Sandbox, Schedules, Workspaces, and Memory navigation. Its sidebar width adapts to the *available window* rather than assuming a full-screen iPad; the detail header also resizes with the pane. **Native iPad and iPhone UIs are not identical**, and WebKit remains in the secondary web dashboard and editor.
 
-So a fresh clone of this repo builds straight away — it just needs git and network for the one harness fetch.
+See [iPad Workspace](docs/IPAD_WORKSPACE.md) for controls, layout and limitations.
 
-## Current iOS + iPadOS port (November 22, 2026)
+## Repository layout
 
-**Native iOS and iPadOS UI:** Both iPhone and iPad now open the same OMH-branded UIKit dashboard shell. iPad uses the larger workspace layout; iPhone and compact Stage Manager windows shorten the native title and adapt the WebKit viewport while preserving cyan/dark styling and labeled OpenCode/Refresh buttons. The OpenCode editor remains a native navigation destination on both devices. GitHub CI runs independent **iPadOS** and **iOS iPhone** simulator UI smoke jobs; results must pass separately before the app's native UI is considered verified.
+| Path | Purpose |
+| --- | --- |
+| `app/` | First-party UIKit shell, harness startup, bridging, resources, OMH entitlements |
+| `ish-arm64/` | Vendored iSH-ARM64 Linux emulator and upstream assets |
+| `rootfs/` | Guest overlay, launchers and runtime helpers |
+| `scripts/gen-xcode-project.rb` | Generates `OMH.xcodeproj` and shared `OMH` scheme |
+| `scripts/build-rootfs.sh` | Builds Alpine 3.21 + OpenCode 1.19.6 guest image |
+| `scripts/sync-omh-branding.sh` | Syncs the official OMH branding into native assets |
+| `tests/OMHTests/` and `tests/OMHUITests/` | Unit/integration and device-interface tests |
+| `.github/workflows/build-ipa.yml` | Port validation, unsigned IPA build, iPad + iPhone simulator jobs |
 
-The iOS/iPadOS rootfs now packages the harness at verified commit `55f62a9`, including the updated dashboard, agent/workflow/task runtime, built-in MCP bridge, opt-in live HTTPS connector and official Vercel OAuth MCP registration helper. The effective guest OpenCode config contains `google/gemini-3.5-flash-lite` and preserves the local OMH MCP registration. User-authorized changes to the persistent config remain visible to OpenCode.
+The harness configuration, skills, plugins and commands are maintained in the separate [openmind-harness](https://github.com/tjcrims0nx/openmind-harness) repository. CI checks out a pinned revision; a local rootfs build fetches the harness if a checkout is not present (or uses `HARNESS_DIR`). The pinned harness revision in the workflow is authoritative for that run.
 
-**Linux sandbox:** `bubblewrap` is installed in Alpine. The guest command `omh-sandbox-check` reports whether an actual namespace/mount probe succeeds. iSH is a Linux emulator on iPadOS and may block these kernel features. In that case sandbox tasks refuse execution; installing Bubblewrap must not be mistaken for verified isolation.
+## Build on macOS
 
-**Live/MCP commands in the iPad Terminal:** `omh-runtime status`, `omh-runtime doctor`, `omh-vercel-mcp --dry-run`, `omh-vercel-mcp`, and `omh-live` (requires a strong `OMH_LIVE_TOKEN`; binds loopback only). The hosted Vercel dashboard additionally requires an authenticated HTTPS transport; no inbound remote access is enabled automatically.
-
-**Branding:** The official cobalt cyberpunk hexagon-M image lives in `branding/omh-hexagon.webp` and is converted into the native Xcode app icon and brand mark by `scripts/sync-omh-branding.sh`. The guest dashboard uses the same original artwork.
-
-**Verification:** the GitHub workflow builds the guest rootfs, runs a host-side loopback API probe, compiles an unsigned device IPA using Xcode, then runs an iPad simulator launch/UI test. A successful IPA build does not imply the emulator launched: the separate simulator job must also pass. The build explicitly checks the bundled MCP scripts, sandbox diagnostic, OpenCode model and guest dashboard readiness.
-
-## Build
+Requirements: Apple Silicon Mac, Xcode with iOS SDK and simulator runtimes, `ruby` + `xcodeproj` gem, Meson/Ninja, LLVM linker (`ld.lld`), Git, network access for the harness and guest dependencies, and signing credentials for on-device installation.
 
 ```sh
-make emulator   # build the iSH-ARM64 CLI
-make rootfs     # build build/root.tar.gz (Alpine + OpenCode + harness config)
-bash scripts/sync-omh-branding.sh  # (macOS) derive Xcode icons from official OMH artwork
-make project    # (re)generate OMH.xcodeproj
-make app        # unsigned device build (OMH.app)
+make emulator
+make rootfs
+bash scripts/sync-omh-branding.sh
+make project
+make app
 ```
 
-CI builds the unsigned IPA on every manual run (`Build unsigned IPA` workflow) and uploads it as an artifact. Install it on your iPad with your own signing — the bundle id is `app.jackfruit686.openmind-harness`.
+`make project` regenerates `OMH.xcodeproj`. `make app` builds `OMH.app` for a device (the Makefile's device build uses configured signing; CI separately disables code signing). The configured bundle identifier is `app.jackfruit686.openmind-harness`, marketing version `1.0.17`, and deployment target **iOS/iPadOS 16.0+ on arm64**. `TARGETED_DEVICE_FAMILY = 1,2`.
 
-## iPad workspace
+For a signed local device build, specify your Apple team and device as needed:
 
-iPad opens the OpenMind Harness dashboard. Its three-column desktop layout, app icon, search, feature views, runtime inspector and activity panels come directly from the harness repository. The app serves them over loopback inside the Linux guest, using the same workspace state as the runtime CLI and the OpenCode MCP bridge. The dashboard adapts to portrait and narrower window sizes. From the guest terminal, run `omh-runtime status` or `omh-runtime task:list` to inspect the same workspace.
+```sh
+make install TEAM=YOUR_APPLE_TEAM_ID DEVICE=YOUR_DEVICE_UDID
+make run TEAM=YOUR_APPLE_TEAM_ID DEVICE=YOUR_DEVICE_UDID
+```
 
-Tap **OpenCode** to open the editor. Tap **Dashboard** in the navigation bar to return. Both views keep their in-memory session while switching. The editor starts on demand. On iPhone the editor opens directly.
+Do not assume the unsigned CI artifact installs directly on an iPad. For the unsigned release artifact, open [Actions → Build unsigned IPA](https://github.com/tjcrims0nx/omh-iOS/actions/workflows/build-ipa.yml), select a run and download `openmind-harness-unsigned-ipa`. Its package should contain `Payload/OMH.app` and the embedded `root.tar.gz`. See [Build, Test & Release](docs/BUILD_AND_VERIFY.md) for the verification gate and signing details.
 
-In the editor, at 740 points of usable window width, iPad shows a persistent sidebar for Workspace, Terminal, Activity, Server Log and Capabilities. At 1040 points, inspectors open beside the live OpenCode session. Choose Workspace or Done to close an inspector. Narrow windows use the compact toolbar. Resizing and rotating keep the current web session mounted.
+## Use on iPad
 
-## Test it on your iPad
+1. Launch OMH; first boot imports the guest image and starts the local runtime.
+2. On the native iPad home, choose **Overview**, **Tasks** or another sidebar section; check the runtime connection indicator and populated/empty states.
+3. Choose **OpenCode** for the editor. Choose **Web dashboard** for the existing browser-based dashboard; it remains a secondary view.
+4. Rotate or resize an iPad Stage Manager window; the UIKit panes should adjust without a zoomed desktop-webpage appearance.
+5. For runtime diagnostics, use the existing guest console/terminal and commands such as `omh-runtime status`, `omh-runtime doctor`, and `omh-sandbox-check`.
 
-First launch imports the guest image (the initial import can take longer on some devices). Work through these in order; what success looks like is in
-brackets.
+The iPhone has a different landing screen; the iPad's native sidebar should not be expected on iPhone. Model selection, provider authentication and service availability depend on the bundled harness configuration and credentials, **not** on the iOS app alone. A ChatGPT subscription is not an OpenAI API entitlement.
 
-1. **Install** — sign the IPA with your Apple ID and sideload it. Open the
-   app. [The app opens; a progress overlay shows the guest starting.]
-2. **First boot** — wait for the overlay to clear and the OpenMind dashboard
-   to appear. [Dashboard state connects and Refresh responds. The OpenCode editor is available through its own navigation button.]
-3. **Sign in with ChatGPT Plus** — open the Terminal (`>_` in the control
-   bar) and run `opencode auth login --provider openai --method "ChatGPT Pro/Plus (headless)"`.
-   Enter the shown code at `auth.openai.com/codex/device` in Safari.
-   [The terminal reports the login succeeded; no key was typed anywhere.]
-4. **First prompt** — in the web UI, type `Say only the word ok.` and send.
-   [The selected and authenticated provider answers `ok`. Check model selection and credentials; a ChatGPT subscription does not automatically provide API credits.]
-5. **Switch provider mid-session** — open the model picker (top of the UI),
-   switch to `experientiallabs/deepseek-v4.1-flash:free`, and ask a
-   follow-up in the same session. [The free fallback answers and the
-   earlier GPT-5 exchange is still in the session — memory intact.]
-6. **Switch model back** — pick `openai/gpt-5` again in the same session
-   and ask another question. [GPT-5 answers; the session still holds the
-   whole conversation.]
-7. **Plan mode** — switch the agent to `plan` and ask it to plan a small
-   change before editing. [It explores and writes a plan without editing
-   files.]
-8. **Sub-agent** — ask the primary agent to use the reviewer subagent on
-   your current changes. [A read-only review comes back; nothing is edited.]
-9. **Sessions** — leave the app, reopen it, and check the session list.
-   [Your session is still there and resumes.]
-10. **Rotate the iPad** — turn it to landscape and back, including upside
-    down. [The layout follows all four orientations.]
+## Verification and troubleshooting
 
-If a step fails, note the exact step and what you saw (a screenshot of the
-overlay or the Terminal output helps); the app's Log screen (`≡` menu)
-holds the guest and server logs.
+CI runs **four distinct jobs**: static port validation, unsigned Xcode build/IPA packaging, iPad simulator smoke test, and iPhone simulator smoke test. Review the results **for the exact commit you plan to ship**, including the simulator screenshots and diagnostics. Current UI test entry points include `testHarnessBootsAndShowsWebUI` (iPad) and `testIOSPhoneNativeDashboardAndEditor` (iPhone).
 
-## Split history
+If the app opens but reports **Starting local OMH runtime**, check whether guest boot completed and the loopback endpoint is reachable. If the web dashboard is blank, use the **Web dashboard** retry control and inspect the exported simulator logs. If the display is zoomed, confirm you are running the **native iPad workspace branch** rather than the prior WebKit-first iPad build. An iPad screenshot alone does not prove readiness; verify data/connection and navigation as well.
 
-Split out of [tjcrims0nx/openmind-harness](https://github.com/tjcrims0nx/openmind-harness) on 2026-11-21: the iOS app moved here, the harness stayed there. The harness repo's Linux (`linux-setup.sh`) and Termux (`termux-setup.sh`) setups are unchanged.
+The bundled Linux `bubblewrap` binary is **not proof of sandbox isolation**. `omh-sandbox-check` must verify namespace/mount functionality on the emulated kernel; if unsupported, sandbox-only tasks fail closed. Optional remote MCP/HTTPS connections require explicit configuration and authentication; the local server listens on loopback by default.
+
+## Licensing and provenance
+
+The top-level license is GPL-3.0. The vendored iSH-ARM64 emulator and dependencies retain their own original copyrights and notices. See [third-party licenses](THIRD_PARTY_LICENSES.md) and `ish-arm64/UPSTREAM.md`. Do not remove upstream attribution when publishing or distributing an IPA.
+
+This app repository was split from [openmind-harness](https://github.com/tjcrims0nx/openmind-harness) on November 21, 2026; the Linux and Termux harness setups remain in that separate repository.
