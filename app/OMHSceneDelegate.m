@@ -398,11 +398,17 @@
 - (void)refreshRuntime {
     OMHHarness *server = OMHHarness.dashboard;
     if (server.state != OMHHarnessStateReady || server.baseURL == nil) {
+        // Any outstanding HTTP completion is now obsolete. Clear the stale
+        // state rather than showing yesterday's tasks as live after a restart.
+        ++self.requestGeneration;
+        self.fetching = NO;
+        self.runtimeState = nil;
         self.connection.text = server.lastError ?: @"Starting local OMH runtime…";
         [self.detailTable reloadData];
         return;
     }
-    if (self.fetching) return;
+    // An explicit refresh or foreground return supersedes an older request.
+    // Generation matching prevents its late completion from overwriting data.
     self.fetching = YES;
     NSURL *url = [server.baseURL URLByAppendingPathComponent:@"api/state"];
     NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
@@ -421,7 +427,7 @@
             typeof(self) strongSelf = weakSelf;
             if (!strongSelf || generation != strongSelf.requestGeneration) return;
             strongSelf.fetching = NO;
-            if (state) strongSelf.runtimeState = state;
+            strongSelf.runtimeState = state;
             strongSelf.connection.text = state ? @"● Connected to local runtime"
                 : @"Runtime is starting or temporarily unavailable";
             [strongSelf.detailTable reloadData];
@@ -439,7 +445,7 @@
             @{@"name":@"Running tasks", @"status":[counts[@"running"] description] ?: @"0"},
             @{@"name":@"Completed tasks", @"status":[counts[@"completed"] description] ?: @"0"},
             @{@"name":@"Failed tasks", @"status":[counts[@"failed"] description] ?: @"0"},
-            @{@"name":@"Worker", @"status":state[@"worker"] ? @"Runtime available" : @"No active worker"}
+            @{@"name":@"Worker", @"status":[state[@"worker"] isKindOfClass:NSDictionary.class] && [state[@"worker"][@"online"] boolValue] ? @"Worker online" : @"No active worker"}
         ];
     }
     NSDictionary *keys = @{
@@ -526,8 +532,12 @@
     UIViewController *root = self.window.rootViewController;
     if ([root isKindOfClass:UINavigationController.class])
         root = ((UINavigationController *)root).topViewController;
-    if ([root isKindOfClass:OMHDashboardViewController.class])
+    if ([root isKindOfClass:OMHDashboardViewController.class] ||
+        [root isKindOfClass:OMHNativeIPadController.class]) {
         [OMHHarness.dashboard verifyAliveWithCompletion:nil];
+        if ([root isKindOfClass:OMHNativeIPadController.class])
+            [(OMHNativeIPadController *)root refreshRuntime];
+    }
     if ([root isKindOfClass:OMHRootViewController.class])
         [(OMHRootViewController *) root sceneDidBecomeActive];
 }
