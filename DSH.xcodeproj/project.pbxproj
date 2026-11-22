@@ -1364,7 +1364,7 @@
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DSH.app/DSH";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OMH.app/OMH";
 			};
 			name = Debug;
 		};
@@ -1401,7 +1401,7 @@
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/DSH.app/DSH";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/OMH.app/OMH";
 			};
 			name = Release;
 		};
