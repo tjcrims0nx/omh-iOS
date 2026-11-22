@@ -4,19 +4,19 @@
 
 OMH bundles an Alpine guest, the OpenCode editor, a loopback runtime/dashboard, and host-side UIKit navigation. The app uses the **OMH** Xcode project and scheme and produces an **unsigned IPA**; installation on a physical device requires signing.
 
-> **Development status · November 22, 2026:** The original OMH rebrand is merged into `main`. The new **native iPad workspace** and responsive Stage Manager layout are being reviewed in [PR #4](https://github.com/tjcrims0nx/omh-iOS/pull/4) on `rebrand/omh`. A passing build is not a substitute for a passing iPad launch test, screenshot review, or real-device verification. [CI runs](https://github.com/tjcrims0nx/omh-iOS/actions).
+> **Development status · November 22, 2026:** The original OMH rebrand is merged into `main`. The new **chat-first iPad workspace** with compact native tools are being reviewed in [PR #4](https://github.com/tjcrims0nx/omh-iOS/pull/4) on `rebrand/omh`. A passing build is not a substitute for a passing iPad launch test, screenshot review, or real-device verification. [CI runs](https://github.com/tjcrims0nx/omh-iOS/actions).
 
 ## Experience
 
-| Platform | Home screen | Secondary screens |
+| Platform | Home screen | Secondary tools |
 | --- | --- | --- |
-| iPadOS (PR #4 branch) | Native UIKit sidebar + detail pane, displaying data from the local `/api/state` endpoint | **Web dashboard** (diagnostics/compatibility), **OpenCode** editor |
-| iOS / iPhone | OMH-branded native navigation shell containing the local WebKit dashboard | **OpenCode** editor |
-| Both | Dark navy/cyan OMH branding, on-device guest boot, independent runtime readiness | Activity, logs, capabilities and guest tools via existing editor shell |
+| iPadOS (PR #4 branch) | **Chat-first OpenCode interface** after a native boot/progress gate, using a compact icon-only tool rail | Terminal, logs, activity, capabilities and settings |
+| iOS / iPhone | OMH-branded dashboard shell | OpenCode conversation editor |
+| Both | On-device Linux guest, OMH navy/cyan branding, separate dashboard/editor readiness | Runtime diagnostics and guest tools |
 
-The native iPad view has Overview, Agent teams, Tasks, Workflows, Skills, Plugins, Trace, Sandbox, Schedules, Workspaces, and Memory navigation. Its sidebar width adapts to the *available window* rather than assuming a full-screen iPad; the detail header also resizes with the pane. **Native iPad and iPhone UIs are not identical**, and WebKit remains in the secondary web dashboard and editor.
+The iPad now lands directly in an interactive conversation instead of a search form or read-only task dashboard. The startup screen waits for both local services to answer before revealing the editor. The iPad navigation bar no longer adds a redundant empty back button. The 68pt native tool rail uses accessible icon controls and the conversation area expands to the remaining width.
 
-See [iPad Workspace](docs/IPAD_WORKSPACE.md) for controls, layout and limitations.
+See [iPad Chat Workspace](docs/IPAD_WORKSPACE.md) for navigation, responsive layout and current verification limits.
 
 ## Repository layout
 
@@ -58,19 +58,19 @@ Do not assume the unsigned CI artifact installs directly on an iPad. For the uns
 
 ## Use on iPad
 
-1. Launch OMH; first boot imports the guest image and starts the local runtime.
-2. On the native iPad home, choose **Overview**, **Tasks** or another sidebar section; check the runtime connection indicator and populated/empty states.
-3. Choose **OpenCode** for the editor. Choose **Web dashboard** for the existing browser-based dashboard; it remains a secondary view.
-4. Rotate or resize an iPad Stage Manager window; the UIKit panes should adjust without a zoomed desktop-webpage appearance.
-5. For runtime diagnostics, use the existing guest console/terminal and commands such as `omh-runtime status`, `omh-runtime doctor`, and `omh-sandbox-check`.
+1. Open OMH and follow the native startup progress. The guest Linux runtime, dashboard, and OpenCode editor start before the chat screen appears.
+2. Select a workspace and type your request in the central OpenCode conversation composer. The send action belongs to the OpenCode UI, not the previous OMH workspace-search form.
+3. The narrow icon rail opens terminal, activity, logs and capabilities. The top-right More menu holds additional settings and diagnostics.
+4. Rotate or resize the iPad; the chat stays primary and the tools rail hides at compact widths.
+5. If startup fails, use the startup log and retry action instead of entering a disconnected workspace.
 
-The iPhone has a different landing screen; the iPad's native sidebar should not be expected on iPhone. Model selection, provider authentication and service availability depend on the bundled harness configuration and credentials, **not** on the iOS app alone. A ChatGPT subscription is not an OpenAI API entitlement.
+The iPhone retains its existing dashboard-first landing screen until separately redesigned. Model choice, API provider login, and service availability depend on the guest config and credentials. A ChatGPT subscription is not an OpenAI API entitlement.
 
 ## Verification and troubleshooting
 
 CI runs **four distinct jobs**: static port validation, unsigned Xcode build/IPA packaging, iPad simulator smoke test, and iPhone simulator smoke test. Review the results **for the exact commit you plan to ship**, including the simulator screenshots and diagnostics. Current UI test entry points include `testHarnessBootsAndShowsWebUI` (iPad) and `testIOSPhoneNativeDashboardAndEditor` (iPhone).
 
-If the app opens but reports **Starting local OMH runtime**, check whether guest boot completed and the loopback endpoint is reachable. If the web dashboard is blank, use the **Web dashboard** retry control and inspect the exported simulator logs. If the display is zoomed, confirm you are running the **native iPad workspace branch** rather than the prior WebKit-first iPad build. An iPad screenshot alone does not prove readiness; verify data/connection and navigation as well.
+If the app opens but reports **Starting local OMH runtime**, check whether guest boot completed and the loopback endpoint is reachable. If chat stays blank, inspect the OpenCode server log and native startup diagnostics. On a narrow Stage Manager window, the native tool rail hides to prioritize the conversation. An iPad screenshot alone does not prove readiness; verify data/connection and navigation as well.
 
 The bundled Linux `bubblewrap` binary is **not proof of sandbox isolation**. `omh-sandbox-check` must verify namespace/mount functionality on the emulated kernel; if unsupported, sandbox-only tasks fail closed. Optional remote MCP/HTTPS connections require explicit configuration and authentication; the local server listens on loopback by default.
 
