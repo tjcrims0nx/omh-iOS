@@ -23,6 +23,7 @@
 @property (nonatomic) UIActivityIndicatorView *loadingIndicator;
 @property (nonatomic) UIBarButtonItem *refreshItem;
 @property (nonatomic) UIBarButtonItem *editorItem;
+@property (nonatomic) UILabel *nativeTitle;
 @end
 
 @implementation OMHDashboardViewController
@@ -47,6 +48,7 @@
     ]];
     UILabel *brandTitle = [UILabel new];
     brandTitle.text = @"OpenMind Harness";
+    self.nativeTitle = brandTitle;
     brandTitle.font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
     brandTitle.adjustsFontForContentSizeCategory = YES;
     brandTitle.textColor = [UIColor colorWithRed:0.20 green:0.89 blue:1 alpha:1];
@@ -79,6 +81,7 @@
     // WebKit stays embedded, but adapts like an iPad app in Stage Manager:
     // the actual available width drives the page, not the physical screen.
     config.defaultWebpagePreferences.preferredContentMode = WKContentModeRecommended;
+    config.defaultWebpagePreferences.allowsContentJavaScript = YES;
     self.dashboard = [[WKWebView alloc] initWithFrame:CGRectZero configuration:config];
     self.dashboard.navigationDelegate = self;
     self.dashboard.accessibilityIdentifier = @"omh.dashboard";
@@ -121,6 +124,14 @@
     [center addObserver:self selector:@selector(stateChanged:) name:DSHBootStateDidChangeNotification object:nil];
     [center addObserver:self selector:@selector(stateChanged:) name:DSHHarnessStateDidChangeNotification object:DSHHarness.dashboard];
     [self updateDashboard];
+}
+
+- (void)viewWillLayoutSubviews {
+    [super viewWillLayoutSubviews];
+    // In compact iPhone and Stage Manager widths, protect the native
+    // toolbar actions rather than truncating or overlapping them.
+    CGFloat available = CGRectGetWidth(self.view.bounds);
+    self.nativeTitle.text = available < 620 ? @"OMH" : @"OpenMind Harness";
 }
 
 - (void)openEditor {
@@ -212,13 +223,15 @@
         UINavigationController *vc = [[UIStoryboard storyboardWithName:@"About" bundle:nil] instantiateInitialViewController];
         ((AboutViewController *) vc.topViewController).recoveryMode = YES;
         self.window.rootViewController = vc;
-    } else if (windowScene.traitCollection.userInterfaceIdiom == UIUserInterfaceIdiomPad) {
+    } else {
+        // One native UIKit shell on both iPhone (iOS) and iPad (iPadOS).
+        // The dashboard adapts its own viewport; the editor is available
+        // through the same labeled navigation action on either device.
         UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:[OMHDashboardViewController new]];
         nav.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
         nav.navigationBar.tintColor = [UIColor colorWithRed:0.17 green:0.87 blue:0.94 alpha:1];
+        nav.navigationBar.prefersLargeTitles = NO;
         self.window.rootViewController = nav;
-    } else {
-        self.window.rootViewController = [[DSHRootViewController alloc] init];
     }
     [self.window makeKeyAndVisible];
 }
