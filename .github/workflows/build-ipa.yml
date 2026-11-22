@@ -6,6 +6,15 @@ name: Build unsigned IPA
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - 'rootfs/**'
+      - 'scripts/**'
+      - 'ish-arm64/**'
+      - 'Makefile'
+      - '.github/workflows/build-ipa.yml'
 
 jobs:
   build:
