@@ -110,7 +110,7 @@ if (config.model !== 'google/gemini-3.8-flash') {
   throw new Error('OMH iOS requires the Gemini default from the harness');
 }
 for (const agent of ['fast', 'reviewer']) {
-  if (!config.agents?.[agent]) throw new Error('Missing harness agent: ' + agent);
+  if (!config.agent?.[agent]) throw new Error('Missing harness agent: ' + agent);
 }
 for (const provider of ['google', 'openai', 'anthropic', 'deepseek', 'openrouter', 'custom']) {
   if (!config.provider?.[provider]) throw new Error('Missing harness provider: ' + provider);
