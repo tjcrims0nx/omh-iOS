@@ -57,7 +57,10 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCTAssertTrue([editor waitForExistenceWithTimeout:15], @"OpenCode must be reachable on iPhone");
     XCTAssertTrue([self.app.images[@"omh.native.brand.logo"] waitForExistenceWithTimeout:10]);
     XCTAssertGreaterThanOrEqual(CGRectGetHeight(refresh.frame), 40);
-    XCTAssertTrue(self.app.webViews.firstMatch.exists, @"iOS includes the embedded dashboard");
+    // The dashboard web view stays hidden until the guest boots and the
+    // page finishes loading, so wait for it like the iPad test waits for
+    // the dashboard's own controls instead of asserting it immediately.
+    XCTAssertTrue([self.app.webViews.firstMatch waitForExistenceWithTimeout:kBootTimeout], @"iOS includes the embedded dashboard");
     [self attachScreenshot:@"ios-phone-portrait-native-dashboard"];
 
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationLandscapeLeft;
