@@ -104,6 +104,7 @@ static NSString *const kDSHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
 - (void)buildControlBar {
     UIView *bar = [UIView new];
     bar.translatesAutoresizingMaskIntoConstraints = NO;
+    bar.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     bar.backgroundColor = [UIColor colorWithRed:0.025 green:0.055 blue:0.11 alpha:1.0];
     bar.layer.borderColor = [UIColor colorWithRed:0.0 green:0.75 blue:0.95 alpha:0.45].CGColor;
     bar.layer.borderWidth = 0.5;
@@ -266,6 +267,8 @@ static NSString *const kDSHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     [super viewWillLayoutSubviews];
     CGFloat width = CGRectGetWidth(self.view.bounds) - self.view.safeAreaInsets.left - self.view.safeAreaInsets.right;
     BOOL desktop = self.traitCollection.userInterfaceIdiom == UIUserInterfaceIdiomPad && width >= 740;
+    UIUserInterfaceStyle appearance = desktop ? UIUserInterfaceStyleDark : UIUserInterfaceStyleUnspecified;
+    if (self.overrideUserInterfaceStyle != appearance) self.overrideUserInterfaceStyle = appearance;
     self.sidebarWidth.constant = desktop ? 180 : 0;
     self.sidebar.hidden = !desktop;
     self.controlBarHeight.constant = desktop ? 50 : 40;
@@ -777,7 +780,7 @@ static const NSTimeInterval kActivityIndicatorVisible = 6;
 #pragma mark - Status bar
 
 - (UIStatusBarStyle)preferredStatusBarStyle {
-    return UIStatusBarStyleDefault;
+    return UIStatusBarStyleLightContent;
 }
 
 @end
