@@ -516,6 +516,8 @@
 @property (nonatomic) UIActivityIndicatorView *spinner;
 @property (nonatomic) UITextView *logView;
 @property (nonatomic) UIButton *retryButton;
+@property (nonatomic) UIButton *logsButton;
+@property (nonatomic) BOOL fullLogs;
 @property (nonatomic) NSTimer *pollTimer;
 @property (nonatomic) BOOL transitioned;
 @end
@@ -568,6 +570,7 @@
     [logsButton setTitle:@"Full log" forState:UIControlStateNormal];
     [logsButton addTarget:self action:@selector(toggleLogs) forControlEvents:UIControlEventTouchUpInside];
     logsButton.accessibilityIdentifier = @"omh.startup.toggle-logs";
+    self.logsButton = logsButton;
     [logsButton.heightAnchor constraintGreaterThanOrEqualToConstant:44].active = YES;
     self.retryButton = [UIButton buttonWithType:UIButtonTypeSystem];
     [self.retryButton setTitle:@"Retry runtime" forState:UIControlStateNormal];
@@ -620,7 +623,9 @@
     [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 - (void)toggleLogs {
-    self.logView.hidden = !self.logView.hidden;
+    self.fullLogs = !self.fullLogs;
+    [self.logsButton setTitle:self.fullLogs ? @"Recent log" : @"Full log" forState:UIControlStateNormal];
+    [self updateStartup];
 }
 - (void)retryRuntime {
     OMHBootCoordinator *boot = OMHBootCoordinator.shared;
@@ -635,7 +640,7 @@
     if (self.transitioned || !self.isViewLoaded) return;
     OMHBootCoordinator *boot = OMHBootCoordinator.shared;
     OMHHarness *server = OMHHarness.dashboard;
-    self.logView.text = [server.log tail:40];
+    self.logView.text = self.fullLogs ? server.log.diagnosticReport : [server.log tail:12];
     if (boot.phase == OMHBootPhaseReady && server.state == OMHHarnessStateReady &&
         server.baseURL != nil) {
         self.statusLabel.text = @"Local runtime ready";
