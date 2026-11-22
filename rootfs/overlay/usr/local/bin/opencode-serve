@@ -41,4 +41,6 @@ fi
 
 export OMH_WORKSPACE="$OPENCODE_WORKSPACE"
 export OPENCODE_CONFIG="${OPENCODE_CONFIG:-/usr/local/share/omh-runtime/ipad-opencode.json}"
-exec /usr/local/bin/opencode web --hostname 127.0.0.1 --port "$PORT" "$@"
+# The native app owns the browser. The headless command serves the same UI and
+# writes plain server logs to the guest pipes.
+exec /usr/local/bin/opencode serve --hostname 127.0.0.1 --port "$PORT" "$@"

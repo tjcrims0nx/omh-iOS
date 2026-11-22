@@ -128,7 +128,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCTAssertTrue([logView waitForExistenceWithTimeout:10]);
     NSString *text = (NSString *) logView.value;
     XCTAssertTrue([text containsString:@"server answered"], @"log should record readiness, got: %@", text);
-    XCTAssertTrue([text containsString:@"dsh web: http://127.0.0.1:"], @"log should carry dsh's own banner, got: %@", text);
+    XCTAssertTrue([text containsString:@"opencode server listening on http://127.0.0.1:"], @"log should contain the OpenCode listener address, got: %@", text);
     [self attachScreenshot:@"04-log"];
     [self.app.buttons[@"Done"] tap];
 }
