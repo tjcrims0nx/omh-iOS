@@ -280,3 +280,118 @@ jobs:
           name: ipad-test-diagnostics
           path: ${{ runner.temp }}/ipad-evidence
           if-no-files-found: warn
+
+  # Separate iOS target: an iPadOS test cannot validate compact iPhone UI.
+  iphone-smoke:
+    needs: build
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out the harness (opencode.json, skills, plugins, scripts, commands)
+        uses: actions/checkout@v4
+        with:
+          repository: tjcrims0nx/openmind-harness
+          # Pin the verified OMH Linux release so both Xcode jobs package
+          # identical models, assets, MCP modules, and sandbox policy.
+          ref: 55f62a9ad23fa897c21fa40948716b5c5504e626
+          path: harness
+
+      - name: Select Xcode 27
+        run: |
+          XCODE27=$(ls -d /Applications/Xcode_27*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$XCODE27" ]; then
+            sudo xcode-select -s "$XCODE27/Contents/Developer"
+          fi
+          xcodebuild -version
+
+      - name: Install build tools
+        run: |
+          brew install meson ninja lld libarchive
+          echo "/opt/homebrew/opt/lld/bin" >> "$GITHUB_PATH"
+          gem install xcodeproj --no-document || sudo gem install xcodeproj --no-document
+
+      - name: Restore emulator and rootfs cache
+        id: build-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ish-arm64/build-arm64-release
+            build/root.tar.gz
+          key: omh-v1-${{ hashFiles('ish-arm64/**', 'rootfs/overlay/**', 'scripts/build-rootfs.sh', 'Makefile', 'harness/opencode.json', 'harness/dashboard/**', 'harness/modules/**', 'harness/scripts/omh-*.mjs', 'harness/scripts/connect-vercel-mcp.mjs', 'harness/plugins/**', 'harness/skills/**', 'harness/scripts/delete-env.sh', 'harness/commands/**') }}
+
+      - name: Build emulator
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        env:
+          CFLAGS: -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0
+          CXXFLAGS: -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0
+        run: |
+          make emulator
+          ninja -C ish-arm64/build-arm64-release tools/fakefsify
+
+      - name: Build guest rootfs
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        run: |
+          make rootfs
+
+      - name: Validate pinned OMH components and guest wrappers
+        run: |
+          node --version
+          bash -n scripts/build-rootfs.sh
+          bash -n scripts/sync-omh-branding.sh
+          bash -n scripts/verify-omh-ipa.sh
+          bash scripts/sync-omh-branding.sh
+          for wrapper in omh-runtime omh-dashboard omh-live omh-vercel-mcp omh-sandbox-check; do
+            test -s "rootfs/overlay/usr/local/bin/$wrapper" || exit 1
+          done
+          node --check harness/scripts/omh-live.mjs
+          node --check harness/scripts/connect-vercel-mcp.mjs
+          node --check harness/scripts/omh-dashboard.mjs
+          git -C harness rev-parse HEAD
+          node -e "const c=require('./harness/opencode.json');if(c.model!=='google/gemini-3.5-flash-lite')process.exit(1)"
+
+      - name: Regenerate Xcode project
+        run: |
+          make project
+          grep -q 'OMH.app/OMH' DSH.xcodeproj/project.pbxproj
+          grep -q 'PRODUCT_NAME = OMH' app/AppDSH.xcconfig
+
+      - name: Simulator native UI smoke test (iPhone)
+        run: |
+          SIM="$(bash scripts/pick-iphone-simulator.sh)"
+          echo "iOS iPhone simulator: $SIM"
+          # Boot and settle SpringBoard before XCTest launches the emulator app.
+          xcrun simctl boot "$SIM" || true
+          xcrun simctl bootstatus "$SIM" -b
+          xcodebuild -project DSH.xcodeproj -scheme DSH -configuration Release \
+            -destination "platform=iOS Simulator,name=$SIM" \
+            -parallel-testing-enabled NO -resultBundlePath "$RUNNER_TEMP/iphone.xcresult" \
+            -only-testing:DSHUITests/DSHLaunchUITests/testIOSPhoneNativeDashboardAndEditor \
+            test
+
+      - name: Export iPad screenshots and test diagnostics
+        if: always()
+        run: |
+          result="$RUNNER_TEMP/iphone.xcresult"
+          if [ -d "$result" ]; then
+            mkdir -p "$RUNNER_TEMP/iphone-evidence"
+            xcrun xcresulttool export attachments --path "$result" --output-path "$RUNNER_TEMP/iphone-evidence"
+            xcrun xcresulttool get test-results summary --path "$result" > "$RUNNER_TEMP/iphone-evidence/tests.json"
+            xcrun xcresulttool export diagnostics --path "$result" --output-path "$RUNNER_TEMP/iphone-evidence/diagnostics"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-iphone-native-ui-test
+          path: |
+            ${{ runner.temp }}/iphone-evidence/*.png
+            ${{ runner.temp }}/iphone-evidence/manifest.json
+            ${{ runner.temp }}/iphone-evidence/tests.json
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ios-iphone-test-diagnostics
+          path: ${{ runner.temp }}/iphone-evidence
+          if-no-files-found: warn
