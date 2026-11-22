@@ -39,7 +39,7 @@ make emulator   # build the iSH-ARM64 CLI
 make rootfs     # build build/root.tar.gz (Alpine + OpenCode + harness config)
 bash scripts/sync-omh-branding.sh  # (macOS) derive Xcode icons from official OMH artwork
 make project    # (re)generate DSH.xcodeproj
-make app        # unsigned device build (DSH.app)
+make app        # unsigned device build (OMH.app)
 ```
 
 CI builds the unsigned IPA on every manual run (`Build unsigned IPA` workflow) and uploads it as an artifact. Install it on your iPad with your own signing — the bundle id is `app.jackfruit686.openmind-harness`.
