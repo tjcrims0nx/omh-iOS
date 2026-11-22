@@ -12,7 +12,7 @@
 #
 # The server is deliberately unsecured: it binds 127.0.0.1 inside the guest,
 # reachable only from this device and this app — the same loopback-only model
-# as the DSH build. Do NOT set OPENCODE_SERVER_PASSWORD here; it would put a
+# as the local iPadOS guest. Do NOT set OPENCODE_SERVER_PASSWORD here; it would put a
 # login screen in front of the app's web view.
 export HOME=/root
 export OPENCODE_WORKSPACE="${OPENCODE_WORKSPACE:-/root/workspace}"
@@ -40,7 +40,10 @@ if command -v node >/dev/null 2>&1 && [ -f /usr/local/bin/openmind-antigravity-b
 fi
 
 export OMH_WORKSPACE="$OPENCODE_WORKSPACE"
-export OPENCODE_CONFIG="${OPENCODE_CONFIG:-/usr/local/share/omh-runtime/ipad-opencode.json}"
+# Use the persistent user config, already seeded with canonical OMH providers
+# and the local MCP bridge. A separate read-only config would hide changes
+# made by "omh-vercel-mcp" after Vercel OAuth registration.
+export OPENCODE_CONFIG="${OPENCODE_CONFIG:-/root/.config/opencode/opencode.json}"
 # The native app owns the browser. The headless command serves the same UI and
 # writes plain server logs to the guest pipes.
 exec /usr/local/bin/opencode serve --hostname 127.0.0.1 --port "$PORT" "$@"
