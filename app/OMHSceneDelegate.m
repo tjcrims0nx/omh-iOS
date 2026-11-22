@@ -65,10 +65,22 @@
     self.editorItem.accessibilityIdentifier = @"omh.open-editor";
     // Keep the "OpenCode" text visible in native navigation, not an icon-only
     // control that becomes ambiguous to touch and VoiceOver users.
-    self.refreshItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemRefresh
-        target:self action:@selector(retryDashboard)];
-    self.refreshItem.accessibilityIdentifier = @"omh.native.refresh";
-    self.refreshItem.accessibilityLabel = @"Refresh dashboard";
+    // A system bar button item reports a 36pt frame to XCTest, below the
+    // 44pt accessible tap target the UI tests assert. Use a custom 44x44
+    // button with the same refresh glyph so the measured target is
+    // genuinely 44pt. UIBarButtonItem forwards `enabled` to a UIControl
+    // custom view, so updateDashboard keeps working unchanged.
+    UIButton *refreshButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    [refreshButton setImage:[UIImage systemImageNamed:@"arrow.clockwise"] forState:UIControlStateNormal];
+    [refreshButton addTarget:self action:@selector(retryDashboard) forControlEvents:UIControlEventTouchUpInside];
+    refreshButton.translatesAutoresizingMaskIntoConstraints = NO;
+    [NSLayoutConstraint activateConstraints:@[
+        [refreshButton.widthAnchor constraintEqualToConstant:44],
+        [refreshButton.heightAnchor constraintEqualToConstant:44]
+    ]];
+    refreshButton.accessibilityIdentifier = @"omh.native.refresh";
+    refreshButton.accessibilityLabel = @"Refresh dashboard";
+    self.refreshItem = [[UIBarButtonItem alloc] initWithCustomView:refreshButton];
     self.navigationItem.rightBarButtonItems = @[self.editorItem, self.refreshItem];
 
     self.loadingIndicator = [[UIActivityIndicatorView alloc]

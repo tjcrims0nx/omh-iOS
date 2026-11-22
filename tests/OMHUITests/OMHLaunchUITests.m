@@ -69,7 +69,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     [self waitForExpectations:@[[self expectationForPredicate:ready evaluatedWithObject:editor handler:nil]]
                      timeout:kBootTimeout];
     [editor tap];
-    XCTAssertTrue([self.app.otherElements[@"dsh.controlbar"] waitForExistenceWithTimeout:30],
+    XCTAssertTrue([self.app.otherElements[@"omh.controlbar"] waitForExistenceWithTimeout:30],
                   @"iOS editor must open inside native OMH navigation");
     [self attachScreenshot:@"ios-phone-open-code-editor"];
 }
