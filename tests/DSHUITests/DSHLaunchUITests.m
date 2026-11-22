@@ -32,6 +32,12 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 
 /// Waits until the harness overlay is gone (server answered and page loaded).
 - (void)waitForHarnessReady {
+    XCUIElement *open = self.app.buttons[@"omh.open-editor"];
+    if (open.exists) {
+        NSPredicate *enabled = [NSPredicate predicateWithFormat:@"enabled == YES"];
+        [self waitForExpectations:@[[self expectationForPredicate:enabled evaluatedWithObject:open handler:nil]] timeout:kBootTimeout];
+        [open tap];
+    }
     XCUIElement *overlay = self.app.staticTexts[@"dsh.overlay.message"];
     XCUIElement *dot = self.app.otherElements[@"dsh.statusdot"];
     NSPredicate *gone = [NSPredicate predicateWithFormat:@"exists == NO OR hittable == NO"];
@@ -43,7 +49,23 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 
 - (void)testHarnessBootsAndShowsWebUI {
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationLandscapeLeft;
-    [self attachScreenshot:@"01-launch"];
+    XCUIElement *home = self.app.webViews.firstMatch;
+    XCUIElement *refresh = home.buttons[@"Refresh runtime state"];
+    XCTAssertTrue([refresh waitForExistenceWithTimeout:kBootTimeout], @"iPad must open the shared OMH dashboard");
+    XCUIElement *connected = [[home descendantsMatchingType:XCUIElementTypeAny]
+        matchingPredicate:[NSPredicate predicateWithFormat:@"label == 'Connected'"]].firstMatch;
+    XCTAssertTrue([connected waitForExistenceWithTimeout:30], @"Dashboard must read guest runtime state");
+    [refresh tap];
+    [self attachScreenshot:@"01-ipad-harness-dashboard"];
+    [[home.buttons matchingIdentifier:@"Memory"].firstMatch tap];
+    XCUIElement *empty = [[home descendantsMatchingType:XCUIElementTypeAny]
+        matchingPredicate:[NSPredicate predicateWithFormat:@"label == 'No records match this view.'"]].firstMatch;
+    XCTAssertTrue([empty waitForExistenceWithTimeout:8]);
+    [[home.buttons matchingIdentifier:@"Workspace"].firstMatch tap];
+    XCUIDevice.sharedDevice.orientation = UIDeviceOrientationPortrait;
+    XCTAssertTrue(refresh.hittable);
+    [self attachScreenshot:@"02-ipad-dashboard-portrait"];
+    XCUIDevice.sharedDevice.orientation = UIDeviceOrientationLandscapeLeft;
     [self waitForHarnessReady];
     [self attachScreenshot:@"02-ready"];
 
@@ -88,6 +110,10 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCUIElement *title = self.app.staticTexts[@"dsh.title"];
     XCTAssertTrue(title.exists);
     XCTAssertTrue([title.label containsString:@":30"], @"title should show the port, got %@", title.label);
+    [self.app.navigationBars.buttons.firstMatch tap];
+    XCTAssertTrue([refresh waitForExistenceWithTimeout:10], @"Back must return to the running dashboard");
+    XCTAssertTrue(connected.exists);
+
 }
 
 - (void)testServerLogIsReachableFromMenu {

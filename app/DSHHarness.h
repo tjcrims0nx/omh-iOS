@@ -42,8 +42,9 @@ extern NSNotificationName const DSHHarnessStateDidChangeNotification;
 @interface DSHHarness : NSObject
 
 + (instancetype)shared;
++ (instancetype)dashboard;
 
-- (instancetype)initWithLauncher:(id<DSHGuestProcessLauncher>)launcher NS_DESIGNATED_INITIALIZER;
+- (instancetype)initWithLauncher:(id<DSHGuestProcessLauncher>)launcher;
 - (instancetype)init NS_UNAVAILABLE;
 
 @property (nonatomic, readonly) DSHHarnessState state;

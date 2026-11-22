@@ -59,8 +59,8 @@ static NSString *const kDSHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     [self.view bringSubviewToFront:self.inspector];
 
     NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
-    [nc addObserver:self selector:@selector(harnessStateChanged:) name:DSHHarnessStateDidChangeNotification object:nil];
-    [nc addObserver:self selector:@selector(logChanged:) name:DSHLogBufferDidChangeNotification object:nil];
+    [nc addObserver:self selector:@selector(harnessStateChanged:) name:DSHHarnessStateDidChangeNotification object:DSHHarness.shared];
+    [nc addObserver:self selector:@selector(logChanged:) name:DSHLogBufferDidChangeNotification object:DSHHarness.shared.log];
     [nc addObserver:self selector:@selector(bootStateChanged:) name:DSHBootStateDidChangeNotification object:nil];
     [self observeActivity];
     [DSHTurnPresence.shared start];

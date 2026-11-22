@@ -33,7 +33,11 @@ CI builds the unsigned IPA on every manual run (`Build unsigned IPA` workflow) a
 
 ## iPad workspace
 
-At 740 points of usable window width, iPad shows a persistent sidebar for Workspace, Terminal, Activity, Server Log and Capabilities. At 1040 points, inspectors open beside the live OpenCode session. Choose Workspace or Done to close an inspector. Narrow windows use the compact toolbar. Resizing and rotating keep the current web session mounted.
+iPad opens the OpenMind Harness dashboard. Its three-column desktop layout, app icon, search, feature views, runtime inspector and activity panels come directly from the harness repository. The app serves them over loopback inside the Linux guest, using the same workspace state as the runtime CLI and the OpenCode MCP bridge. The dashboard adapts to portrait and narrower window sizes. From the guest terminal, run `omh-runtime status` or `omh-runtime task:list` to inspect the same workspace.
+
+Tap **OpenCode** to open the editor. Tap **Dashboard** in the navigation bar to return. Both views keep their in-memory session while switching. The editor starts on demand. On iPhone the editor opens directly.
+
+In the editor, at 740 points of usable window width, iPad shows a persistent sidebar for Workspace, Terminal, Activity, Server Log and Capabilities. At 1040 points, inspectors open beside the live OpenCode session. Choose Workspace or Done to close an inspector. Narrow windows use the compact toolbar. Resizing and rotating keep the current web session mounted.
 
 ## Test it on your iPad
 

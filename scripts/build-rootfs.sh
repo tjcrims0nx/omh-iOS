@@ -117,6 +117,14 @@ for (const provider of ['google', 'openai', 'anthropic', 'deepseek', 'openrouter
 }
 console.log('OMH iOS: canonical Gemini, agents, and universal providers configured');
 NODE
+# Keep the runtime and dashboard outside the migrated user config directory.
+runtime=payload/usr/local/share/omh-runtime
+mkdir -p "$runtime/scripts"
+cp -R "$HARNESS_DIR/modules" "$HARNESS_DIR/dashboard" "$runtime/"
+cp "$HARNESS_DIR"/scripts/omh-{dashboard,runtime,mcp,daemon}.mjs "$runtime/scripts/"
+cat > "$runtime/ipad-opencode.json" <<'JSON'
+{"mcp":{"omh-runtime":{"type":"local","command":["/usr/bin/node","/usr/local/share/omh-runtime/scripts/omh-mcp.mjs"],"enabled":true,"timeout":10000}}}
+JSON
 # Same for the starter skill (OpenCode's global skills source).
 mkdir -p payload/root/.config/opencode/skills
 cp -R "$HARNESS_DIR/skills/." payload/root/.config/opencode/skills/
@@ -151,10 +159,17 @@ chmod +x /usr/local/bin/opencode /usr/local/bin/opencode-serve /usr/local/bin/op
 mkdir -p /root/workspace
 opencode --version
 node --version
+# Exercise the packaged CLI in a temporary workspace, leaving the shipped workspace clean.
+(
+  export OMH_WORKSPACE=/tmp/omh-runtime-smoke
+  mkdir -p "$OMH_WORKSPACE"
+  echo ready > "$OMH_WORKSPACE/check.txt"
+  omh-runtime task:add '{"kind":"workspace.read","input":{"path":"check.txt"}}' >/dev/null
+  omh-runtime task:run | node -e 'const t=JSON.parse(require("node:fs").readFileSync(0)); if(t.status!=="completed" || t.result.trim()!=="ready") process.exit(1)'
+)
 node -e 'const c=require("/root/.config/opencode/opencode.json"); if(c.model !== "google/gemini-3.8-flash") { console.error("Expected Gemini default, got",c.model); process.exit(1) }'
 opencode models | grep -q "google/gemini-3.8-flash"
 opencode models | grep -q "experientiallabs/deepseek-v4.1-flash:free"
-opencode models | grep -q "google/gemini-3.8-flash"
 opencode models | grep -q "antigravity/gemini-3-flash"
 echo "guest opencode: $(opencode --version), Gemini default + fallback + antigravity models present"
 rm -rf /var/cache/apk/* /tmp/*

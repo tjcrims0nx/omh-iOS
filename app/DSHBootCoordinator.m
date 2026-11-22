@@ -150,7 +150,10 @@ NSNotificationName const DSHBootStateDidChangeNotification = @"DSHBootStateDidCh
         [DSHHarness.shared.log append:@"[openmind-harness] host bridge could not start; iOS capabilities are unavailable"];
     }
     [DSHStartupMetrics.shared mark:@"bridge_ready"];
-    [DSHHarness.shared start];
+    if (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad)
+        [DSHHarness.dashboard start];
+    else
+        [DSHHarness.shared start];
 }
 
 @end

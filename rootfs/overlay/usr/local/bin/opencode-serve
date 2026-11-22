@@ -39,4 +39,6 @@ if command -v node >/dev/null 2>&1 && [ -f /usr/local/bin/openmind-antigravity-b
   (node /usr/local/bin/openmind-antigravity-bridge.mjs >> /root/antigravity-bridge.log 2>&1 &) || true
 fi
 
+export OMH_WORKSPACE="$OPENCODE_WORKSPACE"
+export OPENCODE_CONFIG="${OPENCODE_CONFIG:-/usr/local/share/omh-runtime/ipad-opencode.json}"
 exec /usr/local/bin/opencode web --hostname 127.0.0.1 --port "$PORT" "$@"

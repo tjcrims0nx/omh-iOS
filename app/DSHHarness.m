@@ -44,6 +44,9 @@ NSString *DSHHarnessStateName(DSHHarnessState state) {
 @property (nonatomic) BOOL healthCheckInFlight;
 @property (nonatomic) NSMutableArray<void (^)(BOOL)> *healthCheckCompletions;
 @property (nonatomic) BOOL tracksPersistentFailures;
+@property (nonatomic, copy) NSString *startupKey;
+@property (nonatomic, copy) NSString *failureKey;
+- (instancetype)initWithLauncher:(id<DSHGuestProcessLauncher>)launcher dashboard:(BOOL)dashboard;
 @end
 
 @implementation DSHHarness
@@ -57,13 +60,28 @@ NSString *DSHHarnessStateName(DSHHarnessState state) {
     return shared;
 }
 
++ (instancetype)dashboard {
+    static DSHHarness *dashboard;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        dashboard = [[DSHHarness alloc] initWithLauncher:[DSHGuestLauncher new] dashboard:YES];
+    });
+    return dashboard;
+}
+
 - (instancetype)initWithLauncher:(id<DSHGuestProcessLauncher>)launcher {
+    return [self initWithLauncher:launcher dashboard:NO];
+}
+
+- (instancetype)initWithLauncher:(id<DSHGuestProcessLauncher>)launcher dashboard:(BOOL)dashboard {
     if (self = [super init]) {
         _launcher = launcher;
-        _log = [[DSHLogBuffer alloc] initPersistentWithCapacity:1000];
-        _serverExecutable = @"/usr/local/bin/opencode-serve";
+        _log = dashboard ? [[DSHLogBuffer alloc] initWithCapacity:200] : [[DSHLogBuffer alloc] initPersistentWithCapacity:1000];
+        _startupKey = dashboard ? @"OMHDashboardStartupDuration" : kExpectedStartupKey;
+        _failureKey = dashboard ? @"OMHDashboardRecentFailures.1" : kRecentFailuresKey;
+        _serverExecutable = dashboard ? @"/usr/local/bin/omh-dashboard" : @"/usr/local/bin/opencode-serve";
         _extraEnvironment = @{};
-        _preferredPort = 3080;
+        _preferredPort = dashboard ? 4177 : 3080;
         _startupTimeout = 240;
         _maxConsecutiveCrashes = 4;
         _state = DSHHarnessStateIdle;
@@ -74,7 +92,7 @@ NSString *DSHHarnessStateName(DSHHarnessState state) {
 }
 
 - (NSTimeInterval)expectedStartupDuration {
-    double stored = [NSUserDefaults.standardUserDefaults doubleForKey:kExpectedStartupKey];
+    double stored = [NSUserDefaults.standardUserDefaults doubleForKey:self.startupKey];
     return stored > 1 ? stored : kDefaultExpectedStartup;
 }
 
@@ -151,7 +169,7 @@ NSString *DSHHarnessStateName(DSHHarnessState state) {
     if (port == 0 || ![DSHPortAllocator isLoopbackPortFree:port])
         port = [DSHPortAllocator freeLoopbackPortStartingAt:self.preferredPort span:20];
     if (port == 0) {
-        self.lastError = @"No free loopback port between 3080 and 3099.";
+        self.lastError = [NSString stringWithFormat:@"No free loopback port between %u and %u.", self.preferredPort, self.preferredPort + 19];
         [self.log append:[@"[openmind-harness] " stringByAppendingString:self.lastError]];
         self.state = DSHHarnessStateFailed;
         return;
@@ -196,9 +214,9 @@ NSString *DSHHarnessStateName(DSHHarnessState state) {
         if (ready) {
             self.lastStartupDuration = elapsed;
             // Smooth the estimate for next time (EMA, weight on the new sample).
-            double prev = [NSUserDefaults.standardUserDefaults doubleForKey:kExpectedStartupKey];
+            double prev = [NSUserDefaults.standardUserDefaults doubleForKey:self.startupKey];
             double next = prev > 1 ? prev * 0.5 + elapsed * 0.5 : elapsed;
-            [NSUserDefaults.standardUserDefaults setDouble:next forKey:kExpectedStartupKey];
+            [NSUserDefaults.standardUserDefaults setDouble:next forKey:self.startupKey];
             self.consecutiveCrashes = 0;
             [self clearPersistentFailures];
             [self.log append:[NSString stringWithFormat:@"[openmind-harness] server answered after %.1fs", elapsed]];
@@ -260,7 +278,7 @@ NSString *DSHHarnessStateName(DSHHarnessState state) {
 
 - (NSArray<NSDate *> *)recentPersistentFailures {
     if (!self.tracksPersistentFailures) return @[];
-    NSArray *raw = [NSUserDefaults.standardUserDefaults arrayForKey:kRecentFailuresKey] ?: @[];
+    NSArray *raw = [NSUserDefaults.standardUserDefaults arrayForKey:self.failureKey] ?: @[];
     NSDate *cutoff = [NSDate dateWithTimeIntervalSinceNow:-kPersistentFailureWindow];
     return [raw filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(id value, NSDictionary *bindings) {
         return [value isKindOfClass:NSDate.class] && [value compare:cutoff] != NSOrderedAscending;
@@ -275,12 +293,12 @@ NSString *DSHHarnessStateName(DSHHarnessState state) {
     if (!self.tracksPersistentFailures) return;
     NSMutableArray *failures = [self.recentPersistentFailures mutableCopy];
     [failures addObject:NSDate.date];
-    [NSUserDefaults.standardUserDefaults setObject:failures forKey:kRecentFailuresKey];
+    [NSUserDefaults.standardUserDefaults setObject:failures forKey:self.failureKey];
 }
 
 - (void)clearPersistentFailures {
     if (self.tracksPersistentFailures)
-        [NSUserDefaults.standardUserDefaults removeObjectForKey:kRecentFailuresKey];
+        [NSUserDefaults.standardUserDefaults removeObjectForKey:self.failureKey];
 }
 
 - (void)verifyAliveWithCompletion:(void (^)(BOOL))completion {
