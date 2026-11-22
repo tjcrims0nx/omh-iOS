@@ -141,6 +141,10 @@ if(config.model!=='google/gemini-3.5-flash-lite'||!config.provider?.google)
   throw Error('iPad guest config lost canonical provider/model settings');
 fs.writeFileSync(process.argv[3],JSON.stringify(config,null,2)+'\n');
 NODE
+# The effective user configuration must include the same MCP registration;
+# official Vercel OAuth setup edits this file and must remain effective after
+# app restarts instead of being masked by a separate OPENCODE_CONFIG override.
+cp "$runtime/ipad-opencode.json" payload/root/.config/opencode/opencode.json
 # Same for the starter skill (OpenCode's global skills source).
 mkdir -p payload/root/.config/opencode/skills
 cp -R "$HARNESS_DIR/skills/." payload/root/.config/opencode/skills/
@@ -192,6 +196,8 @@ node -e 'const d=require("/tmp/omh-sandbox-diagnostic.json"); if(d.schema!=="omh
   omh-runtime task:run | node -e 'const t=JSON.parse(require("node:fs").readFileSync(0)); if(t.status!=="completed" || t.result.trim()!=="ready") process.exit(1)'
 )
 node -e 'const c=require("/root/.config/opencode/opencode.json"); if(c.model !== "google/gemini-3.5-flash-lite") { console.error("Expected Gemini default, got",c.model); process.exit(1) }'
+node -e 'const c=require("/root/.config/opencode/opencode.json"); if(c.mcp?.["omh-runtime"]?.enabled!==true) {console.error("Missing local OMH MCP bridge");process.exit(1)}'
+
 opencode models | grep -q "google/gemini-3.5-flash-lite"
 opencode models | grep -q "experientiallabs/deepseek-v4.1-flash:free"
 opencode models | grep -q "antigravity/gemini-3-flash"
