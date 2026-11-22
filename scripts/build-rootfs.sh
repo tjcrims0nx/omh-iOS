@@ -95,6 +95,9 @@ cp "$ISH_SRC"/app/RootfsPatch.bundle/files/lib/*.js payload/lib/
 overlay_ver=$(/usr/libexec/PlistBuddy -c 'Print :version' "$ISH_SRC/app/RootfsPatch.bundle/manifest.plist")
 mkdir -p payload/ish && printf '%s\n' "$overlay_ver" > payload/ish/overlay-version
 cp -R "$ROOT/rootfs/overlay/." payload/
+# Git stores generated wrapper scripts as regular text; set executable modes
+# explicitly so the iOS Terminal can run all three guest commands.
+chmod 0755 payload/usr/local/bin/omh-live payload/usr/local/bin/omh-vercel-mcp payload/usr/local/bin/omh-sandbox-check
 find payload -name '._*' -delete
 # The harness config is canonical in the openmind-harness repo (the same
 # file the Linux and Termux setups install); place it in the guest image
