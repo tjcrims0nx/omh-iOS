@@ -282,7 +282,8 @@ jobs:
           if-no-files-found: warn
 
   # Separate iOS target: an iPadOS test cannot validate compact iPhone UI.
-  iphone-smoke:
+  # Independently verify an actual iPhone launch and guest readiness.
+  iphone-simulator-smoke:
     needs: build
     runs-on: macos-26
     timeout-minutes: 60
@@ -354,23 +355,24 @@ jobs:
       - name: Regenerate Xcode project
         run: |
           make project
-          grep -q 'OMH.app/OMH' DSH.xcodeproj/project.pbxproj
-          grep -q 'PRODUCT_NAME = OMH' app/AppDSH.xcconfig
+          grep -q 'OMH.app/OMH' OMH.xcodeproj/project.pbxproj
+          grep -q 'PRODUCT_NAME = OMH' app/AppOMH.xcconfig
 
-      - name: Simulator native UI smoke test (iPhone)
+      - name: Simulator smoke test (iPhone)
         run: |
           SIM="$(bash scripts/pick-iphone-simulator.sh)"
           echo "iOS iPhone simulator: $SIM"
           # Boot and settle SpringBoard before XCTest launches the emulator app.
           xcrun simctl boot "$SIM" || true
           xcrun simctl bootstatus "$SIM" -b
-          xcodebuild -project DSH.xcodeproj -scheme DSH -configuration Release \
+          xcodebuild -project OMH.xcodeproj -scheme OMH -configuration Release \
             -destination "platform=iOS Simulator,name=$SIM" \
             -parallel-testing-enabled NO -resultBundlePath "$RUNNER_TEMP/iphone.xcresult" \
-            -only-testing:DSHUITests/DSHLaunchUITests/testIOSPhoneNativeDashboardAndEditor \
+            -only-testing:OMHUITests/OMHLaunchUITests/testIOSPhoneNativeDashboardAndEditor \
+            -only-testing:OMHUITests/OMHLaunchUITests/testServerLogIsReachableFromMenu \
             test
 
-      - name: Export iPad screenshots and test diagnostics
+      - name: Export iPhone screenshots and test diagnostics
         if: always()
         run: |
           result="$RUNNER_TEMP/iphone.xcresult"
