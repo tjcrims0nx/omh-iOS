@@ -25,6 +25,14 @@ static NSString *const kDSHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
 @property (nonatomic) DSHStatusOverlayView *overlay;
 @property (nonatomic) UIView *controlBar;
 @property (nonatomic) NSLayoutConstraint *controlBarHeight;
+@property (nonatomic) UIScrollView *sidebar;
+@property (nonatomic) NSLayoutConstraint *sidebarWidth;
+@property (nonatomic) UIButton *sidebarTerminal;
+@property (nonatomic) UIView *inspector;
+@property (nonatomic) NSLayoutConstraint *inspectorWidth;
+@property (nonatomic) NSLayoutConstraint *workspaceInset;
+@property (nonatomic) UINavigationController *inspectorController;
+@property (nonatomic) NSArray<UIButton *> *sidebarButtons;
 @property (nonatomic) UILabel *titleLabel;
 @property (nonatomic) UIView *statusDot;
 @property (nonatomic) UIButton *menuButton;
@@ -46,7 +54,9 @@ static NSString *const kDSHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
 
     [self buildWebView];
     [self buildControlBar];
+    [self buildDesktopWorkspace];
     [self buildOverlay];
+    [self.view bringSubviewToFront:self.inspector];
 
     NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
     [nc addObserver:self selector:@selector(harnessStateChanged:) name:DSHHarnessStateDidChangeNotification object:nil];
@@ -71,6 +81,8 @@ static NSString *const kDSHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     config.websiteDataStore = WKWebsiteDataStore.defaultDataStore;
     config.applicationNameForUserAgent = kDSHUserAgentSuffix;
     config.defaultWebpagePreferences.allowsContentJavaScript = YES;
+    if (self.traitCollection.userInterfaceIdiom == UIUserInterfaceIdiomPad)
+        config.defaultWebpagePreferences.preferredContentMode = WKContentModeDesktop;
     self.webView = [[WKWebView alloc] initWithFrame:CGRectZero configuration:config];
     self.webView.navigationDelegate = self;
     self.webView.UIDelegate = self;
@@ -136,17 +148,7 @@ static NSString *const kDSHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     menu.menu = [self buildMenu];
     self.menuButton = menu;
 
-    // Use the actual bundled app icon as the in-app brand mark; never substitute
-    // an unrelated illustration. Some iOS asset pipelines do not expose the
-    // primary icon through imageNamed:, so retain the OMH title as fallback.
-    NSDictionary *icons = NSBundle.mainBundle.infoDictionary[@"CFBundleIcons"];
-    NSArray<NSString *> *iconFiles = icons[@"CFBundlePrimaryIcon"][@"CFBundleIconFiles"];
-    UIImage *brandImage = nil;
-    for (NSString *name in [iconFiles reverseObjectEnumerator]) {
-        brandImage = [UIImage imageNamed:name];
-        if (brandImage) break;
-    }
-    if (!brandImage) brandImage = [UIImage imageNamed:@"AppIcon"];
+    UIImage *brandImage = [UIImage imageNamed:@"OMHBrandMark"];
     UIImageView *brandIcon = [[UIImageView alloc] initWithImage:brandImage];
     brandIcon.translatesAutoresizingMaskIntoConstraints = NO;
     brandIcon.contentMode = UIViewContentModeScaleAspectFit;
@@ -179,8 +181,6 @@ static NSString *const kDSHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
         [dot.heightAnchor constraintEqualToConstant:8],
 
         [self.webView.topAnchor constraintEqualToAnchor:bar.bottomAnchor],
-        [self.webView.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
-        [self.webView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
         // Keep the harness composer above the software keyboard. WKWebView's
         // own viewport updates are not reliable across iOS releases when its
         // scroll view uses contentInsetAdjustmentNever; the keyboard layout
@@ -188,6 +188,132 @@ static NSString *const kDSHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
         // hardware keyboard.
         [self.webView.bottomAnchor constraintEqualToAnchor:self.view.keyboardLayoutGuide.topAnchor],
     ]];
+}
+
+- (void)buildDesktopWorkspace {
+    UILayoutGuide *safe = self.view.safeAreaLayoutGuide;
+    UIScrollView *rail = [UIScrollView new];
+    rail.translatesAutoresizingMaskIntoConstraints = NO;
+    rail.backgroundColor = [UIColor colorWithRed:0.025 green:0.047 blue:0.075 alpha:1];
+    rail.accessibilityIdentifier = @"omh.sidebar";
+    rail.clipsToBounds = YES;
+    [self.view addSubview:rail];
+    self.sidebar = rail;
+
+    UIStackView *items = [UIStackView new];
+    items.axis = UILayoutConstraintAxisVertical;
+    items.spacing = 6;
+    items.translatesAutoresizingMaskIntoConstraints = NO;
+    [rail addSubview:items];
+    UIButton *workspace = [self sidebarButton:@"Workspace" symbol:@"rectangle.split.2x1" action:@selector(closeInspector) key:@"workspace"];
+    self.sidebarTerminal = [self sidebarButton:@"Terminal" symbol:@"terminal" action:@selector(presentTerminal) key:@"terminal"];
+    self.sidebarButtons = @[workspace, self.sidebarTerminal,
+        [self sidebarButton:@"Activity" symbol:@"waveform.path.ecg" action:@selector(presentActivity) key:@"activity"],
+        [self sidebarButton:@"Server Log" symbol:@"text.alignleft" action:@selector(presentLog) key:@"log"],
+        [self sidebarButton:@"Capabilities" symbol:@"switch.2" action:@selector(presentCapabilities) key:@"capabilities"]];
+    for (UIButton *button in self.sidebarButtons) [items addArrangedSubview:button];
+    workspace.selected = YES;
+
+    UIView *inspector = [UIView new];
+    inspector.translatesAutoresizingMaskIntoConstraints = NO;
+    inspector.clipsToBounds = YES;
+    inspector.accessibilityIdentifier = @"omh.inspector";
+    inspector.hidden = YES;
+    [self.view addSubview:inspector];
+    self.inspector = inspector;
+    self.sidebarWidth = [rail.widthAnchor constraintEqualToConstant:0];
+    self.inspectorWidth = [inspector.widthAnchor constraintEqualToConstant:0];
+    self.workspaceInset = [self.webView.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor];
+    [NSLayoutConstraint activateConstraints:@[
+        [rail.topAnchor constraintEqualToAnchor:self.controlBar.bottomAnchor],
+        [rail.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor],
+        [rail.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor],
+        self.sidebarWidth,
+        [items.leadingAnchor constraintEqualToAnchor:rail.contentLayoutGuide.leadingAnchor constant:8],
+        [items.trailingAnchor constraintEqualToAnchor:rail.contentLayoutGuide.trailingAnchor constant:-8],
+        [items.topAnchor constraintEqualToAnchor:rail.contentLayoutGuide.topAnchor constant:16],
+        [items.bottomAnchor constraintEqualToAnchor:rail.contentLayoutGuide.bottomAnchor constant:-16],
+        [items.widthAnchor constraintEqualToConstant:164],
+        [self.webView.leadingAnchor constraintEqualToAnchor:rail.trailingAnchor],
+        self.workspaceInset,
+        [inspector.topAnchor constraintEqualToAnchor:self.controlBar.bottomAnchor],
+        [inspector.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor],
+        [inspector.bottomAnchor constraintEqualToAnchor:self.view.keyboardLayoutGuide.topAnchor],
+        self.inspectorWidth,
+    ]];
+}
+
+- (UIButton *)sidebarButton:(NSString *)title symbol:(NSString *)symbol action:(SEL)action key:(NSString *)key {
+    UIButtonConfiguration *config = [UIButtonConfiguration plainButtonConfiguration];
+    config.title = title;
+    config.image = [UIImage systemImageNamed:symbol];
+    config.imagePadding = 9;
+    config.contentInsets = NSDirectionalEdgeInsetsMake(10, 10, 10, 8);
+    UIButton *button = [UIButton buttonWithConfiguration:config primaryAction:nil];
+    button.contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeading;
+    button.accessibilityIdentifier = [@"omh.sidebar." stringByAppendingString:key];
+    button.configurationUpdateHandler = ^(UIButton *item) {
+        UIButtonConfiguration *style = item.configuration;
+        style.baseForegroundColor = item.selected ? UIColor.cyanColor : UIColor.lightTextColor;
+        style.background.backgroundColor = item.selected ? [UIColor colorWithRed:0.04 green:0.15 blue:0.20 alpha:1] : UIColor.clearColor;
+        item.configuration = style;
+    };
+    [button addTarget:self action:action forControlEvents:UIControlEventTouchUpInside];
+    return button;
+}
+
+- (void)viewWillLayoutSubviews {
+    [super viewWillLayoutSubviews];
+    CGFloat width = CGRectGetWidth(self.view.bounds) - self.view.safeAreaInsets.left - self.view.safeAreaInsets.right;
+    BOOL desktop = self.traitCollection.userInterfaceIdiom == UIUserInterfaceIdiomPad && width >= 740;
+    self.sidebarWidth.constant = desktop ? 180 : 0;
+    self.sidebar.hidden = !desktop;
+    self.controlBarHeight.constant = desktop ? 50 : 40;
+    // Keep the live web session mounted through rotation, split view and inspector changes.
+    BOOL besideWorkspace = desktop && width >= 1040;
+    CGFloat inspector = self.inspectorController ? (besideWorkspace ? 332 : MAX(0, width - self.sidebarWidth.constant)) : 0;
+    self.inspectorWidth.constant = inspector;
+    self.workspaceInset.constant = besideWorkspace ? -inspector : 0;
+    BOOL covered = self.inspectorController && !besideWorkspace;
+    self.webView.accessibilityElementsHidden = covered;
+    self.overlay.accessibilityElementsHidden = covered;
+}
+
+- (void)closeInspector {
+    UINavigationController *nav = self.inspectorController;
+    if (nav) {
+        [nav willMoveToParentViewController:nil];
+        [nav.view removeFromSuperview];
+        [nav removeFromParentViewController];
+        self.inspectorController = nil;
+    }
+    self.inspector.hidden = YES;
+    for (UIButton *button in self.sidebarButtons) button.selected = button == self.sidebarButtons.firstObject;
+    [self.view setNeedsLayout];
+}
+
+- (void)showInspector:(UIViewController *)controller key:(NSString *)key {
+    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:controller];
+    if (self.sidebar.hidden) {
+        nav.modalPresentationStyle = UIModalPresentationPageSheet;
+        [self presentViewController:nav animated:YES completion:nil];
+        return;
+    }
+    [self closeInspector];
+    [self addChildViewController:nav];
+    self.inspectorController = nav;
+    self.inspector.hidden = NO;
+    nav.view.frame = self.inspector.bounds;
+    nav.view.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
+    [self.inspector addSubview:nav.view];
+    [nav didMoveToParentViewController:self];
+    [controller loadViewIfNeeded];
+    for (UIBarButtonItem *item in controller.navigationItem.rightBarButtonItems) {
+        if (item.action == @selector(done)) { item.target = self; item.action = @selector(closeInspector); }
+    }
+    NSString *identifier = [@"omh.sidebar." stringByAppendingString:key];
+    for (UIButton *button in self.sidebarButtons) button.selected = [button.accessibilityIdentifier isEqualToString:identifier];
+    [self.view setNeedsLayout];
 }
 
 - (UIButton *)barButtonWithSymbol:(NSString *)symbol action:(nullable SEL)action identifier:(NSString *)identifier {
@@ -233,8 +359,8 @@ static NSString *const kDSHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     [self.view addSubview:self.overlay];
     [NSLayoutConstraint activateConstraints:@[
         [self.overlay.topAnchor constraintEqualToAnchor:self.controlBar.bottomAnchor],
-        [self.overlay.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
-        [self.overlay.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+        [self.overlay.leadingAnchor constraintEqualToAnchor:self.webView.leadingAnchor],
+        [self.overlay.trailingAnchor constraintEqualToAnchor:self.webView.trailingAnchor],
         [self.overlay.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
     ]];
 }
@@ -269,6 +395,7 @@ static NSString *const kDSHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     // Before the guest is up, the boot coordinator owns the overlay.
     DSHBootCoordinator *boot = DSHBootCoordinator.shared;
     self.terminalButton.enabled = boot.phase == DSHBootPhaseReady;
+    self.sidebarTerminal.enabled = self.terminalButton.enabled;
     if (boot.phase != DSHBootPhaseReady) {
         if (boot.phase == DSHBootPhaseFailed) {
             [self.overlay showFailure:boot.statusMessage];
@@ -389,23 +516,17 @@ static NSString *const kDSHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
 
 - (void)presentLog {
     DSHLogViewController *vc = [[DSHLogViewController alloc] initWithLog:DSHHarness.shared.log];
-    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:vc];
-    nav.modalPresentationStyle = UIModalPresentationPageSheet;
-    [self presentViewController:nav animated:YES completion:nil];
+    [self showInspector:vc key:@"log"];
 }
 
 - (void)presentCapabilities {
     DSHCapabilitiesViewController *vc = [DSHCapabilitiesViewController new];
-    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:vc];
-    nav.modalPresentationStyle = UIModalPresentationPageSheet;
-    [self presentViewController:nav animated:YES completion:nil];
+    [self showInspector:vc key:@"capabilities"];
 }
 
 - (void)presentActivity {
     DSHActivityViewController *vc = [DSHActivityViewController new];
-    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:vc];
-    nav.modalPresentationStyle = UIModalPresentationPageSheet;
-    [self presentViewController:nav animated:YES completion:nil];
+    [self showInspector:vc key:@"activity"];
 }
 
 - (void)presentAbout {

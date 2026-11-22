@@ -10,6 +10,7 @@ on:
     branches: [main]
     paths:
       - 'app/**'
+      - 'tests/DSHUITests/**'
       - 'rootfs/**'
       - 'scripts/**'
       - 'ish-arm64/**'
@@ -70,11 +71,6 @@ jobs:
       - name: Build guest rootfs
         if: steps.build-cache.outputs.cache-hit != 'true'
         run: |
-          # The emulator copies the host hostname into a 65-byte guest field;
-          # the runner hostname is longer than that and aborts the emulator.
-          sudo hostname ish
-          sudo scutil --set HostName ish || true
-          hostname
           make rootfs
 
       - name: Regenerate Xcode project
@@ -159,8 +155,6 @@ jobs:
       - name: Build guest rootfs
         if: steps.build-cache.outputs.cache-hit != 'true'
         run: |
-          sudo hostname ish
-          sudo scutil --set HostName ish || true
           make rootfs
 
       - name: Regenerate Xcode project
@@ -172,5 +166,23 @@ jobs:
           echo "Simulator: $SIM"
           xcodebuild -project DSH.xcodeproj -scheme DSH -configuration Release \
             -destination "platform=iOS Simulator,name=$SIM" \
+            -parallel-testing-enabled NO -resultBundlePath "$RUNNER_TEMP/ipad.xcresult" \
             -only-testing:DSHUITests/DSHLaunchUITests/testHarnessBootsAndShowsWebUI \
             test
+
+      - name: Export iPad screenshots and test diagnostics
+        if: always()
+        run: |
+          result="$RUNNER_TEMP/ipad.xcresult"
+          if [ -d "$result" ]; then
+            mkdir -p "$RUNNER_TEMP/ipad-evidence"
+            xcrun xcresulttool export attachments --path "$result" --output-path "$RUNNER_TEMP/ipad-evidence"
+            xcrun xcresulttool get test-results summary --path "$result" > "$RUNNER_TEMP/ipad-evidence/tests.json"
+            xcrun xcresulttool export diagnostics --path "$result" --output-path "$RUNNER_TEMP/ipad-evidence/diagnostics"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ipad-desktop-ui-test
+          path: ${{ runner.temp }}/ipad-evidence
+          if-no-files-found: warn

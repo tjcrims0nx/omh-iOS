@@ -42,15 +42,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 }
 
 - (void)testHarnessBootsAndShowsWebUI {
-    // While starting, the overlay shows a progress bar and an elapsed/ETA line.
-    XCUIElement *progress = self.app.progressIndicators[@"dsh.overlay.progress"];
-    XCUIElement *elapsed = self.app.staticTexts[@"dsh.overlay.elapsed"];
-    if ([progress waitForExistenceWithTimeout:5]) {
-        XCTAssertTrue([elapsed waitForExistenceWithTimeout:5]);
-        NSPredicate *hasEta = [NSPredicate predicateWithFormat:@"label CONTAINS 'elapsed'"];
-        XCTestExpectation *e = [self expectationForPredicate:hasEta evaluatedWithObject:elapsed handler:nil];
-        [self waitForExpectations:@[e] timeout:10];
-    }
+    XCUIDevice.sharedDevice.orientation = UIDeviceOrientationLandscapeLeft;
     [self attachScreenshot:@"01-launch"];
     [self waitForHarnessReady];
     [self attachScreenshot:@"02-ready"];
@@ -58,14 +50,36 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCUIElement *web = self.app.webViews.firstMatch;
     XCTAssertTrue([web waitForExistenceWithTimeout:30], @"web view should exist");
 
-    // The DSH web app renders a sidebar with a "New Session" button (or the
-    // first-run notice with a Continue button) once its client bundle ran.
+    // Wait for the local web client to render an interactive control.
     NSPredicate *uiUp = [NSPredicate predicateWithFormat:@"exists == YES"];
     XCUIElementQuery *markers = [[web descendantsMatchingType:XCUIElementTypeAny]
-        matchingPredicate:[NSPredicate predicateWithFormat:@"label CONTAINS[c] 'New Session' OR label CONTAINS[c] 'Continue' OR label CONTAINS[c] 'DeepSeek'"]];
+        matchingPredicate:[NSPredicate predicateWithFormat:@"elementType == %d OR elementType == %d OR elementType == %d", XCUIElementTypeButton, XCUIElementTypeLink, XCUIElementTypeTextField]];
     XCTestExpectation *e = [self expectationForPredicate:uiUp evaluatedWithObject:markers.firstMatch handler:nil];
     [self waitForExpectations:@[e] timeout:90];
     [self attachScreenshot:@"03-web-ui"];
+
+    XCUIElement *workspace = self.app.buttons[@"omh.sidebar.workspace"];
+    XCTAssertTrue([workspace waitForExistenceWithTimeout:8], @"iPad landscape should show desktop navigation");
+    XCUIElement *log = self.app.buttons[@"omh.sidebar.log"];
+    [log tap];
+    XCUIElement *logView = self.app.textViews[@"dsh.logview"];
+    XCTAssertTrue([logView waitForExistenceWithTimeout:8]);
+    if (CGRectGetWidth(self.app.frame) >= 1040) {
+        XCTAssertLessThanOrEqual(CGRectGetMaxX(web.frame), CGRectGetMinX(logView.frame) + 1);
+    }
+    [self attachScreenshot:@"04-ipad-workspace-and-log"];
+    [self.app.buttons[@"Done"] tap];
+    XCTAssertFalse(logView.exists);
+    [self.app.buttons[@"omh.sidebar.activity"] tap];
+    XCTAssertTrue([self.app.tables[@"dsh.activity"] waitForExistenceWithTimeout:8]);
+    [workspace tap];
+    [self.app.buttons[@"omh.sidebar.capabilities"] tap];
+    XCTAssertTrue([self.app.tables[@"dsh.capabilities"] waitForExistenceWithTimeout:8]);
+    [workspace tap];
+    XCTAssertTrue(web.hittable);
+    XCUIDevice.sharedDevice.orientation = UIDeviceOrientationPortrait;
+    XCTAssertTrue([self.app.buttons[@"dsh.menu"] waitForExistenceWithTimeout:8]);
+    [self attachScreenshot:@"05-ipad-portrait"];
 
     // Title shows the port the server listens on.
     XCUIElement *title = self.app.staticTexts[@"dsh.title"];

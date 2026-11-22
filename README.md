@@ -31,6 +31,10 @@ make app        # unsigned device build (DSH.app)
 
 CI builds the unsigned IPA on every manual run (`Build unsigned IPA` workflow) and uploads it as an artifact. Install it on your iPad with your own signing — the bundle id is `app.jackfruit686.openmind-harness`.
 
+## iPad workspace
+
+At 740 points of usable window width, iPad shows a persistent sidebar for Workspace, Terminal, Activity, Server Log and Capabilities. At 1040 points, inspectors open beside the live OpenCode session. Choose Workspace or Done to close an inspector. Narrow windows use the compact toolbar. Resizing and rotating keep the current web session mounted.
+
 ## Test it on your iPad
 
 First launch imports the guest image (about a minute on first boot, then
