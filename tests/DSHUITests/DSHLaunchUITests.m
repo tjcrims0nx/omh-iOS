@@ -49,6 +49,14 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 
 - (void)testHarnessBootsAndShowsWebUI {
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationLandscapeLeft;
+    // Native UIKit shell must remain visible while the guest WebKit app loads.
+    // This is deliberately separate from the embedded dashboard DOM.
+    XCUIElement *nativeRefresh = self.app.buttons[@"omh.native.refresh"];
+    XCUIElement *nativeEditor = self.app.buttons[@"omh.open-editor"];
+    XCTAssertTrue([nativeRefresh waitForExistenceWithTimeout:15], @"Native dashboard refresh belongs in the iPad toolbar");
+    XCTAssertTrue([nativeEditor waitForExistenceWithTimeout:15], @"Native OpenCode navigation belongs in the toolbar");
+    XCTAssertTrue(self.app.images[@"omh.native.brand.logo"].exists, @"Use the official OMH brand in UIKit");
+    XCTAssertGreaterThanOrEqual(CGRectGetHeight(nativeRefresh.frame), 40.0, @"Refresh must have an accessible tap target");
     XCUIElement *home = self.app.webViews.firstMatch;
     XCUIElement *refresh = home.buttons[@"Refresh runtime state"];
     XCTAssertTrue([refresh waitForExistenceWithTimeout:kBootTimeout], @"iPad must open the shared OMH dashboard");
@@ -93,6 +101,8 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     [home.buttons[@"Clear"] tap];
     XCTAssertFalse(home.buttons[@"Clear"].exists);
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationPortrait;
+    XCTAssertTrue([nativeRefresh waitForExistenceWithTimeout:8], @"Native toolbar should survive rotation");
+    XCTAssertTrue(nativeEditor.hittable, @"OpenCode native control should survive rotation");
     XCTAssertTrue(refresh.hittable);
     [self attachScreenshot:@"02-ipad-dashboard-portrait"];
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationLandscapeLeft;
