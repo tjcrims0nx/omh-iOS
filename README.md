@@ -20,9 +20,11 @@ This repo is the iOS app **only**. The harness itself — `opencode.json`, skill
 
 So a fresh clone of this repo builds straight away — it just needs git and network for the one harness fetch.
 
-## Current iPadOS port (November 22, 2026)
+## Current iOS + iPadOS port (November 22, 2026)
 
-The iPadOS rootfs now packages the harness at verified commit `55f62a9`, including the updated dashboard, agent/workflow/task runtime, built-in MCP bridge, opt-in live HTTPS connector and official Vercel OAuth MCP registration helper. The effective guest OpenCode config contains `google/gemini-3.5-flash-lite` and preserves the local OMH MCP registration. User-authorized changes to the persistent config remain visible to OpenCode.
+**Native iOS and iPadOS UI:** Both iPhone and iPad now open the same OMH-branded UIKit dashboard shell. iPad uses the larger workspace layout; iPhone and compact Stage Manager windows shorten the native title and adapt the WebKit viewport while preserving cyan/dark styling and labeled OpenCode/Refresh buttons. The OpenCode editor remains a native navigation destination on both devices. GitHub CI runs independent **iPadOS** and **iOS iPhone** simulator UI smoke jobs; results must pass separately before the app's native UI is considered verified.
+
+The iOS/iPadOS rootfs now packages the harness at verified commit `55f62a9`, including the updated dashboard, agent/workflow/task runtime, built-in MCP bridge, opt-in live HTTPS connector and official Vercel OAuth MCP registration helper. The effective guest OpenCode config contains `google/gemini-3.5-flash-lite` and preserves the local OMH MCP registration. User-authorized changes to the persistent config remain visible to OpenCode.
 
 **Linux sandbox:** `bubblewrap` is installed in Alpine. The guest command `omh-sandbox-check` reports whether an actual namespace/mount probe succeeds. iSH is a Linux emulator on iPadOS and may block these kernel features. In that case sandbox tasks refuse execution; installing Bubblewrap must not be mistaken for verified isolation.
 
