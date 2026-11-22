@@ -1,15 +1,15 @@
 //
-//  DSHMockLLMServer.m
-//  DSHTests
+//  OMHMockLLMServer.m
+//  OMHTests
 //
 
-#import "DSHMockLLMServer.h"
+#import "OMHMockLLMServer.h"
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
-@interface DSHMockLLMServer ()
+@interface OMHMockLLMServer ()
 @property (nonatomic, readwrite) uint16_t port;
 @property (nonatomic) int listenFD;
 @property (nonatomic) dispatch_source_t source;
@@ -18,7 +18,7 @@
 @property (atomic, readwrite) NSUInteger requestCount;
 @end
 
-@implementation DSHMockLLMServer
+@implementation OMHMockLLMServer
 
 - (instancetype)init {
     if (self = [super init]) {

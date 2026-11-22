@@ -1,6 +1,6 @@
 //
-//  DSHMockLLMServer.h
-//  DSHTests
+//  OMHMockLLMServer.h
+//  OMHTests
 //
 //  A DeepSeek-compatible chat-completions server inside the test host, so an
 //  on-device test can drive a whole agent turn — including a tool call — with
@@ -12,7 +12,7 @@
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface DSHMockLLMServer : NSObject
+@interface OMHMockLLMServer : NSObject
 
 /// Binds 127.0.0.1 on a free port. Returns nil when the socket fails.
 - (nullable instancetype)init;

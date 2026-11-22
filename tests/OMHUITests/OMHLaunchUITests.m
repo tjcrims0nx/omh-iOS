@@ -1,6 +1,6 @@
 //
-//  DSHLaunchUITests.m
-//  DSHUITests
+//  OMHLaunchUITests.m
+//  OMHUITests
 //
 //  End-to-end checks on a real device/simulator: the app boots the Linux
 //  guest, opencode-serve comes up, the WKWebView shows the OpenMind Harness
@@ -11,11 +11,11 @@
 
 static const NSTimeInterval kBootTimeout = 300;   // first launch imports the rootfs
 
-@interface DSHLaunchUITests : XCTestCase
+@interface OMHLaunchUITests : XCTestCase
 @property (nonatomic) XCUIApplication *app;
 @end
 
-@implementation DSHLaunchUITests
+@implementation OMHLaunchUITests
 
 - (void)setUp {
     self.continueAfterFailure = NO;
@@ -207,7 +207,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 /// behind it. Capabilities that do have one (Health, Calendar, Reminders) put
 /// up a sheet owned by another process, which XCUITest cannot reliably dismiss
 /// from here; that they can ask at all is asserted in
-/// DSHHealthCapabilityTests.testCapabilityCanAskForItsSystemPermission.
+/// OMHHealthCapabilityTests.testCapabilityCanAskForItsSystemPermission.
 - (void)testCapabilitiesScreenTogglesACapability {
     [self waitForHarnessReady];
     XCUIElement *menu = self.app.buttons[@"dsh.menu"];

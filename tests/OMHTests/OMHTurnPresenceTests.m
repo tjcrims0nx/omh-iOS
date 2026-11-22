@@ -1,40 +1,40 @@
 //
-//  DSHTurnPresenceTests.m
-//  DSHTests
+//  OMHTurnPresenceTests.m
+//  OMHTests
 //
 //  A turn does not survive the app being suspended. These are about the two
-//  things DSH can honestly do about that: hold the extra seconds iOS grants on
+//  things OMH can honestly do about that: hold the extra seconds iOS grants on
 //  the way out, and explain the stall on the way back.
 //
 
 #import <XCTest/XCTest.h>
 #import <UIKit/UIKit.h>
-#import "DSHTurnPresence.h"
-#import "DSHActivityLog.h"
+#import "OMHTurnPresence.h"
+#import "OMHActivityLog.h"
 
-@interface DSHTurnPresenceTests : XCTestCase
+@interface OMHTurnPresenceTests : XCTestCase
 @end
 
-@implementation DSHTurnPresenceTests
+@implementation OMHTurnPresenceTests
 
 - (void)setUp {
     [super setUp];
-    [DSHActivityLog.shared resetForTesting];
-    [DSHTurnPresence.shared start];
-    [DSHTurnPresence.shared resetForTesting];
+    [OMHActivityLog.shared resetForTesting];
+    [OMHTurnPresence.shared start];
+    [OMHTurnPresence.shared resetForTesting];
 }
 
 - (void)tearDown {
-    [DSHActivityLog.shared resetForTesting];
+    [OMHActivityLog.shared resetForTesting];
     [super tearDown];
 }
 
 - (void)recordGuestToolCall {
-    [DSHActivityLog.shared recordSource:DSHActivitySourceGuestTool
+    [OMHActivityLog.shared recordSource:OMHActivitySourceGuestTool
                                    name:@"bash"
                                  detail:@"sleep 30"
                                  result:nil
-                                outcome:DSHActivityOutcomeOK
+                                outcome:OMHActivityOutcomeOK
                                duration:0];
     // The log posts its change notification on the main queue.
     [self waitForMainQueue];
@@ -50,21 +50,21 @@
 /// light the privacy indicator, but for this question the guest counts too —
 /// the agent grinding through `npm install` is exactly the case that dies.
 - (void)testGuestActivityCountsAsWorking {
-    XCTAssertFalse(DSHTurnPresence.shared.isWorking, @"nothing has happened yet");
+    XCTAssertFalse(OMHTurnPresence.shared.isWorking, @"nothing has happened yet");
     [self recordGuestToolCall];
-    XCTAssertTrue(DSHTurnPresence.shared.isWorking, @"a guest tool call is a turn in progress");
+    XCTAssertTrue(OMHTurnPresence.shared.isWorking, @"a guest tool call is a turn in progress");
 }
 
 /// Leaving while idle must not claim a turn was interrupted, or the notice
 /// means nothing the first time it is true.
 - (void)testLeavingWhileIdleSaysNothingOnTheWayBack {
     __block BOOL notified = NO;
-    id token = [NSNotificationCenter.defaultCenter addObserverForName:DSHTurnWasInterruptedNotification
+    id token = [NSNotificationCenter.defaultCenter addObserverForName:OMHTurnWasInterruptedNotification
                                                                object:nil queue:nil
                                                            usingBlock:^(NSNotification *n) { notified = YES; }];
 
     [NSNotificationCenter.defaultCenter postNotificationName:UIApplicationDidEnterBackgroundNotification object:nil];
-    XCTAssertFalse(DSHTurnPresence.shared.leftMidTurn);
+    XCTAssertFalse(OMHTurnPresence.shared.leftMidTurn);
     [NSNotificationCenter.defaultCenter postNotificationName:UIApplicationDidBecomeActiveNotification object:nil];
     [self waitForMainQueue];
 
@@ -75,14 +75,14 @@
 - (void)testLeavingMidTurnIsExplainedOnTheWayBack {
     [self recordGuestToolCall];
 
-    XCTestExpectation *interrupted = [self expectationForNotification:DSHTurnWasInterruptedNotification
+    XCTestExpectation *interrupted = [self expectationForNotification:OMHTurnWasInterruptedNotification
                                                                object:nil handler:nil];
     [NSNotificationCenter.defaultCenter postNotificationName:UIApplicationDidEnterBackgroundNotification object:nil];
-    XCTAssertTrue(DSHTurnPresence.shared.leftMidTurn, @"the app left while the agent was working");
+    XCTAssertTrue(OMHTurnPresence.shared.leftMidTurn, @"the app left while the agent was working");
     [NSNotificationCenter.defaultCenter postNotificationName:UIApplicationDidBecomeActiveNotification object:nil];
 
     [self waitForExpectations:@[interrupted] timeout:5];
-    XCTAssertFalse(DSHTurnPresence.shared.leftMidTurn, @"said once, not on every return after");
+    XCTAssertFalse(OMHTurnPresence.shared.leftMidTurn, @"said once, not on every return after");
 }
 
 /// Coming back a second time must be silent — the notice belongs to the trip
@@ -94,7 +94,7 @@
     [self waitForMainQueue];
 
     __block BOOL notifiedAgain = NO;
-    id token = [NSNotificationCenter.defaultCenter addObserverForName:DSHTurnWasInterruptedNotification
+    id token = [NSNotificationCenter.defaultCenter addObserverForName:OMHTurnWasInterruptedNotification
                                                                object:nil queue:nil
                                                            usingBlock:^(NSNotification *n) { notifiedAgain = YES; }];
     [NSNotificationCenter.defaultCenter postNotificationName:UIApplicationDidBecomeActiveNotification object:nil];

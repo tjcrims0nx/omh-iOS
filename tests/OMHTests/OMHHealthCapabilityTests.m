@@ -1,6 +1,6 @@
 //
-//  DSHHealthCapabilityTests.m
-//  DSHTests
+//  OMHHealthCapabilityTests.m
+//  OMHTests
 //
 //  Apple Health routes. Like the EventKit suite, this must pass on a device
 //  with no health data and no granted permission, so it asserts the contract
@@ -14,37 +14,37 @@
 
 #import <XCTest/XCTest.h>
 #import <HealthKit/HealthKit.h>
-#import "DSHHostBridge.h"
-#import "DSHCapability.h"
-#import "DSHHealthCapability.h"
+#import "OMHHostBridge.h"
+#import "OMHCapability.h"
+#import "OMHHealthCapability.h"
 
 static NSString *const kHealthRead = @"health.read";
 
-@interface DSHHealthCapabilityTests : XCTestCase
-@property (nonatomic) DSHHostBridge *bridge;
+@interface OMHHealthCapabilityTests : XCTestCase
+@property (nonatomic) OMHHostBridge *bridge;
 @end
 
-@implementation DSHHealthCapabilityTests
+@implementation OMHHealthCapabilityTests
 
 - (void)setUp {
     [super setUp];
-    self.bridge = [DSHHostBridge new];
+    self.bridge = [OMHHostBridge new];
     XCTAssertTrue([self.bridge start]);
-    [DSHHealthCapability installOn:self.bridge];
+    [OMHHealthCapability installOn:self.bridge];
     // Capabilities ship on now; these suites assert what happens when one is off,
     // with device.info left on as the route that is expected to work.
-    [DSHCapabilityRegistry.shared disableAllForTesting];
-    [DSHCapabilityRegistry.shared setEnabled:YES forIdentifier:@"device.info"];
+    [OMHCapabilityRegistry.shared disableAllForTesting];
+    [OMHCapabilityRegistry.shared setEnabled:YES forIdentifier:@"device.info"];
     // The switch is persisted in NSUserDefaults and this bundle runs inside the
     // real app, so a previous run (or a curious tester) could have left it on.
     // Start from the shipped state; that the *shipped* state is off is asserted
     // through `enabledByDefault` below.
-    [DSHCapabilityRegistry.shared setEnabled:NO forIdentifier:kHealthRead];
+    [OMHCapabilityRegistry.shared setEnabled:NO forIdentifier:kHealthRead];
 }
 
 - (void)tearDown {
     [self.bridge stop];
-    [DSHCapabilityRegistry.shared setEnabled:NO forIdentifier:kHealthRead];
+    [OMHCapabilityRegistry.shared setEnabled:NO forIdentifier:kHealthRead];
     [super tearDown];
 }
 
@@ -70,13 +70,13 @@ static NSString *const kHealthRead = @"health.read";
 #pragma mark Gating
 
 - (void)testHealthShipsOnButTheSwitchStillGates {
-    DSHCapabilityRegistry *registry = DSHCapabilityRegistry.shared;
+    OMHCapabilityRegistry *registry = OMHCapabilityRegistry.shared;
     XCTAssertTrue([registry capabilityWithIdentifier:kHealthRead].enabledByDefault,
                   @"health ships on; HealthKit's own dialog is the gate that matters");
     XCTAssertFalse([registry isEnabled:kHealthRead], @"setUp switched everything off");
-    DSHCapabilityState state = [registry stateForIdentifier:kHealthRead];
+    OMHCapabilityState state = [registry stateForIdentifier:kHealthRead];
     // Unavailable on a build or device without HealthKit; Disabled otherwise.
-    XCTAssertTrue(state == DSHCapabilityStateDisabled || state == DSHCapabilityStateUnavailable,
+    XCTAssertTrue(state == OMHCapabilityStateDisabled || state == OMHCapabilityStateUnavailable,
                   @"unexpected state %ld", (long) state);
 }
 
@@ -96,7 +96,7 @@ static NSString *const kHealthRead = @"health.read";
     __block NSError *failure = nil;
     XCTestExpectation *done = [self expectationWithDescription:@"request status"];
     [store getRequestStatusForAuthorizationToShareTypes:[NSSet set]
-                                              readTypes:[DSHHealthCapability readTypes]
+                                              readTypes:[OMHHealthCapability readTypes]
                                              completion:^(HKAuthorizationRequestStatus s, NSError *error) {
         status = s;
         failure = error;
@@ -113,7 +113,7 @@ static NSString *const kHealthRead = @"health.read";
     // Shapes only — row counts and whether the "iOS hides read denials" note
     // fired. The values themselves are the tester's health data and have no
     // business in a build log.
-    [DSHCapabilityRegistry.shared setEnabled:YES forIdentifier:kHealthRead];
+    [OMHCapabilityRegistry.shared setEnabled:YES forIdentifier:kHealthRead];
     NSDictionary *shape = @{
         @"/v1/health/activity?days=7": @"days",
         @"/v1/health/heart_rate?days=7": @"days",
@@ -131,10 +131,10 @@ static NSString *const kHealthRead = @"health.read";
 }
 
 - (void)testAvailabilityFollowsHealthKit {
-    DSHCapability *capability = [DSHCapabilityRegistry.shared capabilityWithIdentifier:kHealthRead];
+    OMHCapability *capability = [OMHCapabilityRegistry.shared capabilityWithIdentifier:kHealthRead];
     XCTAssertNotNil(capability);
     XCTAssertEqual(capability.available, HKHealthStore.isHealthDataAvailable);
-    XCTAssertEqual(capability.gate, DSHCapabilityGateSystemPermission);
+    XCTAssertEqual(capability.gate, OMHCapabilityGateSystemPermission);
     XCTAssertTrue(capability.enabledByDefault);
 }
 
@@ -155,7 +155,7 @@ static NSString *const kHealthRead = @"health.read";
 - (void)testEnabledRoutesAnswerOrRefuseRecoverably {
     if (!HKHealthStore.isHealthDataAvailable)
         return;  // simulator without Health, or an unsupported device
-    [DSHCapabilityRegistry.shared setEnabled:YES forIdentifier:kHealthRead];
+    [OMHCapabilityRegistry.shared setEnabled:YES forIdentifier:kHealthRead];
 
     NSDictionary *expectedKey = @{
         @"/v1/health/activity?days=3": @"days",
@@ -184,7 +184,7 @@ static NSString *const kHealthRead = @"health.read";
 - (void)testWorkoutLimitIsCappedServerSide {
     if (!HKHealthStore.isHealthDataAvailable)
         return;
-    [DSHCapabilityRegistry.shared setEnabled:YES forIdentifier:kHealthRead];
+    [OMHCapabilityRegistry.shared setEnabled:YES forIdentifier:kHealthRead];
     NSInteger status = 0;
     NSDictionary *json = [self get:@"/v1/health/workouts?days=99999&limit=99999" status:&status];
     XCTAssertTrue(status == 200 || status == 403, @"unexpected status %ld", (long) status);
@@ -225,7 +225,7 @@ static NSString *const kHealthRead = @"health.read";
         [self sleepSample:HKCategoryValueSleepAnalysisAwake from:@"2026-03-02 03:00" to:@"2026-03-02 03:15"],
         [self sleepSample:HKCategoryValueSleepAnalysisAsleepREM from:@"2026-03-02 03:15" to:@"2026-03-02 07:00"],
     ];
-    NSArray *nights = [DSHHealthCapability sleepSummaryFromSamples:samples][@"nights"];
+    NSArray *nights = [OMHHealthCapability sleepSummaryFromSamples:samples][@"nights"];
     XCTAssertEqual(nights.count, 1u, @"stages of one night must not become several nights");
 
     NSDictionary *night = nights.firstObject;
@@ -241,7 +241,7 @@ static NSString *const kHealthRead = @"health.read";
         [self sleepSample:HKCategoryValueSleepAnalysisAsleepUnspecified from:@"2026-03-03 23:00" to:@"2026-03-04 06:00"],
         [self sleepSample:HKCategoryValueSleepAnalysisAsleepUnspecified from:@"2026-03-01 23:00" to:@"2026-03-02 06:00"],
     ];
-    NSArray *nights = [DSHHealthCapability sleepSummaryFromSamples:samples][@"nights"];
+    NSArray *nights = [OMHHealthCapability sleepSummaryFromSamples:samples][@"nights"];
     XCTAssertEqual(nights.count, 2u);
     XCTAssertEqualObjects(nights[0][@"date"], @"2026-03-02", @"nights must come back oldest first");
     XCTAssertEqualObjects(nights[1][@"date"], @"2026-03-04");
@@ -249,30 +249,30 @@ static NSString *const kHealthRead = @"health.read";
 }
 
 - (void)testNoSamplesGiveNoNights {
-    XCTAssertEqual([[DSHHealthCapability sleepSummaryFromSamples:@[]][@"nights"] count], 0u);
+    XCTAssertEqual([[OMHHealthCapability sleepSummaryFromSamples:@[]][@"nights"] count], 0u);
 }
 
 #pragma mark Misc
 
 - (void)testWorkoutNamesAreReadableAndUnknownOnesKeepTheirNumber {
-    XCTAssertEqualObjects([DSHHealthCapability activityNameFor:HKWorkoutActivityTypeRunning], @"Running");
-    XCTAssertEqualObjects([DSHHealthCapability activityNameFor:HKWorkoutActivityTypeTraditionalStrengthTraining],
+    XCTAssertEqualObjects([OMHHealthCapability activityNameFor:HKWorkoutActivityTypeRunning], @"Running");
+    XCTAssertEqualObjects([OMHHealthCapability activityNameFor:HKWorkoutActivityTypeTraditionalStrengthTraining],
                           @"Strength training");
-    XCTAssertTrue([[DSHHealthCapability activityNameFor:(HKWorkoutActivityType) 60000] containsString:@"60000"],
+    XCTAssertTrue([[OMHHealthCapability activityNameFor:(HKWorkoutActivityType) 60000] containsString:@"60000"],
                   @"an unmapped activity must stay identifiable to the model");
 }
 
 /// The settings screen asks iOS the moment the user opts in, which only works
 /// if the capability carries its own request.
 - (void)testCapabilityCanAskForItsSystemPermission {
-    DSHCapability *capability = [DSHCapabilityRegistry.shared capabilityWithIdentifier:kHealthRead];
+    OMHCapability *capability = [OMHCapabilityRegistry.shared capabilityWithIdentifier:kHealthRead];
     XCTAssertNotNil(capability.requestSystemPermission,
                     @"a system-permission capability must be able to trigger its own dialog");
 }
 
 /// One sheet, not seven: everything the routes read is requested together.
 - (void)testReadTypesCoverEveryRoute {
-    NSSet<HKObjectType *> *types = [DSHHealthCapability readTypes];
+    NSSet<HKObjectType *> *types = [OMHHealthCapability readTypes];
     for (HKQuantityTypeIdentifier identifier in @[HKQuantityTypeIdentifierStepCount,
                                                   HKQuantityTypeIdentifierDistanceWalkingRunning,
                                                   HKQuantityTypeIdentifierActiveEnergyBurned,

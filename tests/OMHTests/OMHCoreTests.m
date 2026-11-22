@@ -1,6 +1,6 @@
 //
-//  DSHCoreTests.m
-//  DSHTests
+//  OMHCoreTests.m
+//  OMHTests
 //
 //  Unit tests for the app-side logic that does not need the Linux guest:
 //  port allocation, the log ring, the readiness probe and the harness
@@ -8,17 +8,17 @@
 //
 
 #import <XCTest/XCTest.h>
-#import "DSHPortAllocator.h"
-#import "DSHLogBuffer.h"
-#import "DSHReadinessProbe.h"
-#import "DSHStartupMetrics.h"
-#import "DSHHarness.h"
-#import "DSHBootCoordinator.h"
-#import "DSHTestHTTPServer.h"
+#import "OMHPortAllocator.h"
+#import "OMHLogBuffer.h"
+#import "OMHReadinessProbe.h"
+#import "OMHStartupMetrics.h"
+#import "OMHHarness.h"
+#import "OMHBootCoordinator.h"
+#import "OMHTestHTTPServer.h"
 
 #pragma mark - Fake launcher
 
-@interface DSHFakeLauncher : NSObject <DSHGuestProcessLauncher>
+@interface OMHFakeLauncher : NSObject <OMHGuestProcessLauncher>
 @property (nonatomic) NSMutableArray<NSDictionary *> *launches;
 @property (nonatomic, copy) void (^onLaunch)(NSDictionary *env, void (^line)(NSString *, BOOL), void (^exit)(int));
 @property (nonatomic) int nextPid;
@@ -26,7 +26,7 @@
 @property (nonatomic, copy, nullable) void (^lastExit)(int);
 @end
 
-@implementation DSHFakeLauncher
+@implementation OMHFakeLauncher
 - (instancetype)init {
     if (self = [super init]) { _launches = [NSMutableArray array]; _killed = [NSMutableArray array]; _nextPid = 100; }
     return self;
@@ -45,13 +45,13 @@
 
 #pragma mark - Tests
 
-@interface DSHCoreTests : XCTestCase
+@interface OMHCoreTests : XCTestCase
 @end
 
-@implementation DSHCoreTests
+@implementation OMHCoreTests
 
 - (void)testStartupMetricsRecordsNamedStagesWithoutUserContent {
-    DSHStartupMetrics *metrics = DSHStartupMetrics.shared;
+    OMHStartupMetrics *metrics = OMHStartupMetrics.shared;
     [metrics beginLaunch];
     [metrics mark:@"image_ready"];
     [metrics mark:@"kernel_ready"];
@@ -62,10 +62,10 @@
 }
 
 - (void)testPortAllocatorSkipsBusyPort {
-    DSHTestHTTPServer *server = [[DSHTestHTTPServer alloc] initWithPort:0];
+    OMHTestHTTPServer *server = [[OMHTestHTTPServer alloc] initWithPort:0];
     XCTAssertNotNil(server);
-    XCTAssertFalse([DSHPortAllocator isLoopbackPortFree:server.port], @"a listening port is not free");
-    uint16_t picked = [DSHPortAllocator freeLoopbackPortStartingAt:server.port span:5];
+    XCTAssertFalse([OMHPortAllocator isLoopbackPortFree:server.port], @"a listening port is not free");
+    uint16_t picked = [OMHPortAllocator freeLoopbackPortStartingAt:server.port span:5];
     XCTAssertNotEqual(picked, 0);
     XCTAssertNotEqual(picked, server.port);
     XCTAssertTrue(picked > server.port && picked < server.port + 5);
@@ -73,13 +73,13 @@
 }
 
 - (void)testPortAllocatorReturnsZeroWhenSpanExhausted {
-    DSHTestHTTPServer *server = [[DSHTestHTTPServer alloc] initWithPort:0];
-    XCTAssertEqual([DSHPortAllocator freeLoopbackPortStartingAt:server.port span:1], 0);
+    OMHTestHTTPServer *server = [[OMHTestHTTPServer alloc] initWithPort:0];
+    XCTAssertEqual([OMHPortAllocator freeLoopbackPortStartingAt:server.port span:1], 0);
     [server stop];
 }
 
 - (void)testLogBufferRingAndNoiseFilter {
-    DSHLogBuffer *log = [[DSHLogBuffer alloc] initWithCapacity:3];
+    OMHLogBuffer *log = [[OMHLogBuffer alloc] initWithCapacity:3];
     [log append:@"one\n"];
     [log append:@"Warning: disabling flag --expose_wasm due to conflicting flags"];
     [log append:@""];
@@ -95,8 +95,8 @@
 }
 
 - (void)testLogBufferPostsCoalescedNotification {
-    DSHLogBuffer *log = [[DSHLogBuffer alloc] initWithCapacity:10];
-    XCTestExpectation *e = [self expectationForNotification:DSHLogBufferDidChangeNotification object:log handler:nil];
+    OMHLogBuffer *log = [[OMHLogBuffer alloc] initWithCapacity:10];
+    XCTestExpectation *e = [self expectationForNotification:OMHLogBufferDidChangeNotification object:log handler:nil];
     e.assertForOverFulfill = NO;
     for (int i = 0; i < 20; i++) [log append:[NSString stringWithFormat:@"l%d", i]];
     [self waitForExpectations:@[e] timeout:2];
@@ -104,7 +104,7 @@
 }
 
 - (void)testLogBufferRedactsCredentialsBeforeRetainingThem {
-    DSHLogBuffer *log = [[DSHLogBuffer alloc] initWithCapacity:10];
+    OMHLogBuffer *log = [[OMHLogBuffer alloc] initWithCapacity:10];
     [log append:@"DEEPSEEK_API_KEY=secret-value request failed"];
     [log append:@"Authorization: Bearer another-secret"];
     NSString *text = [log.lines componentsJoinedByString:@"\n"];
@@ -114,8 +114,8 @@
 }
 
 - (void)testReadinessProbeSucceedsWhenServerAnswers {
-    DSHTestHTTPServer *server = [[DSHTestHTTPServer alloc] initWithPort:0];
-    DSHReadinessProbe *probe = [[DSHReadinessProbe alloc] initWithURL:server.baseURL interval:0.1 timeout:5];
+    OMHTestHTTPServer *server = [[OMHTestHTTPServer alloc] initWithPort:0];
+    OMHReadinessProbe *probe = [[OMHReadinessProbe alloc] initWithURL:server.baseURL interval:0.1 timeout:5];
     XCTestExpectation *e = [self expectationWithDescription:@"ready"];
     [probe startWithHandler:^(BOOL ready, NSTimeInterval elapsed) {
         XCTAssertTrue(ready);
@@ -129,9 +129,9 @@
 }
 
 - (void)testReadinessProbeRejectsMethodNotAllowedUntilTimeout {
-    DSHTestHTTPServer *server = [[DSHTestHTTPServer alloc] initWithPort:0];
+    OMHTestHTTPServer *server = [[OMHTestHTTPServer alloc] initWithPort:0];
     server.statusCode = 405;
-    DSHReadinessProbe *probe = [[DSHReadinessProbe alloc] initWithURL:server.baseURL interval:0.1 timeout:1];
+    OMHReadinessProbe *probe = [[OMHReadinessProbe alloc] initWithURL:server.baseURL interval:0.1 timeout:1];
     XCTestExpectation *done = [self expectationWithDescription:@"HTTP 405 is not readiness"];
     [probe startWithHandler:^(BOOL ready, NSTimeInterval elapsed) {
         XCTAssertFalse(ready, @"HTTP 405 must not mark the guest server ready");
@@ -144,9 +144,9 @@
 }
 
 - (void)testReadinessProbeTimesOutOnClosedPort {
-    uint16_t port = [DSHPortAllocator freeLoopbackPortStartingAt:39000 span:100];
+    uint16_t port = [OMHPortAllocator freeLoopbackPortStartingAt:39000 span:100];
     NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"http://127.0.0.1:%u/", port]];
-    DSHReadinessProbe *probe = [[DSHReadinessProbe alloc] initWithURL:url interval:0.1 timeout:1];
+    OMHReadinessProbe *probe = [[OMHReadinessProbe alloc] initWithURL:url interval:0.1 timeout:1];
     XCTestExpectation *e = [self expectationWithDescription:@"timeout"];
     [probe startWithHandler:^(BOOL ready, NSTimeInterval elapsed) {
         XCTAssertFalse(ready);
@@ -157,9 +157,9 @@
 }
 
 - (void)testReadinessProbeCancelFiresHandlerOnce {
-    uint16_t port = [DSHPortAllocator freeLoopbackPortStartingAt:39200 span:100];
+    uint16_t port = [OMHPortAllocator freeLoopbackPortStartingAt:39200 span:100];
     NSURL *url = [NSURL URLWithString:[NSString stringWithFormat:@"http://127.0.0.1:%u/", port]];
-    DSHReadinessProbe *probe = [[DSHReadinessProbe alloc] initWithURL:url interval:0.1 timeout:30];
+    OMHReadinessProbe *probe = [[OMHReadinessProbe alloc] initWithURL:url interval:0.1 timeout:30];
     __block int calls = 0;
     [probe startWithHandler:^(BOOL ready, NSTimeInterval elapsed) { calls++; XCTAssertFalse(ready); }];
     [probe cancel];
@@ -170,31 +170,31 @@
 
 - (void)testHarnessReachesReadyAndPassesPortToGuest {
     // The fake "guest" is a host HTTP server on whatever port the harness picks.
-    DSHFakeLauncher *launcher = [DSHFakeLauncher new];
-    __block DSHTestHTTPServer *server = nil;
+    OMHFakeLauncher *launcher = [OMHFakeLauncher new];
+    __block OMHTestHTTPServer *server = nil;
     launcher.onLaunch = ^(NSDictionary *env, void (^line)(NSString *, BOOL), void (^exit)(int)) {
-        uint16_t port = (uint16_t) [env[@"DSH_PORT"] intValue];
-        server = [[DSHTestHTTPServer alloc] initWithPort:port];
+        uint16_t port = (uint16_t) [env[@"OMH_PORT"] intValue];
+        server = [[OMHTestHTTPServer alloc] initWithPort:port];
         line([NSString stringWithFormat:@"dsh web: http://127.0.0.1:%u", port], NO);
         line(@"Warning: disabling flag --expose_wasm due to conflicting flags", YES);
     };
-    DSHHarness *h = [[DSHHarness alloc] initWithLauncher:launcher];
+    OMHHarness *h = [[OMHHarness alloc] initWithLauncher:launcher];
     h.preferredPort = 38080;
     h.startupTimeout = 10;
-    XCTAssertEqual(h.state, DSHHarnessStateIdle);
+    XCTAssertEqual(h.state, OMHHarnessStateIdle);
     XCTAssertNil(h.baseURL);
 
-    XCTestExpectation *ready = [self expectationForNotification:DSHHarnessStateDidChangeNotification object:h handler:^BOOL(NSNotification *n) {
-        return h.state == DSHHarnessStateReady;
+    XCTestExpectation *ready = [self expectationForNotification:OMHHarnessStateDidChangeNotification object:h handler:^BOOL(NSNotification *n) {
+        return h.state == OMHHarnessStateReady;
     }];
     [h start];
-    XCTAssertEqual(h.state, DSHHarnessStateStarting);
+    XCTAssertEqual(h.state, OMHHarnessStateStarting);
     XCTAssertEqual(launcher.launches.count, 1u);
     NSDictionary *first = launcher.launches.firstObject;
     NSString *exe = first[@"exe"];
-    NSString *envPort = first[@"env"][@"DSH_PORT"];
+    NSString *envPort = first[@"env"][@"OMH_PORT"];
     NSString *expectedPort = [NSString stringWithFormat:@"%u", h.port];
-    XCTAssertEqualObjects(exe, @"/usr/local/bin/dsh-serve");
+    XCTAssertEqualObjects(exe, @"/usr/local/bin/opencode-serve");
     XCTAssertEqualObjects(envPort, expectedPort);
     XCTAssertTrue(h.port >= 38080 && h.port < 38100);
     [self waitForExpectations:@[ready] timeout:10];
@@ -207,22 +207,22 @@
 
     // stop kills the guest and reports stopped
     [h stop];
-    XCTAssertEqual(h.state, DSHHarnessStateStopped);
+    XCTAssertEqual(h.state, OMHHarnessStateStopped);
     XCTAssertEqualObjects(launcher.killed.lastObject, @(100));
     [server stop];
 }
 
 - (void)testHarnessRelaunchesAfterCrashThenGivesUp {
-    DSHFakeLauncher *launcher = [DSHFakeLauncher new];
+    OMHFakeLauncher *launcher = [OMHFakeLauncher new];
     launcher.onLaunch = ^(NSDictionary *env, void (^line)(NSString *, BOOL), void (^exit)(int)) {
         // crash right away, asynchronously like the real executor
         dispatch_async(dispatch_get_main_queue(), ^{ exit(7); });
     };
-    DSHHarness *h = [[DSHHarness alloc] initWithLauncher:launcher];
+    OMHHarness *h = [[OMHHarness alloc] initWithLauncher:launcher];
     h.preferredPort = 38200;
     h.maxConsecutiveCrashes = 2;   // back-off 1s, 2s -> then failed
-    XCTestExpectation *failed = [self expectationForNotification:DSHHarnessStateDidChangeNotification object:h handler:^BOOL(NSNotification *n) {
-        return h.state == DSHHarnessStateFailed;
+    XCTestExpectation *failed = [self expectationForNotification:OMHHarnessStateDidChangeNotification object:h handler:^BOOL(NSNotification *n) {
+        return h.state == OMHHarnessStateFailed;
     }];
     [h start];
     [self waitForExpectations:@[failed] timeout:15];
@@ -232,33 +232,33 @@
 }
 
 - (void)testHarnessRestartRelaunchesOnSamePort {
-    DSHFakeLauncher *launcher = [DSHFakeLauncher new];
-    NSMutableArray<DSHTestHTTPServer *> *servers = [NSMutableArray array];
+    OMHFakeLauncher *launcher = [OMHFakeLauncher new];
+    NSMutableArray<OMHTestHTTPServer *> *servers = [NSMutableArray array];
     launcher.onLaunch = ^(NSDictionary *env, void (^line)(NSString *, BOOL), void (^exit)(int)) {
-        [servers addObject:[[DSHTestHTTPServer alloc] initWithPort:(uint16_t) [env[@"DSH_PORT"] intValue]]];
+        [servers addObject:[[OMHTestHTTPServer alloc] initWithPort:(uint16_t) [env[@"OMH_PORT"] intValue]]];
     };
-    DSHHarness *h = [[DSHHarness alloc] initWithLauncher:launcher];
+    OMHHarness *h = [[OMHHarness alloc] initWithLauncher:launcher];
     h.preferredPort = 38300;
-    XCTestExpectation *ready1 = [self expectationForNotification:DSHHarnessStateDidChangeNotification object:h handler:^BOOL(NSNotification *n) { return h.state == DSHHarnessStateReady; }];
+    XCTestExpectation *ready1 = [self expectationForNotification:OMHHarnessStateDidChangeNotification object:h handler:^BOOL(NSNotification *n) { return h.state == OMHHarnessStateReady; }];
     [h start];
     [self waitForExpectations:@[ready1] timeout:10];
     uint16_t port = h.port;
     [servers.lastObject stop];   // the "old" server goes away with the kill
 
-    XCTestExpectation *ready2 = [self expectationForNotification:DSHHarnessStateDidChangeNotification object:h handler:^BOOL(NSNotification *n) { return h.state == DSHHarnessStateReady; }];
+    XCTestExpectation *ready2 = [self expectationForNotification:OMHHarnessStateDidChangeNotification object:h handler:^BOOL(NSNotification *n) { return h.state == OMHHarnessStateReady; }];
     [h restart];
-    XCTAssertEqual(h.state, DSHHarnessStateStopped, @"restart first stops");
+    XCTAssertEqual(h.state, OMHHarnessStateStopped, @"restart first stops");
     [self waitForExpectations:@[ready2] timeout:10];
     XCTAssertEqual(h.port, port, @"same port reused when free");
     XCTAssertEqual(launcher.launches.count, 2u);
     XCTAssertEqual(h.restartCount, 1u);
-    for (DSHTestHTTPServer *s in servers) [s stop];
+    for (OMHTestHTTPServer *s in servers) [s stop];
 }
 
 - (void)testStateNames {
-    XCTAssertEqualObjects(DSHHarnessStateName(DSHHarnessStateReady), @"ready");
-    XCTAssertEqualObjects(DSHHarnessStateName(DSHHarnessStateFailed), @"failed");
-    XCTAssertEqualObjects(DSHHarnessStateName(DSHHarnessStateIdle), @"idle");
+    XCTAssertEqualObjects(OMHHarnessStateName(OMHHarnessStateReady), @"ready");
+    XCTAssertEqualObjects(OMHHarnessStateName(OMHHarnessStateFailed), @"failed");
+    XCTAssertEqualObjects(OMHHarnessStateName(OMHHarnessStateIdle), @"idle");
 }
 
 @end

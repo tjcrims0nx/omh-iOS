@@ -1,6 +1,6 @@
 //
-//  DSHActivityLogTests.m
-//  DSHTests
+//  OMHActivityLogTests.m
+//  OMHTests
 //
 //  The record of what the agent did. Two things are being protected here: that
 //  it captures enough to be worth reading, and that it does not become a copy
@@ -9,38 +9,38 @@
 //
 
 #import <XCTest/XCTest.h>
-#import "DSHActivityLog.h"
-#import "DSHHostBridge.h"
-#import "DSHCapability.h"
-#import "DSHCallConfirmation.h"
-#import "DSHActivityCapability.h"
-#import "DSHDeviceCapability.h"
-#import "DSHContactsCapability.h"
+#import "OMHActivityLog.h"
+#import "OMHHostBridge.h"
+#import "OMHCapability.h"
+#import "OMHCallConfirmation.h"
+#import "OMHActivityCapability.h"
+#import "OMHDeviceCapability.h"
+#import "OMHContactsCapability.h"
 
-@interface DSHActivityLogTests : XCTestCase
-@property (nonatomic) DSHHostBridge *bridge;
+@interface OMHActivityLogTests : XCTestCase
+@property (nonatomic) OMHHostBridge *bridge;
 @end
 
-@implementation DSHActivityLogTests
+@implementation OMHActivityLogTests
 
 - (void)setUp {
     [super setUp];
-    [DSHActivityLog.shared resetForTesting];
-    self.bridge = [DSHHostBridge new];
+    [OMHActivityLog.shared resetForTesting];
+    self.bridge = [OMHHostBridge new];
     XCTAssertTrue([self.bridge start]);
-    [DSHDeviceCapability installOn:self.bridge];
-    [DSHContactsCapability installOn:self.bridge];
-    [DSHActivityCapability installOn:self.bridge];
+    [OMHDeviceCapability installOn:self.bridge];
+    [OMHContactsCapability installOn:self.bridge];
+    [OMHActivityCapability installOn:self.bridge];
     // Capabilities ship on now; these suites assert what happens when one is off,
     // with device.info left on as the route that is expected to work.
-    [DSHCapabilityRegistry.shared disableAllForTesting];
-    [DSHCapabilityRegistry.shared setEnabled:YES forIdentifier:@"device.info"];
+    [OMHCapabilityRegistry.shared disableAllForTesting];
+    [OMHCapabilityRegistry.shared setEnabled:YES forIdentifier:@"device.info"];
 }
 
 - (void)tearDown {
     [self.bridge stop];
-    [DSHCapabilityRegistry.shared setEnabled:NO forIdentifier:@"contacts.read"];
-    [DSHActivityLog.shared resetForTesting];
+    [OMHCapabilityRegistry.shared setEnabled:NO forIdentifier:@"contacts.read"];
+    [OMHActivityLog.shared resetForTesting];
     [super tearDown];
 }
 
@@ -69,10 +69,10 @@
 
 /// Entries are appended asynchronously, so a test that reads immediately would
 /// race the queue.
-- (nullable DSHActivityEntry *)waitForEntryNamed:(NSString *)name {
+- (nullable OMHActivityEntry *)waitForEntryNamed:(NSString *)name {
     NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:5];
     while ([deadline timeIntervalSinceNow] > 0) {
-        for (DSHActivityEntry *entry in DSHActivityLog.shared.entries)
+        for (OMHActivityEntry *entry in OMHActivityLog.shared.entries)
             if ([entry.name isEqualToString:name])
                 return entry;
         [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
@@ -87,10 +87,10 @@
     [self send:@"GET" path:@"/v1/device/power" body:nil status:&status];
     XCTAssertEqual(status, 200);
 
-    DSHActivityEntry *entry = [self waitForEntryNamed:@"device.info"];
+    OMHActivityEntry *entry = [self waitForEntryNamed:@"device.info"];
     XCTAssertNotNil(entry, @"the call should be in the record");
-    XCTAssertEqual(entry.source, DSHActivitySourceCapability);
-    XCTAssertEqual(entry.outcome, DSHActivityOutcomeOK);
+    XCTAssertEqual(entry.source, OMHActivitySourceCapability);
+    XCTAssertEqual(entry.outcome, OMHActivityOutcomeOK);
     XCTAssertNotNil(entry.result, @"the shape of the answer should be recorded");
 }
 
@@ -99,9 +99,9 @@
     [self send:@"GET" path:@"/v1/contacts?q=x" body:nil status:&status];
     XCTAssertEqual(status, 403, @"setUp switched contacts off");
 
-    DSHActivityEntry *entry = [self waitForEntryNamed:@"contacts.read"];
+    OMHActivityEntry *entry = [self waitForEntryNamed:@"contacts.read"];
     XCTAssertNotNil(entry);
-    XCTAssertEqual(entry.outcome, DSHActivityOutcomeRefused,
+    XCTAssertEqual(entry.outcome, OMHActivityOutcomeRefused,
                    @"a refusal is exactly what someone opens this screen to find");
 }
 
@@ -109,11 +109,11 @@
 /// log. A contact search is the sharpest case — the query is arguably the
 /// user's own words, but the names that came back are other people's.
 - (void)testAReadsContentsNeverReachTheRecord {
-    [DSHCapabilityRegistry.shared setEnabled:YES forIdentifier:@"contacts.read"];
+    [OMHCapabilityRegistry.shared setEnabled:YES forIdentifier:@"contacts.read"];
     NSInteger status = 0;
     [self send:@"GET" path:@"/v1/contacts?q=zzzznobodyzzzz&limit=3" body:nil status:&status];
 
-    DSHActivityEntry *entry = [self waitForEntryNamed:@"contacts.read"];
+    OMHActivityEntry *entry = [self waitForEntryNamed:@"contacts.read"];
     XCTAssertNotNil(entry);
     if (status == 200) {
         // Shape only: "0 contacts", never a name.
@@ -126,14 +126,14 @@
 }
 
 - (void)testConfirmationsRecordWhatWasAskedAndAnswered {
-    DSHCallConfirmation.automaticallyDeclineForTesting = YES;
-    [DSHCallConfirmation confirmTitle:@"Add this reminder?" detail:@"“buy milk”, due Friday"];
-    DSHCallConfirmation.automaticallyDeclineForTesting = NO;
+    OMHCallConfirmation.automaticallyDeclineForTesting = YES;
+    [OMHCallConfirmation confirmTitle:@"Add this reminder?" detail:@"“buy milk”, due Friday"];
+    OMHCallConfirmation.automaticallyDeclineForTesting = NO;
 
-    DSHActivityEntry *entry = [self waitForEntryNamed:@"Add this reminder?"];
+    OMHActivityEntry *entry = [self waitForEntryNamed:@"Add this reminder?"];
     XCTAssertNotNil(entry);
-    XCTAssertEqual(entry.source, DSHActivitySourceConfirmation);
-    XCTAssertEqual(entry.outcome, DSHActivityOutcomeDeclined);
+    XCTAssertEqual(entry.source, OMHActivitySourceConfirmation);
+    XCTAssertEqual(entry.outcome, OMHActivityOutcomeDeclined);
     XCTAssertTrue([entry.detail containsString:@"buy milk"],
                   @"the effect the user saw is the point of the row");
 }
@@ -149,9 +149,9 @@
     XCTAssertEqual(status, 200);
     XCTAssertEqualObjects(json[@"accepted"], @2);
 
-    DSHActivityEntry *entry = [self waitForEntryNamed:@"bash"];
+    OMHActivityEntry *entry = [self waitForEntryNamed:@"bash"];
     XCTAssertNotNil(entry, @"a tool that never reaches iOS still belongs in the record");
-    XCTAssertEqual(entry.source, DSHActivitySourceGuestTool);
+    XCTAssertEqual(entry.source, OMHActivitySourceGuestTool);
 }
 
 /// A tool reports twice — once when it starts, once when it finishes — and the
@@ -163,8 +163,8 @@
     [self send:@"POST" path:@"/v1/activity" body:@{ @"events": @[
         @{ @"id": @"call-1", @"name": @"bash", @"detail": @"sleep 3", @"outcome": @"started" },
     ] } status:&status];
-    DSHActivityEntry *started = [self waitForEntryNamed:@"bash"];
-    XCTAssertEqual(started.outcome, DSHActivityOutcomeStarted, @"an in-flight call should be visible");
+    OMHActivityEntry *started = [self waitForEntryNamed:@"bash"];
+    XCTAssertEqual(started.outcome, OMHActivityOutcomeStarted, @"an in-flight call should be visible");
     NSDate *startedAt = started.date;
 
     [self send:@"POST" path:@"/v1/activity" body:@{ @"events": @[
@@ -173,17 +173,17 @@
 
     NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:5];
     while ([deadline timeIntervalSinceNow] > 0 &&
-           DSHActivityLog.shared.entries.firstObject.outcome == DSHActivityOutcomeStarted)
+           OMHActivityLog.shared.entries.firstObject.outcome == OMHActivityOutcomeStarted)
         [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
 
     NSUInteger bashRows = 0;
-    for (DSHActivityEntry *entry in DSHActivityLog.shared.entries)
+    for (OMHActivityEntry *entry in OMHActivityLog.shared.entries)
         if ([entry.name isEqualToString:@"bash"])
             bashRows += 1;
     XCTAssertEqual(bashRows, 1u, @"the result should replace the start, not stack on it");
 
-    DSHActivityEntry *finished = DSHActivityLog.shared.entries.firstObject;
-    XCTAssertEqual(finished.outcome, DSHActivityOutcomeOK);
+    OMHActivityEntry *finished = OMHActivityLog.shared.entries.firstObject;
+    XCTAssertEqual(finished.outcome, OMHActivityOutcomeOK);
     XCTAssertEqualWithAccuracy(finished.duration, 3.1, 0.01);
     XCTAssertEqualObjects(finished.detail, @"sleep 3", @"the arguments from the start row are kept");
     XCTAssertEqualWithAccuracy(finished.date.timeIntervalSince1970, startedAt.timeIntervalSince1970, 0.001,
@@ -199,10 +199,10 @@
     ] } status:&status];
 
     NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:5];
-    while ([deadline timeIntervalSinceNow] > 0 && DSHActivityLog.shared.entries.count < 2)
+    while ([deadline timeIntervalSinceNow] > 0 && OMHActivityLog.shared.entries.count < 2)
         [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
     NSUInteger rows = 0;
-    for (DSHActivityEntry *entry in DSHActivityLog.shared.entries)
+    for (OMHActivityEntry *entry in OMHActivityLog.shared.entries)
         if ([entry.name isEqualToString:@"web_search"])
             rows += 1;
     XCTAssertEqual(rows, 2u, @"different ids are different calls");
@@ -224,10 +224,10 @@
 - (void)testDetailIsFlattenedAndBounded {
     NSMutableString *huge = [NSMutableString string];
     for (int i = 0; i < 200; i++) [huge appendString:@"line of output\n"];
-    [DSHActivityLog.shared recordSource:DSHActivitySourceGuestTool name:@"bash" detail:huge
-                                 result:nil outcome:DSHActivityOutcomeOK duration:0];
+    [OMHActivityLog.shared recordSource:OMHActivitySourceGuestTool name:@"bash" detail:huge
+                                 result:nil outcome:OMHActivityOutcomeOK duration:0];
 
-    DSHActivityEntry *entry = [self waitForEntryNamed:@"bash"];
+    OMHActivityEntry *entry = [self waitForEntryNamed:@"bash"];
     XCTAssertNotNil(entry);
     XCTAssertLessThan(entry.detail.length, 400u, @"one tool must not be able to fill the log");
     XCTAssertFalse([entry.detail containsString:@"\n"], @"a row is one line");
@@ -235,44 +235,44 @@
 
 - (void)testNewestFirstAndCountedForRepeatDetection {
     for (int i = 0; i < 4; i++)
-        [DSHActivityLog.shared recordSource:DSHActivitySourceCapability name:@"calendar.write"
+        [OMHActivityLog.shared recordSource:OMHActivitySourceCapability name:@"calendar.write"
                                      detail:[NSString stringWithFormat:@"call %d", i]
-                                     result:nil outcome:DSHActivityOutcomeOK duration:0];
+                                     result:nil outcome:OMHActivityOutcomeOK duration:0];
     [self waitForEntryNamed:@"calendar.write"];
 
-    XCTAssertEqualObjects(DSHActivityLog.shared.entries.firstObject.detail, @"call 3",
+    XCTAssertEqualObjects(OMHActivityLog.shared.entries.firstObject.detail, @"call 3",
                           @"newest first");
-    XCTAssertEqual([DSHActivityLog.shared countOf:@"calendar.write" within:600], 4u,
+    XCTAssertEqual([OMHActivityLog.shared countOf:@"calendar.write" within:600], 4u,
                    @"this count is what lets a confirmation say “the fifth time in ten minutes”");
-    XCTAssertEqual([DSHActivityLog.shared countOf:@"calendar.write" within:0], 0u);
+    XCTAssertEqual([OMHActivityLog.shared countOf:@"calendar.write" within:0], 0u);
 }
 
 /// "Last used" on the Capabilities screen must mean what it says: a call that
 /// was refused never reached the framework and is not a use.
 - (void)testLastUseIgnoresRefusals {
-    [DSHActivityLog.shared recordSource:DSHActivitySourceCapability name:@"location.read" detail:nil
-                                 result:nil outcome:DSHActivityOutcomeRefused duration:0];
+    [OMHActivityLog.shared recordSource:OMHActivitySourceCapability name:@"location.read" detail:nil
+                                 result:nil outcome:OMHActivityOutcomeRefused duration:0];
     [self waitForEntryNamed:@"location.read"];
-    XCTAssertNil([DSHActivityLog.shared lastUseOf:@"location.read"]);
+    XCTAssertNil([OMHActivityLog.shared lastUseOf:@"location.read"]);
 
-    [DSHActivityLog.shared recordSource:DSHActivitySourceCapability name:@"location.read" detail:nil
-                                 result:nil outcome:DSHActivityOutcomeOK duration:0];
+    [OMHActivityLog.shared recordSource:OMHActivitySourceCapability name:@"location.read" detail:nil
+                                 result:nil outcome:OMHActivityOutcomeOK duration:0];
     NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:5];
-    while ([DSHActivityLog.shared lastUseOf:@"location.read"] == nil && [deadline timeIntervalSinceNow] > 0)
+    while ([OMHActivityLog.shared lastUseOf:@"location.read"] == nil && [deadline timeIntervalSinceNow] > 0)
         [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
-    XCTAssertNotNil([DSHActivityLog.shared lastUseOf:@"location.read"]);
+    XCTAssertNotNil([OMHActivityLog.shared lastUseOf:@"location.read"]);
 }
 
 - (void)testClearingLeavesNothingBehind {
-    [DSHActivityLog.shared recordSource:DSHActivitySourceGuestTool name:@"bash" detail:@"whoami"
-                                 result:nil outcome:DSHActivityOutcomeOK duration:0];
+    [OMHActivityLog.shared recordSource:OMHActivitySourceGuestTool name:@"bash" detail:@"whoami"
+                                 result:nil outcome:OMHActivityOutcomeOK duration:0];
     [self waitForEntryNamed:@"bash"];
-    [DSHActivityLog.shared clear];
+    [OMHActivityLog.shared clear];
     NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:5];
-    while (DSHActivityLog.shared.entries.count > 0 && [deadline timeIntervalSinceNow] > 0)
+    while (OMHActivityLog.shared.entries.count > 0 && [deadline timeIntervalSinceNow] > 0)
         [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
-    XCTAssertEqual(DSHActivityLog.shared.entries.count, 0u);
-    XCTAssertEqualObjects(DSHActivityLog.shared.plainText, @"");
+    XCTAssertEqual(OMHActivityLog.shared.entries.count, 0u);
+    XCTAssertEqualObjects(OMHActivityLog.shared.plainText, @"");
 }
 
 @end

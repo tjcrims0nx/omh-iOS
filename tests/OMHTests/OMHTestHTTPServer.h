@@ -1,16 +1,16 @@
 //
-//  DSHTestHTTPServer.h
-//  DSHTests
+//  OMHTestHTTPServer.h
+//  OMHTests
 //
 //  Tiny loopback HTTP server (answers every request with 200) so unit tests
-//  can drive DSHReadinessProbe / DSHHarness without the Linux guest.
+//  can drive OMHReadinessProbe / OMHHarness without the Linux guest.
 //
 
 #import <Foundation/Foundation.h>
 
 NS_ASSUME_NONNULL_BEGIN
 
-@interface DSHTestHTTPServer : NSObject
+@interface OMHTestHTTPServer : NSObject
 /// Binds 127.0.0.1:port (0 = ephemeral) and starts accepting. Returns nil on failure.
 - (nullable instancetype)initWithPort:(uint16_t)port;
 @property (nonatomic, readonly) uint16_t port;

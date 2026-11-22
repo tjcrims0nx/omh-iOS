@@ -28,9 +28,9 @@ test('iPad launchers use persistent OMH configuration and the real dashboard API
  assert.match(editor,/\/root\/\.config\/opencode\/opencode\.json/);
  const dashboard=await read('rootfs/overlay/usr/local/bin/omh-dashboard');
  assert.match(dashboard,/omh-dashboard\.mjs/);
- const harnessFile=await read('app/DSHHarness.m');
+ const harnessFile=await read('app/OMHHarness.m');
  assert.match(harnessFile,/api\/state/);
- const probe=await read('app/DSHReadinessProbe.m');
+ const probe=await read('app/OMHReadinessProbe.m');
  assert.match(probe,/req\.HTTPMethod = @"GET"/);
  assert.doesNotMatch(probe,/ok = code > 0 && code < 500/);
 });

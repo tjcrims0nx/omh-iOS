@@ -1,6 +1,6 @@
 //
-//  DSHEventKitCapabilityTests.m
-//  DSHTests
+//  OMHEventKitCapabilityTests.m
+//  OMHTests
 //
 //  Calendar and Reminders routes. The suite must not depend on the tester's
 //  actual calendar or on a permission dialog, so it asserts the *contract*:
@@ -10,9 +10,9 @@
 
 #import <XCTest/XCTest.h>
 #import <EventKit/EventKit.h>
-#import "DSHHostBridge.h"
-#import "DSHCapability.h"
-#import "DSHEventKitCapability.h"
+#import "OMHHostBridge.h"
+#import "OMHCapability.h"
+#import "OMHEventKitCapability.h"
 
 // The identifiers are part of the bridge's public contract (they appear in
 // /v1/capabilities and in the plugin), so the tests spell them out rather than
@@ -20,27 +20,27 @@
 static NSString *const kCalendarRead = @"calendar.read";
 static NSString *const kRemindersRead = @"reminders.read";
 
-@interface DSHEventKitCapabilityTests : XCTestCase
-@property (nonatomic) DSHHostBridge *bridge;
+@interface OMHEventKitCapabilityTests : XCTestCase
+@property (nonatomic) OMHHostBridge *bridge;
 @end
 
-@implementation DSHEventKitCapabilityTests
+@implementation OMHEventKitCapabilityTests
 
 - (void)setUp {
     [super setUp];
-    self.bridge = [DSHHostBridge new];
+    self.bridge = [OMHHostBridge new];
     XCTAssertTrue([self.bridge start]);
-    [DSHEventKitCapability installOn:self.bridge];
+    [OMHEventKitCapability installOn:self.bridge];
     // Capabilities ship on now; these suites assert what happens when one is off,
     // with device.info left on as the route that is expected to work.
-    [DSHCapabilityRegistry.shared disableAllForTesting];
-    [DSHCapabilityRegistry.shared setEnabled:YES forIdentifier:@"device.info"];
+    [OMHCapabilityRegistry.shared disableAllForTesting];
+    [OMHCapabilityRegistry.shared setEnabled:YES forIdentifier:@"device.info"];
 }
 
 - (void)tearDown {
     [self.bridge stop];
-    [DSHCapabilityRegistry.shared setEnabled:NO forIdentifier:kCalendarRead];
-    [DSHCapabilityRegistry.shared setEnabled:NO forIdentifier:kRemindersRead];
+    [OMHCapabilityRegistry.shared setEnabled:NO forIdentifier:kCalendarRead];
+    [OMHCapabilityRegistry.shared setEnabled:NO forIdentifier:kRemindersRead];
     [super tearDown];
 }
 
@@ -64,21 +64,21 @@ static NSString *const kRemindersRead = @"reminders.read";
 }
 
 - (void)testBothCapabilitiesShipOnAndTheSwitchStillGates {
-    DSHCapabilityRegistry *registry = DSHCapabilityRegistry.shared;
+    OMHCapabilityRegistry *registry = OMHCapabilityRegistry.shared;
     // The switch is on out of the box — iOS's own permission dialog is what
     // actually stands between the agent and the data — but it still has to work.
     for (NSString *identifier in @[kCalendarRead, kRemindersRead]) {
         XCTAssertTrue([registry capabilityWithIdentifier:identifier].enabledByDefault);
-        XCTAssertEqual([registry stateForIdentifier:identifier], DSHCapabilityStateDisabled,
+        XCTAssertEqual([registry stateForIdentifier:identifier], OMHCapabilityStateDisabled,
                        @"setUp switched everything off");
         [registry setEnabled:YES forIdentifier:identifier];
-        XCTAssertNotEqual([registry stateForIdentifier:identifier], DSHCapabilityStateDisabled);
+        XCTAssertNotEqual([registry stateForIdentifier:identifier], OMHCapabilityStateDisabled);
         [registry setEnabled:NO forIdentifier:identifier];
     }
 }
 
 - (void)testCapabilitiesAreAdvertisedWithTheSystemPermissionGate {
-    NSArray *summary = DSHCapabilityRegistry.shared.stateSummary;
+    NSArray *summary = OMHCapabilityRegistry.shared.stateSummary;
     NSMutableDictionary *byId = [NSMutableDictionary dictionary];
     for (NSDictionary *entry in summary)
         byId[entry[@"id"]] = entry;
@@ -100,7 +100,7 @@ static NSString *const kRemindersRead = @"reminders.read";
 /// data, or a recoverable refusal naming the missing access. Both are correct;
 /// what must never happen is a hang or an opaque error.
 - (void)testEnabledCapabilityEitherAnswersOrRefusesRecoverably {
-    [DSHCapabilityRegistry.shared setEnabled:YES forIdentifier:kCalendarRead];
+    [OMHCapabilityRegistry.shared setEnabled:YES forIdentifier:kCalendarRead];
     NSInteger status = 0;
     NSDictionary *json = [self get:@"/v1/calendar/events?days=1&limit=5" status:&status];
     if (status == 200) {
@@ -118,7 +118,7 @@ static NSString *const kRemindersRead = @"reminders.read";
 }
 
 - (void)testRemindersRouteBehavesTheSameWay {
-    [DSHCapabilityRegistry.shared setEnabled:YES forIdentifier:kRemindersRead];
+    [OMHCapabilityRegistry.shared setEnabled:YES forIdentifier:kRemindersRead];
     NSInteger status = 0;
     NSDictionary *json = [self get:@"/v1/reminders?limit=3" status:&status];
     if (status == 200) {
@@ -136,7 +136,7 @@ static NSString *const kRemindersRead = @"reminders.read";
 /// Guards the limits the model relies on: a huge `limit` or `days` must be
 /// clamped rather than passed through to EventKit.
 - (void)testOutOfRangeArgumentsAreClamped {
-    [DSHCapabilityRegistry.shared setEnabled:YES forIdentifier:kCalendarRead];
+    [OMHCapabilityRegistry.shared setEnabled:YES forIdentifier:kCalendarRead];
     NSInteger status = 0;
     NSDictionary *json = [self get:@"/v1/calendar/events?days=99999&limit=99999" status:&status];
     XCTAssertTrue(status == 200 || status == 403, @"unexpected status %ld", (long) status);

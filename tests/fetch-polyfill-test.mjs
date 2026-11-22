@@ -1,6 +1,6 @@
 // Exercises the fetch() polyfill against tests/mock-deepseek.mjs plus a
 // throwaway local server for redirects/gzip. Run with:
-//   DSH_FORCE_FETCH_POLYFILL=1 node --require <fetch-polyfill.js> tests/fetch-polyfill-test.mjs <mockPort>
+//   OMH_FORCE_FETCH_POLYFILL=1 node --require <fetch-polyfill.js> tests/fetch-polyfill-test.mjs <mockPort>
 import http from 'node:http';
 import zlib from 'node:zlib';
 import assert from 'node:assert/strict';

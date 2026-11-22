@@ -1,6 +1,6 @@
 //
-//  DSHCapabilityRoutesTests.m
-//  DSHTests
+//  OMHCapabilityRoutesTests.m
+//  OMHTests
 //
 //  The capabilities added alongside the write gate: power, location, contacts,
 //  notifications, files, shortcuts, and the EventKit write routes.
@@ -14,53 +14,53 @@
 #import <XCTest/XCTest.h>
 #import <netinet/in.h>
 #import <sys/socket.h>
-#import "DSHHostBridge.h"
-#import "DSHCapability.h"
-#import "DSHCallConfirmation.h"
-#import "DSHDeviceCapability.h"
-#import "DSHLocationCapability.h"
-#import "DSHContactsCapability.h"
+#import "OMHHostBridge.h"
+#import "OMHCapability.h"
+#import "OMHCallConfirmation.h"
+#import "OMHDeviceCapability.h"
+#import "OMHLocationCapability.h"
+#import "OMHContactsCapability.h"
 #import <Contacts/Contacts.h>
-#import "DSHNotificationCapability.h"
-#import "DSHFilesCapability.h"
-#import "DSHPhotosCapability.h"
-#import "DSHShareCapability.h"
-#import "DSHShortcutsCapability.h"
-#import "DSHEventKitCapability.h"
+#import "OMHNotificationCapability.h"
+#import "OMHFilesCapability.h"
+#import "OMHPhotosCapability.h"
+#import "OMHShareCapability.h"
+#import "OMHShortcutsCapability.h"
+#import "OMHEventKitCapability.h"
 
-@interface DSHCapabilityRoutesTests : XCTestCase
-@property (nonatomic) DSHHostBridge *bridge;
+@interface OMHCapabilityRoutesTests : XCTestCase
+@property (nonatomic) OMHHostBridge *bridge;
 @end
 
-@implementation DSHCapabilityRoutesTests
+@implementation OMHCapabilityRoutesTests
 
 - (void)setUp {
     [super setUp];
-    self.bridge = [DSHHostBridge new];
+    self.bridge = [OMHHostBridge new];
     XCTAssertTrue([self.bridge start]);
-    [DSHDeviceCapability installOn:self.bridge];
-    [DSHLocationCapability installOn:self.bridge];
-    [DSHContactsCapability installOn:self.bridge];
-    [DSHNotificationCapability installOn:self.bridge];
-    [DSHFilesCapability installOn:self.bridge];
-    [DSHPhotosCapability installOn:self.bridge];
-    [DSHShareCapability installOn:self.bridge];
-    [DSHShortcutsCapability installOn:self.bridge];
-    [DSHEventKitCapability installOn:self.bridge];
+    [OMHDeviceCapability installOn:self.bridge];
+    [OMHLocationCapability installOn:self.bridge];
+    [OMHContactsCapability installOn:self.bridge];
+    [OMHNotificationCapability installOn:self.bridge];
+    [OMHFilesCapability installOn:self.bridge];
+    [OMHPhotosCapability installOn:self.bridge];
+    [OMHShareCapability installOn:self.bridge];
+    [OMHShortcutsCapability installOn:self.bridge];
+    [OMHEventKitCapability installOn:self.bridge];
     // Capabilities ship on now; these suites assert what happens when one is off,
     // with device.info left on as the route that is expected to work.
-    [DSHCapabilityRegistry.shared disableAllForTesting];
-    [DSHCapabilityRegistry.shared setEnabled:YES forIdentifier:@"device.info"];
+    [OMHCapabilityRegistry.shared disableAllForTesting];
+    [OMHCapabilityRegistry.shared setEnabled:YES forIdentifier:@"device.info"];
 }
 
 - (void)tearDown {
     [self.bridge stop];
-    DSHCallConfirmation.automaticallyApproveForTesting = NO;
-    DSHCallConfirmation.automaticallyDeclineForTesting = NO;
+    OMHCallConfirmation.automaticallyApproveForTesting = NO;
+    OMHCallConfirmation.automaticallyDeclineForTesting = NO;
     for (NSString *identifier in @[@"location.read", @"contacts.read",
                                    @"notifications.post", @"files.import", @"files.export", @"shortcuts.run",
                                    @"calendar.write", @"reminders.write"])
-        [DSHCapabilityRegistry.shared setEnabled:NO forIdentifier:identifier];
+        [OMHCapabilityRegistry.shared setEnabled:NO forIdentifier:identifier];
     [super tearDown];
 }
 
@@ -91,7 +91,7 @@
 }
 
 - (void)enable:(NSString *)identifier {
-    [DSHCapabilityRegistry.shared setEnabled:YES forIdentifier:identifier];
+    [OMHCapabilityRegistry.shared setEnabled:YES forIdentifier:identifier];
 }
 
 #pragma mark Defaults
@@ -105,10 +105,10 @@
     // the enum has no name for it. Nothing else may claim that exemption: it
     // only holds when the route's whole payload is what a person handed over.
     NSArray *gatedByTheirOwnInteraction = @[@"device.info", @"files.import", @"photos.import"];
-    for (DSHCapability *capability in DSHCapabilityRegistry.shared.capabilities) {
+    for (OMHCapability *capability in OMHCapabilityRegistry.shared.capabilities) {
         if (!capability.enabledByDefault) continue;
         if ([gatedByTheirOwnInteraction containsObject:capability.identifier]) continue;
-        XCTAssertNotEqual(capability.gate, DSHCapabilityGateEnabledOnly,
+        XCTAssertNotEqual(capability.gate, OMHCapabilityGateEnabledOnly,
                           @"%@ ships on with nothing but the switch in front of it",
                           capability.identifier);
     }
@@ -118,26 +118,26 @@
 /// so switching one off has to actually stop it — for every capability, not just
 /// the ones with a suite of their own.
 - (void)testSwitchingAnyCapabilityOffRefusesIt {
-    DSHCapabilityRegistry *registry = DSHCapabilityRegistry.shared;
-    for (DSHCapability *capability in registry.capabilities) {
+    OMHCapabilityRegistry *registry = OMHCapabilityRegistry.shared;
+    for (OMHCapability *capability in registry.capabilities) {
         if (!capability.available) continue;
         [registry setEnabled:YES forIdentifier:capability.identifier];
         XCTAssertNotEqual([registry stateForIdentifier:capability.identifier],
-                          DSHCapabilityStateDisabled,
+                          OMHCapabilityStateDisabled,
                           @"%@ stayed disabled after being switched on", capability.identifier);
 
         [registry setEnabled:NO forIdentifier:capability.identifier];
         XCTAssertFalse([registry isEnabled:capability.identifier],
                        @"%@ ignored being switched off", capability.identifier);
         XCTAssertEqual([registry stateForIdentifier:capability.identifier],
-                       DSHCapabilityStateDisabled,
+                       OMHCapabilityStateDisabled,
                        @"%@ still reports usable after being switched off", capability.identifier);
     }
 }
 
 /// ...and the refusal has to happen at the route, before the framework is touched.
 - (void)testARouteWhoseCapabilityIsOffIsRefused {
-    DSHCapabilityRegistry *registry = DSHCapabilityRegistry.shared;
+    OMHCapabilityRegistry *registry = OMHCapabilityRegistry.shared;
     [registry setEnabled:NO forIdentifier:@"device.info"];
     NSInteger status = 0;
     [self send:@"GET" path:@"/v1/device" body:nil status:&status];
@@ -152,11 +152,11 @@
 - (void)testEverythingThatWritesIsGatedPerCall {
     for (NSString *identifier in @[@"files.export", @"shortcuts.run",
                                    @"calendar.write", @"reminders.write"])
-        XCTAssertEqual([DSHCapabilityRegistry.shared capabilityWithIdentifier:identifier].gate,
-                       DSHCapabilityGatePerCall, @"%@ must ask every time", identifier);
+        XCTAssertEqual([OMHCapabilityRegistry.shared capabilityWithIdentifier:identifier].gate,
+                       OMHCapabilityGatePerCall, @"%@ must ask every time", identifier);
     for (NSString *identifier in @[@"location.read", @"contacts.read", @"notifications.post"])
-        XCTAssertEqual([DSHCapabilityRegistry.shared capabilityWithIdentifier:identifier].gate,
-                       DSHCapabilityGateSystemPermission, @"%@ needs iOS's own dialog", identifier);
+        XCTAssertEqual([OMHCapabilityRegistry.shared capabilityWithIdentifier:identifier].gate,
+                       OMHCapabilityGateSystemPermission, @"%@ needs iOS's own dialog", identifier);
 }
 
 - (void)testDisabledCapabilitiesAreRefusedBeforeAnythingHappens {
@@ -230,7 +230,7 @@
     XCTAssertNotNil(json[@"thermalState"]);
     XCTAssertNotNil(json[@"shouldDeferExpensiveWork"]);
 
-    NSDictionary *snapshot = [DSHDeviceCapability powerSnapshot];
+    NSDictionary *snapshot = [OMHDeviceCapability powerSnapshot];
     BOOL hot = [snapshot[@"thermalState"] isEqualToString:@"serious"] || [snapshot[@"thermalState"] isEqualToString:@"critical"];
     XCTAssertEqual([snapshot[@"shouldDeferExpensiveWork"] boolValue],
                    hot || [snapshot[@"lowPowerMode"] boolValue],
@@ -255,7 +255,7 @@
 /// match raises "a property was not requested" and the route 500s. It did,
 /// on a device with contacts, after every contract test had passed.
 - (void)testContactKeysIncludeTheFormattersOwnRequirements {
-    NSArray<id<CNKeyDescriptor>> *keys = [DSHContactsCapability keysToFetch];
+    NSArray<id<CNKeyDescriptor>> *keys = [OMHContactsCapability keysToFetch];
     id<CNKeyDescriptor> formatterKeys = [CNContactFormatter descriptorForRequiredKeysForStyle:CNContactFormatterStyleFullName];
     XCTAssertTrue([keys containsObject:formatterKeys],
                   @"the formatter's keys must be fetched, or formatting a match raises");
@@ -290,33 +290,33 @@
 /// The rate limit is what stops a looping agent owning the lock screen, so it
 /// is asserted directly rather than through the route.
 - (void)testNotificationRateLimitRefusesAfterTen {
-    [DSHNotificationCapability resetRateLimitForTesting];
+    [OMHNotificationCapability resetRateLimitForTesting];
     NSUInteger remaining = 0;
     for (int i = 0; i < 10; i++)
-        XCTAssertTrue([DSHNotificationCapability takeRateLimitSlot:&remaining], @"call %d should fit", i);
+        XCTAssertTrue([OMHNotificationCapability takeRateLimitSlot:&remaining], @"call %d should fit", i);
     XCTAssertEqual(remaining, 0u);
-    XCTAssertFalse([DSHNotificationCapability takeRateLimitSlot:&remaining], @"the eleventh must be refused");
-    [DSHNotificationCapability resetRateLimitForTesting];
-    XCTAssertTrue([DSHNotificationCapability takeRateLimitSlot:&remaining]);
-    [DSHNotificationCapability resetRateLimitForTesting];
+    XCTAssertFalse([OMHNotificationCapability takeRateLimitSlot:&remaining], @"the eleventh must be refused");
+    [OMHNotificationCapability resetRateLimitForTesting];
+    XCTAssertTrue([OMHNotificationCapability takeRateLimitSlot:&remaining]);
+    [OMHNotificationCapability resetRateLimitForTesting];
 }
 
 #pragma mark Files
 
 - (void)testExportValidatesBeforeAsking {
     [self enable:@"files.export"];
-    NSUInteger before = DSHCallConfirmation.presentedCount;
+    NSUInteger before = OMHCallConfirmation.presentedCount;
     NSInteger status = 0;
     [self send:@"POST" path:@"/v1/files/export" body:@{ @"name": @"x.txt" } status:&status];
     XCTAssertEqual(status, 400, @"missing contents");
     [self send:@"POST" path:@"/v1/files/export" body:@{ @"name": @"x.txt", @"base64": @"not base64!!" } status:&status];
     XCTAssertEqual(status, 400, @"undecodable contents");
-    XCTAssertEqual(DSHCallConfirmation.presentedCount, before, @"neither may reach the user");
+    XCTAssertEqual(OMHCallConfirmation.presentedCount, before, @"neither may reach the user");
 }
 
 - (void)testExportIsRefusedWhenTheUserDeclines {
     [self enable:@"files.export"];
-    DSHCallConfirmation.automaticallyDeclineForTesting = YES;
+    OMHCallConfirmation.automaticallyDeclineForTesting = YES;
     NSInteger status = 0;
     NSDictionary *json = [self send:@"POST" path:@"/v1/files/export"
                                body:@{ @"name": @"notes.txt", @"base64": @"aGVsbG8=" } status:&status];
@@ -326,7 +326,7 @@
 
 - (void)testExportRejectsOversizedPayloads {
     [self enable:@"files.export"];
-    NSUInteger bytes = [DSHFilesCapability maximumBytes] + 1024;
+    NSUInteger bytes = [OMHFilesCapability maximumBytes] + 1024;
     NSString *base64 = [[NSMutableData dataWithLength:bytes] base64EncodedStringWithOptions:0];
     NSInteger status = 0;
     NSDictionary *json = [self send:@"POST" path:@"/v1/files/export"
@@ -340,28 +340,28 @@
 /// A shortcut name comes from the model; it must not be able to smuggle extra
 /// x-callback-url parameters through it.
 - (void)testShortcutURLEncodingCannotInjectParameters {
-    NSURL *url = [DSHShortcutsCapability urlForShortcut:@"Evil&x-error=http://x&name=Other" input:nil];
+    NSURL *url = [OMHShortcutsCapability urlForShortcut:@"Evil&x-error=http://x&name=Other" input:nil];
     NSString *string = url.absoluteString;
     XCTAssertNotNil(url);
     NSUInteger nameOccurrences = [string componentsSeparatedByString:@"name="].count - 1;
     XCTAssertEqual(nameOccurrences, 1u, @"the name must not introduce another parameter: %@", string);
     XCTAssertFalse([string containsString:@"x-error="], @"unescaped & would add a callback: %@", string);
 
-    XCTAssertNil([DSHShortcutsCapability urlForShortcut:@"" input:nil]);
-    NSURL *withInput = [DSHShortcutsCapability urlForShortcut:@"Log" input:@"a b&c"];
+    XCTAssertNil([OMHShortcutsCapability urlForShortcut:@"" input:nil]);
+    NSURL *withInput = [OMHShortcutsCapability urlForShortcut:@"Log" input:@"a b&c"];
     XCTAssertTrue([withInput.absoluteString containsString:@"input=text"]);
     XCTAssertFalse([withInput.absoluteString containsString:@"b&c"], @"input must be escaped too");
 }
 
 - (void)testShortcutRunValidatesAndAsks {
     [self enable:@"shortcuts.run"];
-    NSUInteger before = DSHCallConfirmation.presentedCount;
+    NSUInteger before = OMHCallConfirmation.presentedCount;
     NSInteger status = 0;
     [self send:@"POST" path:@"/v1/shortcut/run" body:@{} status:&status];
     XCTAssertEqual(status, 400, @"a missing name must not prompt");
-    XCTAssertEqual(DSHCallConfirmation.presentedCount, before);
+    XCTAssertEqual(OMHCallConfirmation.presentedCount, before);
 
-    DSHCallConfirmation.automaticallyDeclineForTesting = YES;
+    OMHCallConfirmation.automaticallyDeclineForTesting = YES;
     NSDictionary *json = [self send:@"POST" path:@"/v1/shortcut/run" body:@{ @"name": @"Nonexistent" } status:&status];
     XCTAssertEqual(status, 403);
     XCTAssertEqualObjects(json[@"error"][@"recoverable"], @NO);
@@ -371,7 +371,7 @@
 
 - (void)testEventCreationValidatesDatesBeforeAsking {
     [self enable:@"calendar.write"];
-    NSUInteger before = DSHCallConfirmation.presentedCount;
+    NSUInteger before = OMHCallConfirmation.presentedCount;
     NSInteger status = 0;
     [self send:@"POST" path:@"/v1/calendar/events" body:@{ @"start": @"2026-08-20 10:00" } status:&status];
     XCTAssertEqual(status, 400, @"a missing title");
@@ -380,16 +380,16 @@
     [self send:@"POST" path:@"/v1/calendar/events"
           body:@{ @"title": @"x", @"start": @"2026-08-20 10:00", @"end": @"2026-08-20 09:00" } status:&status];
     XCTAssertEqual(status, 400, @"an end before the start");
-    XCTAssertEqual(DSHCallConfirmation.presentedCount, before, @"none of those may reach the user");
+    XCTAssertEqual(OMHCallConfirmation.presentedCount, before, @"none of those may reach the user");
 }
 
 /// The date formats a model actually writes have to work, in the device's own
 /// time zone — an event at "14:00" must not land at 14:00 UTC.
 - (void)testDateParsingAcceptsWhatAModelWrites {
-    NSDate *iso = [DSHEventKitCapability dateFromString:@"2026-08-20T14:00:00Z"];
+    NSDate *iso = [OMHEventKitCapability dateFromString:@"2026-08-20T14:00:00Z"];
     XCTAssertNotNil(iso);
 
-    NSDate *local = [DSHEventKitCapability dateFromString:@"2026-08-20 14:00"];
+    NSDate *local = [OMHEventKitCapability dateFromString:@"2026-08-20 14:00"];
     XCTAssertNotNil(local);
     NSDateComponents *parts = [NSCalendar.currentCalendar components:NSCalendarUnitHour | NSCalendarUnitMinute | NSCalendarUnitDay
                                                            fromDate:local];
@@ -397,18 +397,18 @@
     XCTAssertEqual(parts.minute, 0);
     XCTAssertEqual(parts.day, 20);
 
-    NSDate *day = [DSHEventKitCapability dateFromString:@"2026-08-20"];
+    NSDate *day = [OMHEventKitCapability dateFromString:@"2026-08-20"];
     XCTAssertNotNil(day);
-    XCTAssertNil([DSHEventKitCapability dateFromString:@"next tuesday"]);
-    XCTAssertNil([DSHEventKitCapability dateFromString:@""]);
+    XCTAssertNil([OMHEventKitCapability dateFromString:@"next tuesday"]);
+    XCTAssertNil([OMHEventKitCapability dateFromString:@""]);
 }
 
 - (void)testReminderCreationIsRefusedWhenTheUserDeclines {
     [self enable:@"reminders.write"];
-    DSHCallConfirmation.automaticallyDeclineForTesting = YES;
+    OMHCallConfirmation.automaticallyDeclineForTesting = YES;
     NSInteger status = 0;
     NSDictionary *json = [self send:@"POST" path:@"/v1/reminders"
-                               body:@{ @"title": @"DSH test reminder", @"due": @"2026-12-31 09:00" } status:&status];
+                               body:@{ @"title": @"OMH test reminder", @"due": @"2026-12-31 09:00" } status:&status];
     // Either the confirmation refused it, or EventKit has no permission yet —
     // both are refusals, and neither may create anything.
     XCTAssertTrue(status == 403, @"unexpected status %ld", (long) status);
@@ -418,7 +418,7 @@
 /// Photos and the share sheet, added last, have to obey the same contract as
 /// everything before them: refused when switched off, before any UI appears.
 - (void)testPhotosAndShareAreRefusedWhileSwitchedOff {
-    DSHCapabilityRegistry *registry = DSHCapabilityRegistry.shared;
+    OMHCapabilityRegistry *registry = OMHCapabilityRegistry.shared;
     [registry setEnabled:NO forIdentifier:@"photos.import"];
     [registry setEnabled:NO forIdentifier:@"share.present"];
 
@@ -443,19 +443,19 @@
 /// destination, so it validates before it asks rather than putting a
 /// confirmation in front of a request that was never going to work.
 - (void)testShareValidatesItsTextBeforeAskingAnyone {
-    DSHCapabilityRegistry *registry = DSHCapabilityRegistry.shared;
+    OMHCapabilityRegistry *registry = OMHCapabilityRegistry.shared;
     [registry setEnabled:YES forIdentifier:@"share.present"];
-    NSUInteger before = DSHCallConfirmation.presentedCount;
+    NSUInteger before = OMHCallConfirmation.presentedCount;
 
     NSInteger status = 0;
     [self send:@"POST" path:@"/v1/share" body:@{} status:&status];
     XCTAssertEqual(status, 400, @"no text at all");
-    NSString *huge = [@"" stringByPaddingToLength:DSHShareCapability.maximumCharacters + 1
+    NSString *huge = [@"" stringByPaddingToLength:OMHShareCapability.maximumCharacters + 1
                                        withString:@"x" startingAtIndex:0];
     [self send:@"POST" path:@"/v1/share" body:@{@"text": huge} status:&status];
     XCTAssertEqual(status, 413, @"over the ceiling");
 
-    XCTAssertEqual(DSHCallConfirmation.presentedCount, before,
+    XCTAssertEqual(OMHCallConfirmation.presentedCount, before,
                    @"the user was asked about a call that could not run");
     [registry setEnabled:NO forIdentifier:@"share.present"];
 }

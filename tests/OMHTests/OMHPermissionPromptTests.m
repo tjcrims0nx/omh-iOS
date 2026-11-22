@@ -1,6 +1,6 @@
 //
-//  DSHPermissionPromptTests.m
-//  DSHTests
+//  OMHPermissionPromptTests.m
+//  OMHTests
 //
 //  Turning a capability on asks iOS for the matching permission right away, from
 //  the switch's own handler — that is, on the main thread. Anything that blocks
@@ -9,35 +9,35 @@
 //
 
 #import <XCTest/XCTest.h>
-#import "DSHCapability.h"
-#import "DSHHostBridge.h"
-#import "DSHLocationCapability.h"
-#import "DSHHealthCapability.h"
-#import "DSHNotificationCapability.h"
-#import "DSHEventKitCapability.h"
-#import "DSHContactsCapability.h"
+#import "OMHCapability.h"
+#import "OMHHostBridge.h"
+#import "OMHLocationCapability.h"
+#import "OMHHealthCapability.h"
+#import "OMHNotificationCapability.h"
+#import "OMHEventKitCapability.h"
+#import "OMHContactsCapability.h"
 
-@interface DSHPermissionPromptTests : XCTestCase
+@interface OMHPermissionPromptTests : XCTestCase
 @end
 
-@implementation DSHPermissionPromptTests {
-    DSHHostBridge *_bridge;
+@implementation OMHPermissionPromptTests {
+    OMHHostBridge *_bridge;
 }
 
 - (void)setUp {
     [super setUp];
-    _bridge = [[DSHHostBridge alloc] init];
-    [DSHLocationCapability installOn:_bridge];
-    [DSHHealthCapability installOn:_bridge];
-    [DSHNotificationCapability installOn:_bridge];
-    [DSHEventKitCapability installOn:_bridge];
-    [DSHContactsCapability installOn:_bridge];
+    _bridge = [[OMHHostBridge alloc] init];
+    [OMHLocationCapability installOn:_bridge];
+    [OMHHealthCapability installOn:_bridge];
+    [OMHNotificationCapability installOn:_bridge];
+    [OMHEventKitCapability installOn:_bridge];
+    [OMHContactsCapability installOn:_bridge];
 }
 
 /// Every permission block must return promptly when called the way the switch
 /// calls it. The dialog itself is asynchronous; asking for it must not block.
 - (void)testRequestingPermissionFromTheMainThreadDoesNotBlock {
-    for (DSHCapability *capability in DSHCapabilityRegistry.shared.capabilities) {
+    for (OMHCapability *capability in OMHCapabilityRegistry.shared.capabilities) {
         if (!capability.requestSystemPermission || !capability.available) continue;
 
         XCTestExpectation *returned =
@@ -56,7 +56,7 @@
 }
 
 /// App Store Connect statically checks the CoreLocation API surface and requires
-/// both strings even though DSH only requests when-in-use authorization.
+/// both strings even though OMH only requests when-in-use authorization.
 - (void)testLocationUsageDescriptionsArePresent {
     NSDictionary *info = NSBundle.mainBundle.infoDictionary;
     for (NSString *key in @[@"NSLocationWhenInUseUsageDescription",

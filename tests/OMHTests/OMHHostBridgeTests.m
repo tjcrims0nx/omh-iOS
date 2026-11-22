@@ -1,6 +1,6 @@
 //
-//  DSHHostBridgeTests.m
-//  DSHTests
+//  OMHHostBridgeTests.m
+//  OMHTests
 //
 //  Unit tests for the host bridge: authentication, capability gating, routing,
 //  and the device snapshot's contract with the guest plugin.
@@ -10,23 +10,23 @@
 #import <arpa/inet.h>
 #import <sys/socket.h>
 #import <unistd.h>
-#import "DSHHostBridge.h"
-#import "DSHCapability.h"
-#import "DSHDeviceCapability.h"
+#import "OMHHostBridge.h"
+#import "OMHCapability.h"
+#import "OMHDeviceCapability.h"
 
-@interface DSHHostBridgeTests : XCTestCase
-@property (nonatomic) DSHHostBridge *bridge;
+@interface OMHHostBridgeTests : XCTestCase
+@property (nonatomic) OMHHostBridge *bridge;
 @end
 
-@implementation DSHHostBridgeTests
+@implementation OMHHostBridgeTests
 
 - (void)testUnitTestCapabilityChangesNeverPersistIntoTheInstalledApp {
-    NSString *key = @"DSHCapabilityEnabled.device.info";
+    NSString *key = @"OMHCapabilityEnabled.device.info";
     NSUserDefaults *defaults = NSUserDefaults.standardUserDefaults;
     id original = [defaults objectForKey:key];
     [defaults removeObjectForKey:key];
 
-    [DSHCapabilityRegistry.shared setEnabled:NO forIdentifier:@"device.info"];
+    [OMHCapabilityRegistry.shared setEnabled:NO forIdentifier:@"device.info"];
     XCTAssertNil([defaults objectForKey:key], @"unit tests must use an in-memory capability override");
 
     if (original != nil)
@@ -37,13 +37,13 @@
 
 - (void)setUp {
     [super setUp];
-    self.bridge = [DSHHostBridge new];   // a private instance, not the shared one
+    self.bridge = [OMHHostBridge new];   // a private instance, not the shared one
     XCTAssertTrue([self.bridge start], @"bridge should bind a loopback port");
-    [DSHDeviceCapability installOn:self.bridge];
+    [OMHDeviceCapability installOn:self.bridge];
     // Capabilities ship on now; these suites assert what happens when one is off,
     // with device.info left on as the route that is expected to work.
-    [DSHCapabilityRegistry.shared disableAllForTesting];
-    [DSHCapabilityRegistry.shared setEnabled:YES forIdentifier:@"device.info"];
+    [OMHCapabilityRegistry.shared disableAllForTesting];
+    [OMHCapabilityRegistry.shared setEnabled:YES forIdentifier:@"device.info"];
 }
 
 - (void)tearDown {
@@ -98,13 +98,13 @@
     XCTAssertGreaterThan(self.bridge.port, 0);
     XCTAssertTrue([self.bridge.baseURLString hasPrefix:@"http://127.0.0.1:"]);
     NSDictionary *env = self.bridge.guestEnvironment;
-    XCTAssertEqualObjects(env[@"DSH_HOST_BRIDGE_URL"], self.bridge.baseURLString);
+    XCTAssertEqualObjects(env[@"OMH_HOST_BRIDGE_URL"], self.bridge.baseURLString);
     XCTAssertEqual(self.bridge.token.length, 64u, @"32 random bytes as hex");
-    XCTAssertEqualObjects(env[@"DSH_HOST_BRIDGE_TOKEN"], self.bridge.token);
+    XCTAssertEqualObjects(env[@"OMH_HOST_BRIDGE_TOKEN"], self.bridge.token);
 }
 
 - (void)testEveryLaunchGetsItsOwnToken {
-    DSHHostBridge *other = [DSHHostBridge new];
+    OMHHostBridge *other = [OMHHostBridge new];
     XCTAssertNotEqualObjects(other.token, self.bridge.token);
 }
 
@@ -161,27 +161,27 @@
 }
 
 - (void)testDisabledCapabilityIsRefusedWithARecoverableError {
-    [DSHCapabilityRegistry.shared setEnabled:NO forIdentifier:@"device.info"];
+    [OMHCapabilityRegistry.shared setEnabled:NO forIdentifier:@"device.info"];
     NSInteger status = 0;
     NSDictionary *json = [self get:@"/v1/device" token:self.bridge.token status:&status];
-    [DSHCapabilityRegistry.shared setEnabled:YES forIdentifier:@"device.info"];
+    [OMHCapabilityRegistry.shared setEnabled:YES forIdentifier:@"device.info"];
     XCTAssertEqual(status, 403);
     XCTAssertEqualObjects(json[@"error"][@"code"], @"permission_denied");
     XCTAssertEqualObjects(json[@"error"][@"recoverable"], @YES);
 }
 
 - (void)testCapabilityStateFollowsTheSwitch {
-    DSHCapabilityRegistry *registry = DSHCapabilityRegistry.shared;
-    XCTAssertEqual([registry stateForIdentifier:@"device.info"], DSHCapabilityStateGranted);
+    OMHCapabilityRegistry *registry = OMHCapabilityRegistry.shared;
+    XCTAssertEqual([registry stateForIdentifier:@"device.info"], OMHCapabilityStateGranted);
     [registry setEnabled:NO forIdentifier:@"device.info"];
-    XCTAssertEqual([registry stateForIdentifier:@"device.info"], DSHCapabilityStateDisabled);
+    XCTAssertEqual([registry stateForIdentifier:@"device.info"], OMHCapabilityStateDisabled);
     [registry setEnabled:YES forIdentifier:@"device.info"];
-    XCTAssertEqual([registry stateForIdentifier:@"device.info"], DSHCapabilityStateGranted);
+    XCTAssertEqual([registry stateForIdentifier:@"device.info"], OMHCapabilityStateGranted);
     // Deliberately not a real identifier: an unknown capability must read as
     // unavailable, not as denied, so the model can tell "never built" from
     // "switched off". (Do not reuse a shipping id here — it will start passing
     // for the wrong reason the day that capability lands.)
-    XCTAssertEqual([registry stateForIdentifier:@"nonexistent.capability"], DSHCapabilityStateUnavailable,
+    XCTAssertEqual([registry stateForIdentifier:@"nonexistent.capability"], OMHCapabilityStateUnavailable,
                    @"a capability this build does not ship is unavailable, not denied");
 }
 
@@ -194,7 +194,7 @@
         @"locale", @"timeZone", @"processorCount", @"physicalMemoryMB",
         @"batteryLevel", @"batteryState", @"thermalState", @"lowPowerMode", @"appVersion",
     ]];
-    NSSet *actual = [NSSet setWithArray:DSHDeviceCapability.snapshot.allKeys];
+    NSSet *actual = [NSSet setWithArray:OMHDeviceCapability.snapshot.allKeys];
     XCTAssertTrue([actual isSubsetOfSet:declared],
                   @"snapshot has keys the plugin schema does not declare: %@",
                   ({ NSMutableSet *extra = [actual mutableCopy]; [extra minusSet:declared]; extra; }));

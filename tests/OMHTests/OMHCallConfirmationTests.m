@@ -1,6 +1,6 @@
 //
-//  DSHCallConfirmationTests.m
-//  DSHTests
+//  OMHCallConfirmationTests.m
+//  OMHTests
 //
 //  The gate every write capability sits behind. These assert the three rules
 //  that make blocking a bridge handler on a dialog safe: never wait on a
@@ -8,55 +8,55 @@
 //
 //  Two of them put a real alert on screen on purpose — that is the only way to
 //  prove an unanswered prompt times out rather than hanging. Their titles say
-//  "DSH self-test" so that anyone watching a device during a test run can see
+//  "OMH self-test" so that anyone watching a device during a test run can see
 //  what it is instead of meeting an unexplained "Allow".
 //
 
 #import <XCTest/XCTest.h>
 #import <UIKit/UIKit.h>
-#import "DSHCallConfirmation.h"
-#import "DSHHostBridge.h"
-#import "DSHActivityLog.h"
+#import "OMHCallConfirmation.h"
+#import "OMHHostBridge.h"
+#import "OMHActivityLog.h"
 
-@interface DSHCallConfirmationTests : XCTestCase
+@interface OMHCallConfirmationTests : XCTestCase
 @end
 
-@implementation DSHCallConfirmationTests
+@implementation OMHCallConfirmationTests
 
 - (void)tearDown {
-    DSHCallConfirmation.automaticallyApproveForTesting = NO;
-    DSHCallConfirmation.automaticallyDeclineForTesting = NO;
+    OMHCallConfirmation.automaticallyApproveForTesting = NO;
+    OMHCallConfirmation.automaticallyDeclineForTesting = NO;
     [super tearDown];
 }
 
 /// Even a decision made without a dialog is a decision, and the record is the
 /// only place a user can see that one was made.
 - (void)testEveryOutcomeReachesTheActivityRecord {
-    [DSHActivityLog.shared resetForTesting];
-    DSHCallConfirmation.automaticallyDeclineForTesting = YES;
-    [DSHCallConfirmation confirmTitle:@"DSH self-test" detail:@"Not a real request."];
-    DSHCallConfirmation.automaticallyDeclineForTesting = NO;
+    [OMHActivityLog.shared resetForTesting];
+    OMHCallConfirmation.automaticallyDeclineForTesting = YES;
+    [OMHCallConfirmation confirmTitle:@"OMH self-test" detail:@"Not a real request."];
+    OMHCallConfirmation.automaticallyDeclineForTesting = NO;
 
     NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:5];
-    DSHActivityEntry *entry = nil;
+    OMHActivityEntry *entry = nil;
     while (entry == nil && [deadline timeIntervalSinceNow] > 0) {
-        entry = DSHActivityLog.shared.entries.firstObject;
+        entry = OMHActivityLog.shared.entries.firstObject;
         if (entry == nil)
             [NSRunLoop.currentRunLoop runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.05]];
     }
     XCTAssertNotNil(entry, @"a decision that skipped the dialog still has to be recorded");
-    XCTAssertEqual(entry.outcome, DSHActivityOutcomeDeclined);
-    [DSHActivityLog.shared resetForTesting];
+    XCTAssertEqual(entry.outcome, OMHActivityOutcomeDeclined);
+    [OMHActivityLog.shared resetForTesting];
 }
 
 - (void)testTestHooksShortCircuitWithoutShowingAnything {
-    NSUInteger before = DSHCallConfirmation.presentedCount;
-    DSHCallConfirmation.automaticallyApproveForTesting = YES;
-    XCTAssertEqual([DSHCallConfirmation confirmTitle:@"DSH self-test" detail:@"Not a real request."], DSHConfirmationGranted);
-    DSHCallConfirmation.automaticallyApproveForTesting = NO;
-    DSHCallConfirmation.automaticallyDeclineForTesting = YES;
-    XCTAssertEqual([DSHCallConfirmation confirmTitle:@"DSH self-test" detail:@"Not a real request."], DSHConfirmationDeclined);
-    XCTAssertEqual(DSHCallConfirmation.presentedCount, before,
+    NSUInteger before = OMHCallConfirmation.presentedCount;
+    OMHCallConfirmation.automaticallyApproveForTesting = YES;
+    XCTAssertEqual([OMHCallConfirmation confirmTitle:@"OMH self-test" detail:@"Not a real request."], OMHConfirmationGranted);
+    OMHCallConfirmation.automaticallyApproveForTesting = NO;
+    OMHCallConfirmation.automaticallyDeclineForTesting = YES;
+    XCTAssertEqual([OMHCallConfirmation confirmTitle:@"OMH self-test" detail:@"Not a real request."], OMHConfirmationDeclined);
+    XCTAssertEqual(OMHCallConfirmation.presentedCount, before,
                    @"the test hooks must not put a real alert on screen");
 }
 
@@ -68,8 +68,8 @@
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
         // No foreground UI in a unit-test host, so this must come back
         // Unavailable rather than hang.
-        DSHConfirmationOutcome outcome = [DSHCallConfirmation confirmTitle:@"DSH self-test (background)" detail:@"Not a real request — this dismisses itself." timeout:3];
-        XCTAssertNotEqual(outcome, DSHConfirmationGranted);
+        OMHConfirmationOutcome outcome = [OMHCallConfirmation confirmTitle:@"OMH self-test (background)" detail:@"Not a real request — this dismisses itself." timeout:3];
+        XCTAssertNotEqual(outcome, OMHConfirmationGranted);
         [done fulfill];
     });
     [self waitForExpectations:@[done] timeout:15];
@@ -79,20 +79,20 @@
 /// that mean "try later" have to be marked recoverable, while a decline must
 /// not be, or the agent will simply ask again.
 - (void)testEveryOutcomeMapsToAnActionableResponse {
-    XCTAssertNil([DSHCallConfirmation refusalFor:DSHConfirmationGranted action:@"x"]);
+    XCTAssertNil([OMHCallConfirmation refusalFor:OMHConfirmationGranted action:@"x"]);
 
-    DSHHostBridgeResponse *declined = [DSHCallConfirmation refusalFor:DSHConfirmationDeclined action:@"copying text"];
+    OMHHostBridgeResponse *declined = [OMHCallConfirmation refusalFor:OMHConfirmationDeclined action:@"copying text"];
     XCTAssertEqual(declined.status, 403);
     XCTAssertEqualObjects(declined.body[@"error"][@"recoverable"], @NO,
                           @"a decline must not invite a retry");
     XCTAssertTrue([declined.body[@"error"][@"message"] containsString:@"copying text"],
                   @"the message should name the action: %@", declined.body[@"error"][@"message"]);
 
-    DSHHostBridgeResponse *timedOut = [DSHCallConfirmation refusalFor:DSHConfirmationTimedOut action:@"copying text"];
+    OMHHostBridgeResponse *timedOut = [OMHCallConfirmation refusalFor:OMHConfirmationTimedOut action:@"copying text"];
     XCTAssertEqual(timedOut.status, 408);
     XCTAssertEqualObjects(timedOut.body[@"error"][@"recoverable"], @YES);
 
-    DSHHostBridgeResponse *unavailable = [DSHCallConfirmation refusalFor:DSHConfirmationUnavailable action:@"copying text"];
+    OMHHostBridgeResponse *unavailable = [OMHCallConfirmation refusalFor:OMHConfirmationUnavailable action:@"copying text"];
     XCTAssertEqual(unavailable.status, 409);
     XCTAssertEqualObjects(unavailable.body[@"error"][@"code"], @"unavailable");
     XCTAssertEqualObjects(unavailable.body[@"error"][@"recoverable"], @YES);
@@ -101,13 +101,13 @@
 /// A loop in the agent must not become a wall of dialogs: while one prompt is
 /// up, the rest are refused rather than queued.
 - (void)testConcurrentConfirmationsDoNotStack {
-    NSUInteger before = DSHCallConfirmation.presentedCount;
+    NSUInteger before = OMHCallConfirmation.presentedCount;
     dispatch_group_t group = dispatch_group_create();
     NSLock *lock = [NSLock new];
     NSMutableArray<NSNumber *> *outcomes = [NSMutableArray array];
     for (int i = 0; i < 5; i++) {
         dispatch_group_async(group, dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-            DSHConfirmationOutcome outcome = [DSHCallConfirmation confirmTitle:@"DSH self-test (burst)" detail:@"Not a real request — this dismisses itself." timeout:2];
+            OMHConfirmationOutcome outcome = [OMHCallConfirmation confirmTitle:@"OMH self-test (burst)" detail:@"Not a real request — this dismisses itself." timeout:2];
             [lock lock];
             [outcomes addObject:@(outcome)];
             [lock unlock];
@@ -117,9 +117,9 @@
                    @"a burst of confirmations must not hang");
     XCTAssertEqual(outcomes.count, 5u);
     for (NSNumber *outcome in outcomes)
-        XCTAssertNotEqual(outcome.integerValue, DSHConfirmationGranted,
+        XCTAssertNotEqual(outcome.integerValue, OMHConfirmationGranted,
                           @"nothing may be granted without a human");
-    XCTAssertLessThanOrEqual(DSHCallConfirmation.presentedCount - before, 1u,
+    XCTAssertLessThanOrEqual(OMHCallConfirmation.presentedCount - before, 1u,
                              @"at most one alert may be presented at a time");
 }
 

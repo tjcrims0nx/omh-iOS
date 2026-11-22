@@ -1,15 +1,15 @@
 //
-//  DSHTestHTTPServer.m
-//  DSHTests
+//  OMHTestHTTPServer.m
+//  OMHTests
 //
 
-#import "DSHTestHTTPServer.h"
+#import "OMHTestHTTPServer.h"
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
-@interface DSHTestHTTPServer ()
+@interface OMHTestHTTPServer ()
 @property (nonatomic) int listenFD;
 @property (nonatomic) dispatch_source_t source;
 @property (nonatomic) dispatch_queue_t queue;
@@ -17,7 +17,7 @@
 @property (atomic, readwrite) NSUInteger requestCount;
 @end
 
-@implementation DSHTestHTTPServer
+@implementation OMHTestHTTPServer
 
 - (instancetype)initWithPort:(uint16_t)port {
     if (self = [super init]) {

@@ -1,41 +1,41 @@
 //
-//  DSHGuestIntegrationTests.m
-//  DSHTests
+//  OMHGuestIntegrationTests.m
+//  OMHTests
 //
-//  Runs inside the DSH host app (device or simulator) and talks to the real
-//  Linux guest: waits for the supervised dsh-serve to answer, fetches the web
+//  Runs inside the OMH host app (device or simulator) and talks to the real
+//  Linux guest: waits for the supervised opencode-serve to answer, fetches the web
 //  UI, and executes the guest-side self test through ISHShellExecutor.
 //
 
 #import <XCTest/XCTest.h>
 #import <UIKit/UIKit.h>
-#import "DSHHarness.h"
+#import "OMHHarness.h"
 #import "ISHShellExecutor.h"
-#import "DSHRootUpgrader.h"
-#import "DSHHostBridge.h"
-#import "DSHCapability.h"
+#import "OMHRootUpgrader.h"
+#import "OMHHostBridge.h"
+#import "OMHCapability.h"
 #import <HealthKit/HealthKit.h>
-#import "DSHMockLLMServer.h"
+#import "OMHMockLLMServer.h"
 
-@interface DSHGuestIntegrationTests : XCTestCase
+@interface OMHGuestIntegrationTests : XCTestCase
 @end
 
-@implementation DSHGuestIntegrationTests
+@implementation OMHGuestIntegrationTests
 
 - (void)waitForReady {
-    DSHHarness *h = DSHHarness.shared;
-    if (h.state == DSHHarnessStateReady)
+    OMHHarness *h = OMHHarness.shared;
+    if (h.state == OMHHarnessStateReady)
         return;
-    XCTestExpectation *ready = [self expectationForNotification:DSHHarnessStateDidChangeNotification object:h handler:^BOOL(NSNotification *n) {
-        return h.state == DSHHarnessStateReady;
+    XCTestExpectation *ready = [self expectationForNotification:OMHHarnessStateDidChangeNotification object:h handler:^BOOL(NSNotification *n) {
+        return h.state == OMHHarnessStateReady;
     }];
     [self waitForExpectations:@[ready] timeout:300];
 }
 
 - (void)testHarnessServesWebUI {
     [self waitForReady];
-    DSHHarness *h = DSHHarness.shared;
-    XCTAssertEqual(h.state, DSHHarnessStateReady);
+    OMHHarness *h = OMHHarness.shared;
+    XCTAssertEqual(h.state, OMHHarnessStateReady);
     XCTAssertNotNil(h.baseURL);
     XCTAssertGreaterThan(h.guestPid, 0);
 
@@ -44,7 +44,7 @@
         XCTAssertNil(error);
         XCTAssertEqual(((NSHTTPURLResponse *) response).statusCode, 200);
         NSString *html = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
-        XCTAssertTrue([html containsString:@"__DSH_BOOT__"], @"index should carry the DSH boot manifest");
+        XCTAssertTrue([html containsString:@"__OMH_BOOT__"], @"index should carry the OMH boot manifest");
         [fetched fulfill];
     }] resume];
     [self waitForExpectations:@[fetched] timeout:30];
@@ -54,11 +54,11 @@
     [self waitForReady];
     XCTestExpectation *done = [self expectationWithDescription:@"selftest"];
     NSMutableString *out = [NSMutableString string];
-    int pid = [ISHShellExecutor executeCommand:@"/usr/local/bin/dsh-selftest 2>&1"
+    int pid = [ISHShellExecutor executeCommand:@"/usr/local/bin/opencode-selftest 2>&1"
                                   lineCallback:^(NSString *line, BOOL isStdErr) { [out appendFormat:@"%@\n", line]; }
                                     completion:^(ISHShellExecutionResult *result) {
         XCTAssertEqual(result.error, ISHShellExecutorErrorNone);
-        XCTAssertEqual(result.exitCode, 0, @"dsh-selftest failed:\n%@\nstdout:%@\nstderr:%@", out, result.output, result.errorOutput);
+        XCTAssertEqual(result.exitCode, 0, @"opencode-selftest failed:\n%@\nstdout:%@\nstderr:%@", out, result.output, result.errorOutput);
         XCTAssertTrue([out containsString:@"SELFTEST OK"], @"output: %@", out);
         [done fulfill];
     }];
@@ -72,7 +72,7 @@
     // The import runs in the background now, so wait for the guest to be up
     // before asking which image is installed.
     [self waitForReady];
-    DSHRootUpgrader *u = DSHRootUpgrader.shared;
+    OMHRootUpgrader *u = OMHRootUpgrader.shared;
     XCTAssertNotNil(u.bundledRootHash, @"root.tar.gz.sha256 must be in the bundle");
     XCTAssertEqualObjects(u.installedRootHash, u.bundledRootHash);
     XCTAssertNil(u.pendingMigrationRoot);
@@ -93,7 +93,7 @@
 /// and gets this device's facts back.
 - (void)testGuestReachesTheHostBridge {
     [self waitForReady];
-    DSHHostBridge *bridge = DSHHostBridge.shared;
+    OMHHostBridge *bridge = OMHHostBridge.shared;
     XCTAssertTrue(bridge.running, @"the bridge should be listening once the harness started");
     XCTAssertNotNil(bridge.baseURLString);
 
@@ -121,7 +121,7 @@
 /// open door for anything else running in the Linux image.
 - (void)testGuestWithoutTokenIsRefusedByTheBridge {
     [self waitForReady];
-    DSHHostBridge *bridge = DSHHostBridge.shared;
+    OMHHostBridge *bridge = OMHHostBridge.shared;
     NSString *command = [NSString stringWithFormat:
         @"node -e \"fetch('%@/v1/device').then(r=>console.log('STATUS:'+r.status))"
         @".catch(e=>console.log('ERR:'+e.message))\" 2>&1", bridge.baseURLString];
@@ -140,9 +140,9 @@
 /// registers no tools.
 - (void)testHarnessEnvironmentCarriesBridgeCoordinates {
     [self waitForReady];
-    NSDictionary *env = DSHHarness.shared.extraEnvironment;
-    XCTAssertEqualObjects(env[@"DSH_HOST_BRIDGE_URL"], DSHHostBridge.shared.baseURLString);
-    XCTAssertEqualObjects(env[@"DSH_HOST_BRIDGE_TOKEN"], DSHHostBridge.shared.token);
+    NSDictionary *env = OMHHarness.shared.extraEnvironment;
+    XCTAssertEqualObjects(env[@"OMH_HOST_BRIDGE_URL"], OMHHostBridge.shared.baseURLString);
+    XCTAssertEqualObjects(env[@"OMH_HOST_BRIDGE_TOKEN"], OMHHostBridge.shared.token);
 }
 
 /// The whole path, on this device, with no network: an in-app mock model asks
@@ -150,16 +150,16 @@
 /// device's real facts come back to the model.
 - (void)testAgentCallsDeviceInfoThroughTheBridge {
     [self waitForReady];
-    DSHMockLLMServer *model = [DSHMockLLMServer new];
+    OMHMockLLMServer *model = [OMHMockLLMServer new];
     XCTAssertNotNil(model, @"mock model server should bind a port");
     model.requestTool = @"device_info";
 
-    DSHHostBridge *bridge = DSHHostBridge.shared;
-    // A fresh guest process does not inherit dsh-serve's environment, so pass
+    OMHHostBridge *bridge = OMHHostBridge.shared;
+    // A fresh guest process does not inherit opencode-serve's environment, so pass
     // the bridge coordinates (and the mock model) explicitly.
     NSString *command = [NSString stringWithFormat:
         @"cd /root/workspace && HOME=/root DEEPSEEK_API_KEY=test DEEPSEEK_BASE_URL=%@ "
-        @"DSH_HOST_BRIDGE_URL=%@ DSH_HOST_BRIDGE_TOKEN=%@ "
+        @"OMH_HOST_BRIDGE_URL=%@ OMH_HOST_BRIDGE_TOKEN=%@ "
         @"node --expose-internals /usr/local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js "
         @"--profile headless 'What device is this?' 2>&1 | tail -20",
         model.baseURLString, bridge.baseURLString, bridge.token];
@@ -193,16 +193,16 @@
     [self waitForReady];
     if (!HKHealthStore.isHealthDataAvailable)
         return;
-    DSHMockLLMServer *model = [DSHMockLLMServer new];
+    OMHMockLLMServer *model = [OMHMockLLMServer new];
     XCTAssertNotNil(model);
     model.requestTool = @"health_query";
     model.toolArguments = @"{\"metric\":\"activity\",\"days\":3}";
-    [DSHCapabilityRegistry.shared setEnabled:YES forIdentifier:@"health.read"];
+    [OMHCapabilityRegistry.shared setEnabled:YES forIdentifier:@"health.read"];
 
-    DSHHostBridge *bridge = DSHHostBridge.shared;
+    OMHHostBridge *bridge = OMHHostBridge.shared;
     NSString *command = [NSString stringWithFormat:
         @"cd /root/workspace && HOME=/root DEEPSEEK_API_KEY=test DEEPSEEK_BASE_URL=%@ "
-        @"DSH_HOST_BRIDGE_URL=%@ DSH_HOST_BRIDGE_TOKEN=%@ "
+        @"OMH_HOST_BRIDGE_URL=%@ OMH_HOST_BRIDGE_TOKEN=%@ "
         @"node --expose-internals /usr/local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js "
         @"--profile headless 'How active have I been?' 2>&1 | tail -25",
         model.baseURLString, bridge.baseURLString, bridge.token];
@@ -218,7 +218,7 @@
     // ends the turn quickly rather than blocking on a system dialog.
     [self waitForExpectations:@[done] timeout:300];
     [model stop];
-    [DSHCapabilityRegistry.shared setEnabled:NO forIdentifier:@"health.read"];
+    [OMHCapabilityRegistry.shared setEnabled:NO forIdentifier:@"health.read"];
 
     BOOL offered = NO;
     for (NSString *tools in model.offeredToolsPerRequest)
@@ -236,7 +236,7 @@
     [self waitForReady];
     XCTestExpectation *done = [self expectationWithDescription:@"versions"];
     NSMutableString *out = [NSMutableString string];
-    [ISHShellExecutor executeCommand:@"node -v; dsh --version" lineCallback:^(NSString *line, BOOL isStdErr) {
+    [ISHShellExecutor executeCommand:@"node -v; openmind-harness --version" lineCallback:^(NSString *line, BOOL isStdErr) {
         if (![line containsString:@"expose_wasm"]) [out appendFormat:@"%@\n", line];
     } completion:^(ISHShellExecutionResult *result) {
         XCTAssertEqual(result.exitCode, 0);
@@ -250,8 +250,8 @@
 /// iSH lets the guest mount a real iOS directory with `mount -t ios`, and
 /// sys_mount checks no privilege, so any process in the image can ask. The
 /// picker is genuine consent the first time, but the grant is then saved as a
-/// bookmark and silently restored at every launch, where nothing in DSH knows
-/// about it or can take it back. DSH does not register the filesystem, so the
+/// bookmark and silently restored at every launch, where nothing in OMH knows
+/// about it or can take it back. OMH does not register the filesystem, so the
 /// mount fails at the type lookup, before any picker is raised.
 - (void)testTheGuestCannotMountTheHostFilesystem {
     [self waitForReady];

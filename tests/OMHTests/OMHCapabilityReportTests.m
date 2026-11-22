@@ -1,6 +1,6 @@
 //
-//  DSHCapabilityReportTests.m
-//  DSHTests
+//  OMHCapabilityReportTests.m
+//  OMHTests
 //
 //  A report, not a gate.
 //
@@ -23,52 +23,52 @@
 #import <Contacts/Contacts.h>
 #import <EventKit/EventKit.h>
 #import <UserNotifications/UserNotifications.h>
-#import "DSHHostBridge.h"
-#import "DSHCapability.h"
-#import "DSHCallConfirmation.h"
-#import "DSHDeviceCapability.h"
-#import "DSHLocationCapability.h"
-#import "DSHContactsCapability.h"
-#import "DSHNotificationCapability.h"
-#import "DSHFilesCapability.h"
-#import "DSHShortcutsCapability.h"
-#import "DSHEventKitCapability.h"
-#import "DSHHealthCapability.h"
+#import "OMHHostBridge.h"
+#import "OMHCapability.h"
+#import "OMHCallConfirmation.h"
+#import "OMHDeviceCapability.h"
+#import "OMHLocationCapability.h"
+#import "OMHContactsCapability.h"
+#import "OMHNotificationCapability.h"
+#import "OMHFilesCapability.h"
+#import "OMHShortcutsCapability.h"
+#import "OMHEventKitCapability.h"
+#import "OMHHealthCapability.h"
 #import "ISHShellExecutor.h"
-#import "DSHHarness.h"
+#import "OMHHarness.h"
 
-@interface DSHCapabilityReportTests : XCTestCase
-@property (nonatomic) DSHHostBridge *bridge;
+@interface OMHCapabilityReportTests : XCTestCase
+@property (nonatomic) OMHHostBridge *bridge;
 @property (nonatomic) NSMutableArray<NSString *> *enabled;
 @end
 
-@implementation DSHCapabilityReportTests
+@implementation OMHCapabilityReportTests
 
 - (void)setUp {
     [super setUp];
     self.enabled = [NSMutableArray array];
-    self.bridge = [DSHHostBridge new];
+    self.bridge = [OMHHostBridge new];
     XCTAssertTrue([self.bridge start]);
-    [DSHDeviceCapability installOn:self.bridge];
-    [DSHLocationCapability installOn:self.bridge];
-    [DSHContactsCapability installOn:self.bridge];
-    [DSHNotificationCapability installOn:self.bridge];
-    [DSHFilesCapability installOn:self.bridge];
-    [DSHShortcutsCapability installOn:self.bridge];
-    [DSHEventKitCapability installOn:self.bridge];
-    [DSHHealthCapability installOn:self.bridge];
+    [OMHDeviceCapability installOn:self.bridge];
+    [OMHLocationCapability installOn:self.bridge];
+    [OMHContactsCapability installOn:self.bridge];
+    [OMHNotificationCapability installOn:self.bridge];
+    [OMHFilesCapability installOn:self.bridge];
+    [OMHShortcutsCapability installOn:self.bridge];
+    [OMHEventKitCapability installOn:self.bridge];
+    [OMHHealthCapability installOn:self.bridge];
 }
 
 - (void)tearDown {
     // Leave the device exactly as it was found.
     for (NSString *identifier in self.enabled)
-        [DSHCapabilityRegistry.shared setEnabled:NO forIdentifier:identifier];
+        [OMHCapabilityRegistry.shared setEnabled:NO forIdentifier:identifier];
     [self.bridge stop];
     [super tearDown];
 }
 
 - (void)enable:(NSString *)identifier {
-    [DSHCapabilityRegistry.shared setEnabled:YES forIdentifier:identifier];
+    [OMHCapabilityRegistry.shared setEnabled:YES forIdentifier:identifier];
     [self.enabled addObject:identifier];
 }
 
@@ -93,15 +93,15 @@
 
 /// One line per route: what happened, in a form that says whether the
 /// capability really worked without saying what it saw.
-/// Blocks until the guest is up, the way DSHGuestIntegrationTests does.
+/// Blocks until the guest is up, the way OMHGuestIntegrationTests does.
 - (void)waitForHarnessReady {
-    DSHHarness *harness = DSHHarness.shared;
-    if (harness.state == DSHHarnessStateReady)
+    OMHHarness *harness = OMHHarness.shared;
+    if (harness.state == OMHHarnessStateReady)
         return;
-    XCTestExpectation *ready = [self expectationForNotification:DSHHarnessStateDidChangeNotification
+    XCTestExpectation *ready = [self expectationForNotification:OMHHarnessStateDidChangeNotification
                                                          object:harness
                                                         handler:^BOOL(NSNotification *note) {
-        return harness.state == DSHHarnessStateReady;
+        return harness.state == OMHHarnessStateReady;
     }];
     [self waitForExpectations:@[ready] timeout:300];
 }
@@ -110,26 +110,26 @@
     NSInteger status = 0;
     NSDictionary *json = [self get:path status:&status];
     if (status == 200)
-        NSLog(@"[dsh-report] %@ → 200, %@", path, shape(json));
+        NSLog(@"[omh-report] %@ → 200, %@", path, shape(json));
     else
-        NSLog(@"[dsh-report] %@ → %ld %@: %@", path, (long) status,
+        NSLog(@"[omh-report] %@ → %ld %@: %@", path, (long) status,
               json[@"error"][@"code"] ?: @"(no code)", json[@"error"][@"message"] ?: @"(no message)");
 }
 
 - (void)testReportEveryReadCapabilityOnThisDevice {
-    NSLog(@"[dsh-report] ---- capability report ----");
+    NSLog(@"[omh-report] ---- capability report ----");
 
     // Permission states first, so a refusal below has an explanation next to it.
     // Do not call +locationServicesEnabled from this main-thread XCTest. The
     // location route checks it on a worker queue before requesting a fix.
-    NSLog(@"[dsh-report] location authorization: %ld",
+    NSLog(@"[omh-report] location authorization: %ld",
           (long) [CLLocationManager new].authorizationStatus);
-    NSLog(@"[dsh-report] contacts authorization: %ld",
+    NSLog(@"[omh-report] contacts authorization: %ld",
           (long) [CNContactStore authorizationStatusForEntityType:CNEntityTypeContacts]);
-    NSLog(@"[dsh-report] calendar authorization: %ld, reminders: %ld",
+    NSLog(@"[omh-report] calendar authorization: %ld, reminders: %ld",
           (long) [EKEventStore authorizationStatusForEntityType:EKEntityTypeEvent],
           (long) [EKEventStore authorizationStatusForEntityType:EKEntityTypeReminder]);
-    NSLog(@"[dsh-report] notifications authorization: %ld", (long) [DSHNotificationCapability authorizationStatus]);
+    NSLog(@"[omh-report] notifications authorization: %ld", (long) [OMHNotificationCapability authorizationStatus]);
 
     [self report:@"/v1/device/power" shape:^NSString *(NSDictionary *json) {
         return [NSString stringWithFormat:@"battery %@%%, %@, thermal %@, defer %@",
@@ -173,7 +173,7 @@
                 (unsigned long) [json[@"days"] count], json[@"note"] ? @", note present" : @""];
     }];
 
-    NSLog(@"[dsh-report] ---- end ----");
+    NSLog(@"[omh-report] ---- end ----");
 }
 
 /// Sends one real notification, so the tester can see whether the whole path
@@ -181,19 +181,19 @@
 /// this asks (and sends nothing this run): a report that silently skips is how
 /// the notification path stayed unverified in the first place.
 - (void)testSendOneRealNotificationIfAllowed {
-    UNAuthorizationStatus authorization = [DSHNotificationCapability authorizationStatus];
+    UNAuthorizationStatus authorization = [OMHNotificationCapability authorizationStatus];
     if (authorization == UNAuthorizationStatusNotDetermined) {
-        [DSHNotificationCapability requestAuthorization];
-        NSLog(@"[dsh-report] notifications: asked iOS just now — answer the prompt and re-run");
+        [OMHNotificationCapability requestAuthorization];
+        NSLog(@"[omh-report] notifications: asked iOS just now — answer the prompt and re-run");
         // Give the prompt time to appear while the app is still foreground.
         [NSThread sleepForTimeInterval:8];
         return;
     }
     if (authorization != UNAuthorizationStatusAuthorized) {
-        NSLog(@"[dsh-report] notifications refused in iOS Settings — nothing sent");
+        NSLog(@"[omh-report] notifications refused in iOS Settings — nothing sent");
         return;
     }
-    [DSHNotificationCapability resetRateLimitForTesting];
+    [OMHNotificationCapability resetRateLimitForTesting];
     [self enable:@"notifications.post"];
 
     NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:
@@ -202,7 +202,7 @@
     [request setValue:[@"Bearer " stringByAppendingString:self.bridge.token] forHTTPHeaderField:@"Authorization"];
     [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
     request.HTTPBody = [NSJSONSerialization dataWithJSONObject:@{
-        @"title": @"DSH bridge test",
+        @"title": @"OMH bridge test",
         @"body": @"If you can see this, the notify capability works end to end.",
     } options:0 error:nil];
 
@@ -215,25 +215,25 @@
         [done fulfill];
     }] resume];
     [self waitForExpectations:@[done] timeout:60];
-    NSLog(@"[dsh-report] /v1/notify → %ld %@", (long) status,
+    NSLog(@"[omh-report] /v1/notify → %ld %@", (long) status,
           status == 200 ? @"delivered — check the device" : (json[@"error"][@"message"] ?: @""));
-    [DSHNotificationCapability resetRateLimitForTesting];
+    [OMHNotificationCapability resetRateLimitForTesting];
 }
 
 /// The bridge must be the *only* way out of the guest.
 ///
 /// iSH registers character devices for the pasteboard and for CoreLocation and
-/// mknods them world-readable at boot. DSH links that code, so until this was
+/// mknods them world-readable at boot. OMH links that code, so until this was
 /// found, any process in the guest could `cat /dev/clipboard` and get the
 /// user's clipboard with no switch, no confirmation and no log entry —
-/// bypassing everything this app does to gate capabilities. DSH now skips that
+/// bypassing everything this app does to gate capabilities. OMH now skips that
 /// registration, and since the clipboard is no longer offered as a capability
 /// at all, this node is the *only* way the guest could still reach the
 /// pasteboard: the assertion matters more now, not less.
 ///
 /// Skipping the mknod was not enough on its own: the node is a real file in
 /// the guest's filesystem and survives reboots, so every install that had ever
-/// run an earlier build kept its backdoor. DSH now unlinks both at boot, and
+/// run an earlier build kept its backdoor. OMH now unlinks both at boot, and
 /// this is the test that caught the difference.
 ///
 /// It asserts rather than reports — a backdoor reopening should fail the suite,
@@ -242,7 +242,7 @@
 /// iOS's paste prompt and a test has no business doing that.
 - (void)testISHDeviceNodesDoNotBypassTheBridge {
     // Running a guest command before the guest exists takes the whole test host
-    // down. On a device that has run DSH before, the image is already imported
+    // down. On a device that has run OMH before, the image is already imported
     // and the harness is up within a second, so this looks unnecessary — it is
     // not: a fresh install spends its first launch importing the root
     // filesystem, and this test crashed the run on an iPhone that had never
@@ -258,7 +258,7 @@
         [done fulfill];
     }];
     [self waitForExpectations:@[done] timeout:120];
-    NSLog(@"[dsh-report] iSH device nodes in the guest: %@",
+    NSLog(@"[omh-report] iSH device nodes in the guest: %@",
           [out stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet]);
 
     // `ls` prints a path only when it exists, so any bare path here is a node
@@ -290,7 +290,7 @@
         [done fulfill];
     }];
     [self waitForExpectations:@[done] timeout:120];
-    NSLog(@"[dsh-report] recreated dyn-dev nodes: %@",
+    NSLog(@"[omh-report] recreated dyn-dev nodes: %@",
           [out stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet]);
 
     // Assert the markers arrived before asserting what they say: every check

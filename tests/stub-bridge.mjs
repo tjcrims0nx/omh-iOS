@@ -1,4 +1,4 @@
-// Stand-in for the app's DSHHostBridge, so the guest-side plugin can be tested
+// Stand-in for the app's OMHHostBridge, so the guest-side plugin can be tested
 // on macOS without a device. Same protocol as docs/host-bridge.md.
 //   node tests/stub-bridge.mjs <port> <token>
 import http from 'node:http';
@@ -105,7 +105,7 @@ const server = http.createServer((req, res) => {
     send(200, { saved: true, name: 'report.md', bytes: 5 });
   } else if (path === '/v1/shortcut/run') {
     send(200, { started: true, name: 'Log Water',
-                note: 'Shortcuts has been opened; DSH is in the background and this turn stops here.' });
+                note: 'Shortcuts has been opened; OMH is in the background and this turn stops here.' });
   } else if (path === '/v1/calendar/events' && req.method === 'POST') {
     send(200, { created: true, title: 'Standup', start: '2026-08-20T09:00:00Z',
                 end: '2026-08-20T09:30:00Z', allDay: false, calendar: 'Work' });
