@@ -108,7 +108,7 @@ static NSString *const kDSHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
 
     UILabel *title = [UILabel new];
     title.translatesAutoresizingMaskIntoConstraints = NO;
-    title.text = @"OpenMind Harness";
+    title.text = @"OMH";
     title.font = [UIFont monospacedSystemFontOfSize:12 weight:UIFontWeightSemibold];
     title.textColor = [UIColor colorNamed:@"DSHAccent"] ?: UIColor.labelColor;
     title.accessibilityIdentifier = @"dsh.title";
@@ -196,7 +196,7 @@ static NSString *const kDSHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
         NSURL *url = DSHHarness.shared.baseURL;
         if (url) [UIApplication.sharedApplication openURL:url options:@{} completionHandler:nil];
     }];
-    UIAction *about = [UIAction actionWithTitle:@"About OpenMind Harness" image:[UIImage systemImageNamed:@"info.circle"] identifier:@"dsh.about" handler:^(UIAction *a) { [weakSelf presentAbout]; }];
+    UIAction *about = [UIAction actionWithTitle:@"About OMH" image:[UIImage systemImageNamed:@"info.circle"] identifier:@"dsh.about" handler:^(UIAction *a) { [weakSelf presentAbout]; }];
     BOOL coding = [NSUserDefaults.standardUserDefaults boolForKey:@"OMHUseCodingWorkspace"];
     NSString *switchTitle = coding ? @"Switch to OpenMind Chat" : @"Switch to Coding Workspace";
     UIAction *switchWorkspace = [UIAction actionWithTitle:switchTitle image:[UIImage systemImageNamed:@"arrow.left.arrow.right"] identifier:nil handler:^(UIAction *action) {
@@ -258,7 +258,7 @@ static NSString *const kDSHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     }
     self.statusDot.backgroundColor = dotColor;
     self.statusDot.accessibilityValue = DSHHarnessStateName(h.state);
-    self.titleLabel.text = h.port ? [NSString stringWithFormat:@"OpenMind Harness · :%u", h.port] : @"OpenMind Harness";
+    self.titleLabel.text = h.port ? [NSString stringWithFormat:@"OMH · :%u", h.port] : @"OMH";
 
     // Before the guest is up, the boot coordinator owns the overlay.
     DSHBootCoordinator *boot = DSHBootCoordinator.shared;
@@ -279,7 +279,7 @@ static NSString *const kDSHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     switch (h.state) {
         case DSHHarnessStateIdle:
         case DSHHarnessStateStarting:
-            [self.overlay showStarting:@"Starting OpenMind Harness…"];
+            [self.overlay showStarting:@"Starting OMH…"];
             [self.overlay setProgressStartedAt:h.launchStartedAt ?: NSDate.date expected:h.expectedStartupDuration];
             break;
         case DSHHarnessStateRestarting:
@@ -408,10 +408,10 @@ static NSString *const kDSHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
                          [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"],
                          [NSBundle.mainBundle objectForInfoDictionaryKey:(NSString *) kCFBundleVersionKey]];
     NSString *message = [NSString stringWithFormat:
-                         @"OpenMind Harness %@\n\nYour workspace runs on this device in an Alpine Linux guest. The native shell is adapted from DSH-iOS and uses iSH-ARM64.\n\nServer: %@\nState: %@\nStartup: %.1fs · restarts: %lu\n\n%@",
+                         @"OMH %@\n\nYour workspace runs on this device in an Alpine Linux guest. The native shell is adapted from DSH-iOS and uses iSH-ARM64.\n\nServer: %@\nState: %@\nStartup: %.1fs · restarts: %lu\n\n%@",
                          version, h.baseURL.absoluteString ?: @"–", DSHHarnessStateName(h.state), h.lastStartupDuration,
                          (unsigned long) h.restartCount, DSHStartupMetrics.shared.summary];
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"About OpenMind Harness" message:message preferredStyle:UIAlertControllerStyleAlert];
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"About OMH" message:message preferredStyle:UIAlertControllerStyleAlert];
     [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
     [self presentViewController:alert animated:YES completion:nil];
 }
@@ -425,7 +425,7 @@ static const NSTimeInterval kInterruptedNoticeVisible = 8;
     // The bar, not an alert: the user came back to carry on, and a dialog to
     // dismiss first would be in the way of the thing they returned for.
     BOOL ready = [note.userInfo[DSHTurnRecoveryStatusKey] isEqualToString:@"server-ready"];
-    self.titleLabel.text = ready ? @"OpenMind Harness · checking interrupted turn" : @"OpenMind Harness · turn interrupted";
+    self.titleLabel.text = ready ? @"OMH · checking interrupted turn" : @"OMH · turn interrupted";
     self.titleLabel.accessibilityLabel =
         ready ? @"A turn was interrupted while OpenMind Harness was away. The server is available; check the conversation before retrying."
               : @"A turn was interrupted while OpenMind Harness was away and the server is unavailable. OpenMind Harness is recovering it.";
@@ -537,7 +537,7 @@ static const NSTimeInterval kActivityIndicatorVisible = 6;
                 @"let style = document.getElementById('openmind-workspace-theme');"
                  "if (!style) { style = document.createElement('style');"
                  "style.id = 'openmind-workspace-theme'; document.head.append(style); }"
-                 "style.textContent = css; document.title = 'OpenMind Harness';"
+                 "style.textContent = css; document.title = 'OMH';"
                 arguments:@{@"css": css} inFrame:nil inContentWorld:WKContentWorld.defaultClientWorld
                 completionHandler:nil];
         }

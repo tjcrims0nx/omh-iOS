@@ -127,7 +127,7 @@ NSNotificationName const DSHBootStateDidChangeNotification = @"DSHBootStateDidCh
 }
 
 - (void)finishReady {
-    [self setPhase:DSHBootPhaseReady message:@"Starting OpenMind Harness…" progress:-1];
+    [self setPhase:DSHBootPhaseReady message:@"Starting OMH…" progress:-1];
     // The host bridge must be listening before dsh-serve starts: its URL and
     // token reach the guest through the server's environment.
     DSHHostBridge *bridge = DSHHostBridge.shared;
