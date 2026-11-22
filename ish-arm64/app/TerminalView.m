@@ -104,6 +104,8 @@ static NSString *const HANDLERS[] = {@"syncFocus", @"focus", @"newScrollHeight",
     }
 
     _terminal = terminal;
+    // Selecting a virtual console starts its renderer and displays buffered output.
+    (void)_terminal.webView;
     [_terminal addObserver:self forKeyPath:@"loaded" options:NSKeyValueObservingOptionInitial context:nil];
     if (_terminal.loaded)
         [self installTerminalView];

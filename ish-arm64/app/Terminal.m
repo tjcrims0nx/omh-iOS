@@ -29,6 +29,7 @@ typedef struct linux_tty *tty_t;
 }
 
 @property BOOL loaded;
+@property (nonatomic) BOOL deferConsoleRenderer;
 @property (nonatomic) tty_t tty;
 // lock with dataLock for !linux and @synchronized(self) for linux
 @property (nonatomic) NSMutableData *pendingData;
@@ -79,6 +80,7 @@ static NSMapTable<NSUUID *, Terminal *> *terminalsByUUID;
             return terminal;
 
         if (self = [super init]) {
+            self.deferConsoleRenderer = type == TTY_CONSOLE_MAJOR && num > 1;
             self.pendingData = [[NSMutableData alloc] initWithCapacity:BUF_SIZE];
             self.refreshTask = [[DelayedUITask alloc] initWithTarget:self action:@selector(refresh)];
             self.scrollToBottomTask = [[DelayedUITask alloc] initWithTarget:self action:@selector(scrollToBottom)];
@@ -129,7 +131,10 @@ static NSMapTable<NSUUID *, Terminal *> *terminalsByUUID;
         _tty = tty;
     }
     dispatch_async(dispatch_get_main_queue(), ^{
-        [self syncWindowSize];
+        // Alpine opens six virtual consoles during boot. Sizing a hidden
+        // console must not create an xterm WebView merely to measure it.
+        if (!self.deferConsoleRenderer || self->_webView != nil)
+            [self syncWindowSize];
     });
 }
 
@@ -236,8 +241,22 @@ static NSMapTable<NSUUID *, Terminal *> *terminalsByUUID;
 }
 
 - (void)refresh {
-    if (!self.loaded)
+    if (!self.loaded) {
+        if (self.deferConsoleRenderer && !_webView) {
+            // A busy hidden console still needs a renderer before producers
+            // block on the bounded output buffer.
+#if !ISH_LINUX
+            lock(&_dataLock);
+            BOOL needsDrain = _pendingData.length >= BUF_SIZE;
+            unlock(&_dataLock);
+#else
+            BOOL needsDrain;
+            @synchronized (self) { needsDrain = _pendingData.length >= BUF_SIZE; }
+#endif
+            if (needsDrain) (void)self.webView;
+        }
         return;
+    }
 
 #if !ISH_LINUX
     lock(&_dataLock);
