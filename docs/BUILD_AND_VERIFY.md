@@ -56,14 +56,14 @@ A full `make test` also runs emulator and guest-rootfs tests. See `Makefile` for
 
 CI is configured to upload UI diagnostics/screenshots. Check the run's artifact list; missing screenshots or skipped jobs invalidate any claim of visual verification. The build's unsigned IPA artifact is separate from both simulator test results.
 
-Static checks specifically assert native UIKit controller names, state API usage, navigation selectors and layout constraints; the on-screen appearance must still be checked by XCUITest artifacts or physical-device testing.
+Static checks assert the chat-first editor root, native pre-chat startup gate, both local services, compact icon rail, and hidden redundant navigation. The real OpenCode composer and on-screen appearance must be checked by XCUITest artifacts or physical-device testing.
 
 ### Release gate for PR #4
 
 - [ ] No newer failed or unfinished CI result on the intended **head commit**.
-- [ ] iPad native home launches with sidebar and detail pane in landscape and portrait.
-- [ ] Native pane behavior visually inspected at compact Stage Manager widths.
-- [ ] iPad Web dashboard loads local state; OpenCode navigation remains functional.
+- [ ] Native startup screen remains until dashboard and editor servers are ready; iPad then opens the interactive OpenCode conversation composer.
+- [ ] Compact icon-only rail and conversation viewport visually inspected in portrait, landscape and Stage Manager.
+- [ ] iPad chat composer loads and remains usable; diagnostics/menu and terminal/log controls work.
 - [ ] iPhone simulator smoke passes without regressions.
 - [ ] Screenshots and diagnostics inspected for failed readiness, crashes and layout clipping.
 - [ ] Branch divergence with `main` reconciled and fresh tests passed on merged result.
@@ -90,6 +90,6 @@ The guest starts local runtime/dashboard services behind a loopback address. `om
 
 - `PR #3` completed the OMH native rebrand and was merged into `main` as `1769b2da484584215c379342f7c4610a6aa88902`.
 - [Run 45057990399](https://github.com/tjcrims0nx/omh-iOS/actions/runs/45057990399) passed all four jobs on an earlier rebrand head.
-- `PR #4` holds newer native iPad workspace and responsive layout changes; the historical success above **does not validate that newer code**. See [PR #4](https://github.com/tjcrims0nx/omh-iOS/pull/4) and current [Actions](https://github.com/tjcrims0nx/omh-iOS/actions) for its actual status.
+- `PR #4` holds the chat-first native iPad startup and compact conversation shell changes; the historical success above **does not validate that newer code**. See [PR #4](https://github.com/tjcrims0nx/omh-iOS/pull/4) and current [Actions](https://github.com/tjcrims0nx/omh-iOS/actions) for its actual status.
 
 See [Native iPad Workspace](IPAD_WORKSPACE.md) and [README](../README.md).
