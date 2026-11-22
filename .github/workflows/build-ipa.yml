@@ -42,6 +42,7 @@ jobs:
           node --test tests/omh-port-validation.test.mjs
           bash -n scripts/build-rootfs.sh
           bash -n scripts/sync-omh-branding.sh
+          bash -n scripts/verify-omh-ipa.sh
           for wrapper in rootfs/overlay/usr/local/bin/omh-*; do
             bash -n "$wrapper"
           done
@@ -109,6 +110,7 @@ jobs:
           node --version
           bash -n scripts/build-rootfs.sh
           bash -n scripts/sync-omh-branding.sh
+          bash -n scripts/verify-omh-ipa.sh
           bash scripts/sync-omh-branding.sh
           for wrapper in omh-runtime omh-dashboard omh-live omh-vercel-mcp omh-sandbox-check; do
             test -s "rootfs/overlay/usr/local/bin/$wrapper" || exit 1
@@ -149,6 +151,7 @@ jobs:
           test -f Payload/OMH.app/OMH
           zip -r -y OpenMind-Harness-unsigned.ipa Payload
           unzip -l OpenMind-Harness-unsigned.ipa | grep -q 'Payload/OMH.app/OMH'
+          bash scripts/verify-omh-ipa.sh OpenMind-Harness-unsigned.ipa
           ! unzip -Z1 OpenMind-Harness-unsigned.ipa | grep -q '^Payload/DSH.app/'
           ls -lh OpenMind-Harness-unsigned.ipa
 
@@ -222,6 +225,7 @@ jobs:
           node --version
           bash -n scripts/build-rootfs.sh
           bash -n scripts/sync-omh-branding.sh
+          bash -n scripts/verify-omh-ipa.sh
           bash scripts/sync-omh-branding.sh
           for wrapper in omh-runtime omh-dashboard omh-live omh-vercel-mcp omh-sandbox-check; do
             test -s "rootfs/overlay/usr/local/bin/$wrapper" || exit 1
