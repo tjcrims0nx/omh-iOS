@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Emulator regression tests for the iSH-ARM64 changes made for DSH:
+# Emulator regression tests for the iSH-ARM64 changes made for OMH:
 #   * NEON conversion instructions (FCVTL/FCVTN/FCVTXN, vector fixed-point
 #     conversions) — needed by libvips/sharp,
 #   * waitpid() must not return EINTR just because the 1 s bounded condvar
 #     wait timed out (broke gcc/g++ and node-gyp),
-#   * the fetch() polyfill (runs on host node with DSH_FORCE_FETCH_POLYFILL=1).
+#   * the fetch() polyfill (runs on host node with OMH_FORCE_FETCH_POLYFILL=1).
 #
 # Uses a throwaway Alpine fakefs with gcc; caches it under build/emu-test.
 set -uo pipefail
@@ -77,7 +77,7 @@ if command -v node >/dev/null; then
     node "$HERE/mock-deepseek.mjs" 3198 > "$WORK/mock.log" 2>&1 &
     MOCK=$!
     sleep 1
-    out="$(DSH_FORCE_FETCH_POLYFILL=1 node --require "$ISH_SRC/app/RootfsPatch.bundle/files/lib/fetch-polyfill.js" "$HERE/fetch-polyfill-test.mjs" 3198 2>&1)"
+    out="$(OMH_FORCE_FETCH_POLYFILL=1 node --require "$ISH_SRC/app/RootfsPatch.bundle/files/lib/fetch-polyfill.js" "$HERE/fetch-polyfill-test.mjs" 3198 2>&1)"
     kill $MOCK 2>/dev/null
     echo "$out" | sed 's/^/     /'
     check "fetch polyfill streams SSE, follows redirects, aborts" grep -q 'FETCH POLYFILL OK' <<<"$out"

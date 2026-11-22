@@ -86,11 +86,11 @@ static NSString *const kSkipStartupMessage = @"Skip Startup Message";
     if (err < 0)
         return err;
 
-#ifndef DSH_APP
+#ifndef OMH_APP
     fs_register(&iosfs);
     fs_register(&iosfs_unsafe);
 #else
-    // DSH does not register these.
+    // OMH does not register these.
     //
     // `mount -t ios <dir>` hands the guest a real iOS directory, and sys_mount
     // checks no privilege at all, so any guest process can ask for it. The
@@ -98,9 +98,9 @@ static NSString *const kSkipStartupMessage = @"Skip Startup Message";
     // saved as a security-scoped bookmark in NSUserDefaults and iosfs_init()
     // silently restores it on every launch afterwards. That is a standing grant
     // the capability registry never hears about: no switch, no entry in the
-    // activity record, no "last used", and nothing in DSH that revokes it.
+    // activity record, no "last used", and nothing in OMH that revokes it.
     //
-    // DSH's own answer to the same need is files.import / files.export, which
+    // OMH's own answer to the same need is files.import / files.export, which
     // move one file at a time through the same picker and are recorded.
 #endif
 
@@ -142,7 +142,7 @@ static NSString *const kSkipStartupMessage = @"Skip Startup Message";
     // Permissions on / have been broken for a while, let's fix them
     generic_setattrat(AT_PWD, "/", (struct attr) {.type = attr_mode, .mode = 0755}, false);
     
-#ifndef DSH_APP
+#ifndef OMH_APP
     // Register clipboard device driver and create device node for it
     err = dyn_dev_register(&clipboard_dev, DEV_CHAR, DYN_DEV_MAJOR, DEV_CLIPBOARD_MINOR);
     if (err != 0) {
@@ -155,7 +155,7 @@ static NSString *const kSkipStartupMessage = @"Skip Startup Message";
         return err;
     generic_mknodat(AT_PWD, "/dev/location", S_IFCHR|0666, dev_make(DYN_DEV_MAJOR, DEV_LOCATION_MINOR));
 #else
-    // DSH does not create these.
+    // OMH does not create these.
     //
     // iSH hands the guest the pasteboard and CoreLocation as world-readable
     // character devices, which predates and bypasses everything this app does
@@ -183,7 +183,7 @@ static NSString *const kSkipStartupMessage = @"Skip Startup Message";
     do_mount(&procfs, "proc", "/proc", "", 0);
     do_mount(&devptsfs, "devpts", "/dev/pts", "", 0);
 
-#ifndef DSH_APP
+#ifndef OMH_APP
     iosfs_init(); // let it mount any filesystems from user defaults
 #endif
 

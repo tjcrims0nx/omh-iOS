@@ -6,19 +6,61 @@ name: Build unsigned IPA
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main, rebrand/omh]
+    paths:
+      - 'app/**'
+      - 'tests/OMHUITests/**'
+      - 'tests/omh-port-validation.test.mjs'
+      - 'branding/**'
+      - 'rootfs/**'
+      - 'scripts/**'
+      - 'ish-arm64/**'
+      - 'Makefile'
+      - '.github/workflows/build-ipa.yml'
+
+# Only the newest iPadOS port build should occupy the expensive macOS runner.
+concurrency:
+  group: omh-ipados-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
+  validate-port:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check out the verified harness revision
+        uses: actions/checkout@v5
+        with:
+          repository: tjcrims0nx/openmind-harness
+          ref: 55f62a9ad23fa897c21fa40948716b5c5504e626
+          path: harness
+      - name: Static OMH iPadOS port tests
+        run: |
+          node --version
+          node --test tests/omh-port-validation.test.mjs
+          bash -n scripts/build-rootfs.sh
+          bash -n scripts/sync-omh-branding.sh
+          bash -n scripts/verify-omh-ipa.sh
+          for wrapper in rootfs/overlay/usr/local/bin/omh-*; do
+            bash -n "$wrapper"
+          done
+
   build:
+    needs: validate-port
     runs-on: macos-26
     timeout-minutes: 120
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Check out the harness (opencode.json, skills, plugins, scripts, commands)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: tjcrims0nx/openmind-harness
-          ref: main
+          # Pin the verified OMH Linux release so both Xcode jobs package
+          # identical models, assets, MCP modules, and sandbox policy.
+          ref: 55f62a9ad23fa897c21fa40948716b5c5504e626
           path: harness
 
       - name: Select Xcode 27
@@ -46,7 +88,7 @@ jobs:
           path: |
             ish-arm64/build-arm64-release
             build/root.tar.gz
-          key: omh-v1-${{ hashFiles('ish-arm64/**', 'rootfs/overlay/**', 'scripts/build-rootfs.sh', 'Makefile', 'harness/opencode.json', 'harness/plugins/**', 'harness/skills/**', 'harness/scripts/delete-env.sh', 'harness/commands/**') }}
+          key: omh-v1-${{ hashFiles('ish-arm64/**', 'rootfs/overlay/**', 'scripts/build-rootfs.sh', 'Makefile', 'harness/opencode.json', 'harness/dashboard/**', 'harness/modules/**', 'harness/scripts/omh-*.mjs', 'harness/scripts/connect-vercel-mcp.mjs', 'harness/plugins/**', 'harness/skills/**', 'harness/scripts/delete-env.sh', 'harness/commands/**') }}
 
       - name: Build emulator
         if: steps.build-cache.outputs.cache-hit != 'true'
@@ -61,32 +103,56 @@ jobs:
       - name: Build guest rootfs
         if: steps.build-cache.outputs.cache-hit != 'true'
         run: |
-          # The emulator copies the host hostname into a 65-byte guest field;
-          # the runner hostname is longer than that and aborts the emulator.
-          sudo hostname ish
-          sudo scutil --set HostName ish || true
-          hostname
           make rootfs
 
+      - name: Validate pinned OMH components and guest wrappers
+        run: |
+          node --version
+          bash -n scripts/build-rootfs.sh
+          bash -n scripts/sync-omh-branding.sh
+          bash -n scripts/verify-omh-ipa.sh
+          bash scripts/sync-omh-branding.sh
+          for wrapper in omh-runtime omh-dashboard omh-live omh-vercel-mcp omh-sandbox-check; do
+            test -s "rootfs/overlay/usr/local/bin/$wrapper" || exit 1
+          done
+          node --check harness/scripts/omh-live.mjs
+          node --check harness/scripts/connect-vercel-mcp.mjs
+          node --check harness/scripts/omh-dashboard.mjs
+          git -C harness rev-parse HEAD
+          node -e "const c=require('./harness/opencode.json');if(c.model!=='google/gemini-3.5-flash-lite')process.exit(1)"
+
       - name: Regenerate Xcode project
-        run: make project
+        run: |
+          make project
+          grep -q 'OMH.app/OMH' OMH.xcodeproj/project.pbxproj
+          grep -q 'PRODUCT_NAME = OMH' app/AppOMH.xcconfig
 
       - name: Build app (unsigned)
         run: |
-          xcodebuild -project DSH.xcodeproj -scheme DSH -configuration Release \
+          xcodebuild -project OMH.xcodeproj -scheme OMH -configuration Release \
             -destination 'generic/platform=iOS' \
             CODE_SIGNING_ALLOWED=NO \
             PRODUCT_BUNDLE_IDENTIFIER=app.jackfruit686.openmind-harness \
             build
-          ls -lh build/Release-iphoneos/DSH.app build/Release-iphoneos/DSH.app 2>/dev/null || ls -lh ~/Library/Developer/Xcode/DerivedData/DSH-*/Build/Products/Release-iphoneos/DSH.app
+          APP=$(find build ~/Library/Developer/Xcode/DerivedData -path '*/Release-iphoneos/OMH.app' -type d -print -quit 2>/dev/null)
+          test -n "$APP" && test -f "$APP/Info.plist" && test -f "$APP/OMH"
+          test "$(defaults read "$APP/Info.plist" CFBundleName)" = "OMH"
+          test "$(defaults read "$APP/Info.plist" CFBundleDisplayName)" = "OpenMind Harness"
+          test "$(defaults read "$APP/Info.plist" CFBundleIdentifier)" = "app.jackfruit686.openmind-harness"
+          echo "Validated new OMH.app bundle: $APP"
 
       - name: Package IPA
         run: |
-          APP=$(ls -dt build/Release-iphoneos/DSH.app build/Release-iphoneos/DSH.app ~/Library/Developer/Xcode/DerivedData/DSH-*/Build/Products/Release-iphoneos/DSH.app 2>/dev/null | head -1)
+          APP=$(find build ~/Library/Developer/Xcode/DerivedData -path '*/Release-iphoneos/OMH.app' -type d -print -quit 2>/dev/null)
+          test -n "$APP" && test -f "$APP/OMH"
           mkdir -p Payload
           cp -r "$APP" Payload/
+          test -f Payload/OMH.app/Info.plist
+          test -f Payload/OMH.app/OMH
           zip -r -y OpenMind-Harness-unsigned.ipa Payload
-          unzip -l OpenMind-Harness-unsigned.ipa
+          unzip -l OpenMind-Harness-unsigned.ipa | grep -q 'Payload/OMH.app/OMH'
+          bash scripts/verify-omh-ipa.sh OpenMind-Harness-unsigned.ipa
+          ! unzip -Z1 OpenMind-Harness-unsigned.ipa | grep -q '^Payload/DSH.app/'
           ls -lh OpenMind-Harness-unsigned.ipa
 
       - name: Upload IPA
@@ -106,13 +172,15 @@ jobs:
     runs-on: macos-26
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Check out the harness (opencode.json, skills, plugins, scripts, commands)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: tjcrims0nx/openmind-harness
-          ref: main
+          # Pin the verified OMH Linux release so both Xcode jobs package
+          # identical models, assets, MCP modules, and sandbox policy.
+          ref: 55f62a9ad23fa897c21fa40948716b5c5504e626
           path: harness
 
       - name: Select Xcode 27
@@ -136,7 +204,7 @@ jobs:
           path: |
             ish-arm64/build-arm64-release
             build/root.tar.gz
-          key: omh-v1-${{ hashFiles('ish-arm64/**', 'rootfs/overlay/**', 'scripts/build-rootfs.sh', 'Makefile', 'harness/opencode.json', 'harness/plugins/**', 'harness/skills/**', 'harness/scripts/delete-env.sh', 'harness/commands/**') }}
+          key: omh-v1-${{ hashFiles('ish-arm64/**', 'rootfs/overlay/**', 'scripts/build-rootfs.sh', 'Makefile', 'harness/opencode.json', 'harness/dashboard/**', 'harness/modules/**', 'harness/scripts/omh-*.mjs', 'harness/scripts/connect-vercel-mcp.mjs', 'harness/plugins/**', 'harness/skills/**', 'harness/scripts/delete-env.sh', 'harness/commands/**') }}
 
       - name: Build emulator
         if: steps.build-cache.outputs.cache-hit != 'true'
@@ -150,18 +218,182 @@ jobs:
       - name: Build guest rootfs
         if: steps.build-cache.outputs.cache-hit != 'true'
         run: |
-          sudo hostname ish
-          sudo scutil --set HostName ish || true
           make rootfs
 
+      - name: Validate pinned OMH components and guest wrappers
+        run: |
+          node --version
+          bash -n scripts/build-rootfs.sh
+          bash -n scripts/sync-omh-branding.sh
+          bash -n scripts/verify-omh-ipa.sh
+          bash scripts/sync-omh-branding.sh
+          for wrapper in omh-runtime omh-dashboard omh-live omh-vercel-mcp omh-sandbox-check; do
+            test -s "rootfs/overlay/usr/local/bin/$wrapper" || exit 1
+          done
+          node --check harness/scripts/omh-live.mjs
+          node --check harness/scripts/connect-vercel-mcp.mjs
+          node --check harness/scripts/omh-dashboard.mjs
+          git -C harness rev-parse HEAD
+          node -e "const c=require('./harness/opencode.json');if(c.model!=='google/gemini-3.5-flash-lite')process.exit(1)"
+
       - name: Regenerate Xcode project
-        run: make project
+        run: |
+          make project
+          grep -q 'OMH.app/OMH' OMH.xcodeproj/project.pbxproj
+          grep -q 'PRODUCT_NAME = OMH' app/AppOMH.xcconfig
 
       - name: Simulator smoke test (iPad)
         run: |
           SIM="$(scripts/pick-simulator.sh)"
           echo "Simulator: $SIM"
-          xcodebuild -project DSH.xcodeproj -scheme DSH -configuration Release \
+          # Boot and settle SpringBoard before XCTest launches the emulator app.
+          xcrun simctl boot "$SIM" || true
+          xcrun simctl bootstatus "$SIM" -b
+          xcodebuild -project OMH.xcodeproj -scheme OMH -configuration Release \
             -destination "platform=iOS Simulator,name=$SIM" \
-            -only-testing:DSHUITests/DSHLaunchUITests/testHarnessBootsAndShowsWebUI \
+            -parallel-testing-enabled NO -resultBundlePath "$RUNNER_TEMP/ipad.xcresult" \
+            -only-testing:OMHUITests/OMHLaunchUITests/testHarnessBootsAndShowsWebUI \
             test
+
+      - name: Export iPad screenshots and test diagnostics
+        if: always()
+        run: |
+          result="$RUNNER_TEMP/ipad.xcresult"
+          if [ -d "$result" ]; then
+            mkdir -p "$RUNNER_TEMP/ipad-evidence"
+            xcrun xcresulttool export attachments --path "$result" --output-path "$RUNNER_TEMP/ipad-evidence"
+            xcrun xcresulttool get test-results summary --path "$result" > "$RUNNER_TEMP/ipad-evidence/tests.json"
+            xcrun xcresulttool export diagnostics --path "$result" --output-path "$RUNNER_TEMP/ipad-evidence/diagnostics"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ipad-desktop-ui-test
+          path: |
+            ${{ runner.temp }}/ipad-evidence/*.png
+            ${{ runner.temp }}/ipad-evidence/manifest.json
+            ${{ runner.temp }}/ipad-evidence/tests.json
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ipad-test-diagnostics
+          path: ${{ runner.temp }}/ipad-evidence
+          if-no-files-found: warn
+
+  # Separate iOS target: an iPadOS test cannot validate compact iPhone UI.
+  # Independently verify an actual iPhone launch and guest readiness.
+  iphone-simulator-smoke:
+    needs: build
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check out the harness (opencode.json, skills, plugins, scripts, commands)
+        uses: actions/checkout@v5
+        with:
+          repository: tjcrims0nx/openmind-harness
+          # Pin the verified OMH Linux release so both Xcode jobs package
+          # identical models, assets, MCP modules, and sandbox policy.
+          ref: 55f62a9ad23fa897c21fa40948716b5c5504e626
+          path: harness
+
+      - name: Select Xcode 27
+        run: |
+          XCODE27=$(ls -d /Applications/Xcode_27*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$XCODE27" ]; then
+            sudo xcode-select -s "$XCODE27/Contents/Developer"
+          fi
+          xcodebuild -version
+
+      - name: Install build tools
+        run: |
+          brew install meson ninja lld libarchive
+          echo "/opt/homebrew/opt/lld/bin" >> "$GITHUB_PATH"
+          gem install xcodeproj --no-document || sudo gem install xcodeproj --no-document
+
+      - name: Restore emulator and rootfs cache
+        id: build-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ish-arm64/build-arm64-release
+            build/root.tar.gz
+          key: omh-v1-${{ hashFiles('ish-arm64/**', 'rootfs/overlay/**', 'scripts/build-rootfs.sh', 'Makefile', 'harness/opencode.json', 'harness/dashboard/**', 'harness/modules/**', 'harness/scripts/omh-*.mjs', 'harness/scripts/connect-vercel-mcp.mjs', 'harness/plugins/**', 'harness/skills/**', 'harness/scripts/delete-env.sh', 'harness/commands/**') }}
+
+      - name: Build emulator
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        env:
+          CFLAGS: -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0
+          CXXFLAGS: -U_FORTIFY_SOURCE -D_FORTIFY_SOURCE=0
+        run: |
+          make emulator
+          ninja -C ish-arm64/build-arm64-release tools/fakefsify
+
+      - name: Build guest rootfs
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        run: |
+          make rootfs
+
+      - name: Validate pinned OMH components and guest wrappers
+        run: |
+          node --version
+          bash -n scripts/build-rootfs.sh
+          bash -n scripts/sync-omh-branding.sh
+          bash -n scripts/verify-omh-ipa.sh
+          bash scripts/sync-omh-branding.sh
+          for wrapper in omh-runtime omh-dashboard omh-live omh-vercel-mcp omh-sandbox-check; do
+            test -s "rootfs/overlay/usr/local/bin/$wrapper" || exit 1
+          done
+          node --check harness/scripts/omh-live.mjs
+          node --check harness/scripts/connect-vercel-mcp.mjs
+          node --check harness/scripts/omh-dashboard.mjs
+          git -C harness rev-parse HEAD
+          node -e "const c=require('./harness/opencode.json');if(c.model!=='google/gemini-3.5-flash-lite')process.exit(1)"
+
+      - name: Regenerate Xcode project
+        run: |
+          make project
+          grep -q 'OMH.app/OMH' OMH.xcodeproj/project.pbxproj
+          grep -q 'PRODUCT_NAME = OMH' app/AppOMH.xcconfig
+
+      - name: Simulator smoke test (iPhone)
+        run: |
+          SIM="$(bash scripts/pick-iphone-simulator.sh)"
+          echo "iOS iPhone simulator: $SIM"
+          # Boot and settle SpringBoard before XCTest launches the emulator app.
+          xcrun simctl boot "$SIM" || true
+          xcrun simctl bootstatus "$SIM" -b
+          xcodebuild -project OMH.xcodeproj -scheme OMH -configuration Release \
+            -destination "platform=iOS Simulator,name=$SIM" \
+            -parallel-testing-enabled NO -resultBundlePath "$RUNNER_TEMP/iphone.xcresult" \
+            -only-testing:OMHUITests/OMHLaunchUITests/testIOSPhoneNativeDashboardAndEditor \
+            -only-testing:OMHUITests/OMHLaunchUITests/testServerLogIsReachableFromMenu \
+            test
+
+      - name: Export iPhone screenshots and test diagnostics
+        if: always()
+        run: |
+          result="$RUNNER_TEMP/iphone.xcresult"
+          if [ -d "$result" ]; then
+            mkdir -p "$RUNNER_TEMP/iphone-evidence"
+            xcrun xcresulttool export attachments --path "$result" --output-path "$RUNNER_TEMP/iphone-evidence"
+            xcrun xcresulttool get test-results summary --path "$result" > "$RUNNER_TEMP/iphone-evidence/tests.json"
+            xcrun xcresulttool export diagnostics --path "$result" --output-path "$RUNNER_TEMP/iphone-evidence/diagnostics"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-iphone-native-ui-test
+          path: |
+            ${{ runner.temp }}/iphone-evidence/*.png
+            ${{ runner.temp }}/iphone-evidence/manifest.json
+            ${{ runner.temp }}/iphone-evidence/tests.json
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ios-iphone-test-diagnostics
+          path: ${{ runner.temp }}/iphone-evidence
+          if-no-files-found: warn

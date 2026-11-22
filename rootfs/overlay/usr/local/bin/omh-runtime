@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+export OMH_WORKSPACE="${OMH_WORKSPACE:-${OPENCODE_WORKSPACE:-/root/workspace}}"
+exec /usr/bin/node /usr/local/share/omh-runtime/scripts/omh-runtime.mjs "$@"

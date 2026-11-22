@@ -16,7 +16,7 @@
 // AbortSignal, redirects (max 20), gzip/deflate/br decoding, streaming body,
 // `url`/`redirected` on the returned Response.
 if (typeof globalThis.WebAssembly === "undefined" ||
-    process.env.DSH_FORCE_FETCH_POLYFILL === "1") {
+    process.env.OMH_FORCE_FETCH_POLYFILL === "1") {
   let _impl = null;
   const MAX_REDIRECTS = 20;
 

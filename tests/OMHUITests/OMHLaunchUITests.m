@@ -1,0 +1,332 @@
+//
+//  OMHLaunchUITests.m
+//  OMHUITests
+//
+//  End-to-end checks on a real device/simulator: the app boots the Linux
+//  guest, opencode-serve comes up, the WKWebView shows the OpenMind Harness
+//  web UI, and the native controls (terminal, log, menu) work.
+//
+
+#import <XCTest/XCTest.h>
+
+static const NSTimeInterval kBootTimeout = 300;   // first launch imports the rootfs
+
+@interface OMHLaunchUITests : XCTestCase
+@property (nonatomic) XCUIApplication *app;
+@end
+
+@implementation OMHLaunchUITests
+
+- (void)setUp {
+    self.continueAfterFailure = NO;
+    self.app = [[XCUIApplication alloc] init];
+    [self.app launch];
+}
+
+- (void)attachScreenshot:(NSString *)name {
+    XCTAttachment *att = [XCTAttachment attachmentWithScreenshot:[XCUIScreen.mainScreen screenshot]];
+    att.name = name;
+    att.lifetime = XCTAttachmentLifetimeKeepAlways;
+    [self addAttachment:att];
+}
+
+/// Waits until the harness overlay is gone (server answered and page loaded).
+- (void)waitForHarnessReady {
+    XCUIElement *open = self.app.buttons[@"omh.open-editor"];
+    if (open.exists) {
+        NSPredicate *enabled = [NSPredicate predicateWithFormat:@"enabled == YES"];
+        [self waitForExpectations:@[[self expectationForPredicate:enabled evaluatedWithObject:open handler:nil]] timeout:kBootTimeout];
+        [open tap];
+    }
+    XCUIElement *overlay = self.app.staticTexts[@"omh.overlay.message"];
+    XCUIElement *dot = self.app.otherElements[@"omh.statusdot"];
+    NSPredicate *gone = [NSPredicate predicateWithFormat:@"exists == NO OR hittable == NO"];
+    XCTestExpectation *e = [self expectationForPredicate:gone evaluatedWithObject:overlay handler:nil];
+    [self waitForExpectations:@[e] timeout:kBootTimeout];
+    if (dot.exists)
+        XCTAssertEqualObjects(dot.value, @"ready", @"status dot should report ready");
+}
+
+/// iPhone-specific native shell smoke: the same OMH landing screen must
+/// remain touch-usable in portrait and landscape, not only on an iPad.
+- (void)testIOSPhoneNativeDashboardAndEditor {
+    XCUIDevice.sharedDevice.orientation = UIDeviceOrientationPortrait;
+    XCUIElement *refresh = self.app.buttons[@"omh.native.refresh"];
+    XCUIElement *editor = self.app.buttons[@"omh.open-editor"];
+    XCTAssertTrue([refresh waitForExistenceWithTimeout:15], @"iPhone must open the native OMH dashboard shell");
+    XCTAssertTrue([editor waitForExistenceWithTimeout:15], @"OpenCode must be reachable on iPhone");
+    XCTAssertTrue([self.app.images[@"omh.native.brand.logo"] waitForExistenceWithTimeout:10]);
+    XCTAssertGreaterThanOrEqual(CGRectGetHeight(refresh.frame), 40);
+    // The dashboard web view stays hidden until the guest boots and the
+    // page finishes loading, so wait for it like the iPad test waits for
+    // the dashboard's own controls instead of asserting it immediately.
+    XCTAssertTrue([self.app.webViews.firstMatch waitForExistenceWithTimeout:kBootTimeout], @"iOS includes the embedded dashboard");
+    [self attachScreenshot:@"ios-phone-portrait-native-dashboard"];
+
+    XCUIDevice.sharedDevice.orientation = UIDeviceOrientationLandscapeLeft;
+    XCTAssertTrue([refresh waitForExistenceWithTimeout:10], @"Native actions survive iPhone rotation");
+    XCTAssertTrue([editor waitForExistenceWithTimeout:10]);
+    [self attachScreenshot:@"ios-phone-landscape-native-dashboard"];
+
+    NSPredicate *ready = [NSPredicate predicateWithFormat:@"enabled == YES"];
+    [self waitForExpectations:@[[self expectationForPredicate:ready evaluatedWithObject:editor handler:nil]]
+                     timeout:kBootTimeout];
+    [editor tap];
+    XCTAssertTrue([self.app.otherElements[@"omh.controlbar"] waitForExistenceWithTimeout:30],
+                  @"iOS editor must open inside native OMH navigation");
+    [self attachScreenshot:@"ios-phone-open-code-editor"];
+}
+
+- (void)testHarnessBootsAndShowsWebUI {
+    XCUIDevice.sharedDevice.orientation = UIDeviceOrientationLandscapeLeft;
+    // Native UIKit shell must remain visible while the guest WebKit app loads.
+    // This is deliberately separate from the embedded dashboard DOM.
+    XCUIElement *nativeRefresh = self.app.buttons[@"omh.native.refresh"];
+    XCUIElement *nativeEditor = self.app.buttons[@"omh.open-editor"];
+    XCTAssertTrue([nativeRefresh waitForExistenceWithTimeout:15], @"Native dashboard refresh belongs in the iPad toolbar");
+    XCTAssertTrue([nativeEditor waitForExistenceWithTimeout:15], @"Native OpenCode navigation belongs in the toolbar");
+    XCTAssertTrue(self.app.images[@"omh.native.brand.logo"].exists, @"Use the official OMH brand in UIKit");
+    XCTAssertGreaterThanOrEqual(CGRectGetHeight(nativeRefresh.frame), 40.0, @"Refresh must have an accessible tap target");
+    XCUIElement *home = self.app.webViews.firstMatch;
+    XCUIElement *refresh = home.buttons[@"Refresh runtime state"];
+    XCTAssertTrue([refresh waitForExistenceWithTimeout:kBootTimeout], @"iPad must open the shared OMH dashboard");
+    XCUIElement *connected = [[home descendantsMatchingType:XCUIElementTypeAny]
+        matchingPredicate:[NSPredicate predicateWithFormat:@"label == 'Connected'"]].firstMatch;
+    XCTAssertTrue([connected waitForExistenceWithTimeout:30], @"Dashboard must read guest runtime state");
+    [refresh tap];
+    [self attachScreenshot:@"01-ipad-harness-dashboard"];
+    // WebKit exposes buttons with aria-pressed as switches to iPad accessibility.
+    XCUIElement *rail = home.otherElements[@"Workspace navigation, navigation"];
+    NSArray<NSString *> *views = @[@"Agent teams", @"Workflows", @"Tasks", @"Skills",
+        @"Plugins", @"Trace", @"Sandbox", @"Schedules", @"Workspaces", @"Memory"];
+    for (NSString *name in views) {
+        XCUIElement *item = rail.switches[name];
+        [item tap];
+        XCTAssertEqualObjects(item.value, @"1", @"%@ should be selected", name);
+    }
+    XCUIElement *empty = [[home descendantsMatchingType:XCUIElementTypeAny]
+        matchingPredicate:[NSPredicate predicateWithFormat:@"label == 'No records match this view.'"]].firstMatch;
+    XCTAssertTrue([empty waitForExistenceWithTimeout:8]);
+    [rail.switches[@"Workspace"] tap];
+    XCUIElement *tiles = home.otherElements[@"Explore harness features, navigation"];
+    NSArray<XCUIElement *> *cards = tiles.switches.allElementsBoundByIndex;
+    XCTAssertEqual(cards.count, 8u);
+    for (XCUIElement *card in cards) {
+        [card tap];
+        XCTAssertFalse(tiles.exists);
+        [rail.switches[@"Workspace"] tap];
+        XCTAssertTrue(tiles.exists);
+    }
+    XCUIElement *quick = home.otherElements[@"Quick views, navigation"];
+    for (NSString *name in @[@"Agent team", @"Queue", @"Overview"]) {
+        [quick.switches[name] tap];
+        XCTAssertEqualObjects(quick.switches[name].value, @"1");
+    }
+    for (NSString *name in @[@"Workspaces", @"Schedules", @"Logs", @"Console"]) {
+        [home.buttons[name] tap];
+        XCTAssertTrue(home.otherElements[[name stringByAppendingString:@", tab panel"]].exists);
+    }
+    [home.buttons[@"Run search"] tap];
+    XCTAssertTrue(home.buttons[@"Clear"].exists);
+    [home.buttons[@"Clear"] tap];
+    XCTAssertFalse(home.buttons[@"Clear"].exists);
+    XCUIDevice.sharedDevice.orientation = UIDeviceOrientationPortrait;
+    XCTAssertTrue([nativeRefresh waitForExistenceWithTimeout:8], @"Native toolbar should survive rotation");
+    XCTAssertTrue(nativeEditor.hittable, @"OpenCode native control should survive rotation");
+    XCTAssertTrue(refresh.hittable);
+    [self attachScreenshot:@"02-ipad-dashboard-portrait"];
+    XCUIDevice.sharedDevice.orientation = UIDeviceOrientationLandscapeLeft;
+    [self waitForHarnessReady];
+    [self attachScreenshot:@"02-ready"];
+
+    XCUIElement *web = self.app.webViews.firstMatch;
+    XCTAssertTrue([web waitForExistenceWithTimeout:30], @"web view should exist");
+
+    // Wait for the local web client to render an interactive control.
+    NSPredicate *uiUp = [NSPredicate predicateWithFormat:@"exists == YES"];
+    XCUIElementQuery *markers = [[web descendantsMatchingType:XCUIElementTypeAny]
+        matchingPredicate:[NSPredicate predicateWithFormat:@"elementType == %d OR elementType == %d OR elementType == %d", XCUIElementTypeButton, XCUIElementTypeLink, XCUIElementTypeTextField]];
+    XCTestExpectation *e = [self expectationForPredicate:uiUp evaluatedWithObject:markers.firstMatch handler:nil];
+    [self waitForExpectations:@[e] timeout:90];
+    [self attachScreenshot:@"03-web-ui"];
+
+    XCUIElement *workspace = self.app.buttons[@"omh.sidebar.workspace"];
+    XCTAssertTrue([workspace waitForExistenceWithTimeout:8], @"iPad landscape should show desktop navigation");
+    XCUIElement *log = self.app.buttons[@"omh.sidebar.log"];
+    [log tap];
+    XCUIElement *logView = self.app.textViews[@"omh.logview"];
+    XCTAssertTrue([logView waitForExistenceWithTimeout:8]);
+    NSString *startupLog = logView.value;
+    XCTAssertTrue([startupLog containsString:@"server answered"]);
+    XCTAssertFalse([startupLog containsString:@"ESPIPE: invalid seek"], @"The guest must recognize the output pipes");
+    if (CGRectGetWidth(self.app.frame) >= 1040) {
+        XCTAssertLessThanOrEqual(CGRectGetMaxX(web.frame), CGRectGetMinX(logView.frame) + 1);
+    }
+    [self attachScreenshot:@"04-ipad-workspace-and-log"];
+    [self.app.buttons[@"Done"] tap];
+    XCTAssertFalse(logView.exists);
+    [self.app.buttons[@"omh.sidebar.activity"] tap];
+    XCTAssertTrue([self.app.tables[@"omh.activity"] waitForExistenceWithTimeout:8]);
+    [workspace tap];
+    [self.app.buttons[@"omh.sidebar.capabilities"] tap];
+    XCTAssertTrue([self.app.tables[@"omh.capabilities"] waitForExistenceWithTimeout:8]);
+    [workspace tap];
+    XCTAssertTrue(web.hittable);
+    XCUIDevice.sharedDevice.orientation = UIDeviceOrientationPortrait;
+    XCTAssertTrue([self.app.buttons[@"omh.menu"] waitForExistenceWithTimeout:8]);
+    [self attachScreenshot:@"05-ipad-portrait"];
+
+    // Title shows the port the server listens on.
+    XCUIElement *title = self.app.staticTexts[@"omh.title"];
+    XCTAssertTrue(title.exists);
+    XCTAssertTrue([title.label containsString:@":30"], @"title should show the port, got %@", title.label);
+    [self.app.navigationBars.buttons.firstMatch tap];
+    XCTAssertTrue([refresh waitForExistenceWithTimeout:10], @"Back must return to the running dashboard");
+    XCTAssertTrue(connected.exists);
+
+}
+
+- (void)testServerLogIsReachableFromMenu {
+    [self waitForHarnessReady];
+    XCUIElement *menu = self.app.buttons[@"omh.menu"];
+    XCTAssertTrue([menu waitForExistenceWithTimeout:10]);
+    [menu tap];
+    XCUIElement *logItem = self.app.buttons[@"Server Log"];
+    XCTAssertTrue([logItem waitForExistenceWithTimeout:5], @"menu should list Server Log");
+    [logItem tap];
+    XCUIElement *logView = self.app.textViews[@"omh.logview"];
+    XCTAssertTrue([logView waitForExistenceWithTimeout:10]);
+    NSString *text = (NSString *) logView.value;
+    XCTAssertTrue([text containsString:@"server answered"], @"log should record readiness, got: %@", text);
+    XCTAssertTrue([text containsString:@"opencode server listening on http://127.0.0.1:"], @"log should contain the OpenCode listener address, got: %@", text);
+    [self attachScreenshot:@"04-log"];
+    [self.app.buttons[@"Done"] tap];
+}
+
+/// The capabilities screen is the only way a user can turn a bridge capability
+/// on, so the switch has to be reachable, ask before granting, and stick.
+///
+/// This drives `device.info`, the one capability with no system permission
+/// behind it. Capabilities that do have one (Health, Calendar, Reminders) put
+/// up a sheet owned by another process, which XCUITest cannot reliably dismiss
+/// from here; that they can ask at all is asserted in
+/// OMHHealthCapabilityTests.testCapabilityCanAskForItsSystemPermission.
+- (void)testCapabilitiesScreenTogglesACapability {
+    [self waitForHarnessReady];
+    XCUIElement *menu = self.app.buttons[@"omh.menu"];
+    XCTAssertTrue([menu waitForExistenceWithTimeout:10]);
+    [menu tap];
+    XCUIElement *item = self.app.buttons[@"Capabilities"];
+    XCTAssertTrue([item waitForExistenceWithTimeout:5], @"menu should list Capabilities");
+    [item tap];
+
+    XCUIElement *table = self.app.tables[@"omh.capabilities"];
+    XCTAssertTrue([table waitForExistenceWithTimeout:10]);
+    // The sensitive capabilities must at least be listed, or there is no way
+    // for a user to reach them — reads in one section, writes in the other.
+    XCTAssertTrue([self.app.switches[@"omh.capability.switch.health.read"] waitForExistenceWithTimeout:10],
+                  @"Apple Health should be listed");
+    XCTAssertTrue(self.app.switches[@"omh.capability.switch.calendar.read"].exists,
+                  @"Calendar should be listed");
+    XCTAssertTrue(self.app.staticTexts[@"What the agent can read"].exists,
+                  @"reads and writes should be separated");
+    XCTAssertTrue(self.app.staticTexts[@"What the agent can change"].exists);
+    [self attachScreenshot:@"05-capabilities"];
+
+    XCUIElement *device = self.app.switches[@"omh.capability.switch.device.info"];
+    XCTAssertTrue([device waitForExistenceWithTimeout:10]);
+    NSPredicate *isOn = [NSPredicate predicateWithFormat:@"value == '1'"];
+    NSPredicate *isOff = [NSPredicate predicateWithFormat:@"value == '0'"];
+
+    // Switches persist across launches and this app is not reinstalled between
+    // runs, so start by normalising rather than assuming a fresh install.
+    // Turning something off is immediate — only turning it on asks.
+    if ([device.value isEqual:@"1"]) {
+        [device tap];
+        [self waitForExpectations:@[[self expectationForPredicate:isOff evaluatedWithObject:device handler:nil]] timeout:10];
+    }
+
+    [device tap];
+    XCUIElement *allow = self.app.alerts.buttons[@"Allow"];
+    XCTAssertTrue([allow waitForExistenceWithTimeout:5], @"enabling should ask first, naming what is granted");
+    [allow tap];
+    [self waitForExpectations:@[[self expectationForPredicate:isOn evaluatedWithObject:device handler:nil]] timeout:10];
+
+    // Cancelling must leave it as it was.
+    [device tap];
+    [self waitForExpectations:@[[self expectationForPredicate:isOff evaluatedWithObject:device handler:nil]] timeout:10];
+    [device tap];
+    XCUIElement *cancel = self.app.alerts.buttons[@"Cancel"];
+    XCTAssertTrue([cancel waitForExistenceWithTimeout:5]);
+    [cancel tap];
+    [self waitForExpectations:@[[self expectationForPredicate:isOff evaluatedWithObject:device handler:nil]] timeout:10];
+
+    // device.info ships on; leave it that way.
+    [device tap];
+    [self.app.alerts.buttons[@"Allow"] tap];
+    [self waitForExpectations:@[[self expectationForPredicate:isOn evaluatedWithObject:device handler:nil]] timeout:10];
+    [self.app.buttons[@"Done"] tap];
+}
+
+/// The Activity screen is where a user checks what the agent has been doing,
+/// so it has to be reachable and readable — including on a phone, where its
+/// monospaced rows and multi-line details have the least room.
+- (void)testActivityScreenIsReachableAndReadable {
+    [self waitForHarnessReady];
+    XCUIElement *menu = self.app.buttons[@"omh.menu"];
+    XCTAssertTrue([menu waitForExistenceWithTimeout:10]);
+    [menu tap];
+    XCUIElement *item = self.app.buttons[@"Activity"];
+    XCTAssertTrue([item waitForExistenceWithTimeout:5], @"menu should list Activity");
+    [item tap];
+
+    XCUIElement *table = self.app.tables[@"omh.activity"];
+    XCTAssertTrue([table waitForExistenceWithTimeout:10]);
+    [self attachScreenshot:@"06-activity"];
+
+    // Either there are rows or the empty state explains itself; a blank screen
+    // with neither is the failure worth catching.
+    BOOL hasRows = table.cells.count > 0;
+    XCTAssertTrue(hasRows, @"the table should show rows or an empty-state row");
+
+    // The filters are the point of the screen for anyone looking for trouble.
+    XCTAssertTrue(self.app.buttons[@"Problems"].exists, @"filters should be reachable");
+    [self.app.buttons[@"Problems"] tap];
+    XCTAssertTrue([table waitForExistenceWithTimeout:5]);
+    [self attachScreenshot:@"07-activity-problems"];
+
+    [self.app.buttons[@"Done"] tap];
+}
+
+- (void)testLandscapeKeepsWebViewAndBar {
+    [self waitForHarnessReady];
+    XCUIDevice.sharedDevice.orientation = UIDeviceOrientationLandscapeLeft;
+    sleep(2);
+    XCUIElement *web = self.app.webViews.firstMatch;
+    XCTAssertTrue([web waitForExistenceWithTimeout:10]);
+    CGRect frame = web.frame;
+    XCTAssertGreaterThan(frame.size.width, frame.size.height, @"web view should be wider than tall in landscape (%@)", NSStringFromCGRect(frame));
+    XCTAssertTrue(self.app.buttons[@"omh.menu"].isHittable, @"control bar stays reachable in landscape");
+    [self attachScreenshot:@"06-landscape"];
+    XCUIDevice.sharedDevice.orientation = UIDeviceOrientationPortrait;
+    sleep(1);
+    XCTAssertTrue(self.app.webViews.firstMatch.exists);
+}
+
+- (void)testTerminalOpensAndDismisses {
+    [self waitForHarnessReady];
+    XCUIElement *terminal = self.app.buttons[@"omh.terminal"];
+    XCTAssertTrue([terminal waitForExistenceWithTimeout:10]);
+    [terminal tap];
+    // The iSH terminal is an hterm web view inside a sheet.
+    XCUIElement *termWeb = [self.app.webViews elementBoundByIndex:1];
+    XCTAssertTrue([termWeb waitForExistenceWithTimeout:20], @"terminal sheet should present a second web view");
+    sleep(3);
+    [self attachScreenshot:@"05-terminal"];
+    // Swipe the sheet down to dismiss; the main web view is still there.
+    [termWeb swipeDown];
+    sleep(1);
+    XCTAssertTrue(self.app.webViews.firstMatch.exists);
+}
+
+@end

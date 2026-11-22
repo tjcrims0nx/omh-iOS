@@ -1,12 +1,12 @@
 #!/usr/bin/env ruby
-# Generates DSH.xcodeproj — the Xcode project for the DSH app; it references
+# Generates OMH.xcodeproj — the Xcode project for the OMH app; it references
 # the iSH-ARM64 emulator sources in ./ish-arm64.
 #
 # Targets:
-#   DSH         the app (emulator sources + dsh-ios/app + bundled root.tar.gz)
-#   DSHTests    XCTest bundle hosted in the app (unit + guest integration)
-#   DSHUITests  XCUITest bundle
-# Shared scheme "DSH" builds/tests all three.
+#   OMH         the app (emulator sources + omh-ios/app + bundled root.tar.gz)
+#   OMHTests    XCTest bundle hosted in the app (unit + guest integration)
+#   OMHUITests  XCUITest bundle
+# Shared scheme "OMH" builds/tests all three.
 #
 # Re-run after adding/removing source files (idempotent: rewrites the project).
 # Requires the `xcodeproj` gem (ships with CocoaPods).
@@ -17,7 +17,7 @@ require 'digest'
 HERE = Pathname.new(__FILE__).expand_path.dirname
 ROOT = HERE.parent                                   # repo root
 ISH = (ROOT + 'ish-arm64').expand_path                # ./ish-arm64
-PROJECT_PATH = ROOT + 'DSH.xcodeproj'
+PROJECT_PATH = ROOT + 'OMH.xcodeproj'
 ISH_REL = 'ish-arm64'
 
 abort "iSH-ARM64 sources not found at #{ISH}" unless (ISH + 'iSH.xcodeproj').exist?
@@ -55,15 +55,15 @@ project.instance_variable_set(:@generated_uuids, project.uuids.dup)
 project.define_singleton_method(:generate_available_uuid_list) do |count = 100|
   available = instance_variable_get(:@available_uuids)
   generated = instance_variable_get(:@generated_uuids)
-  cursor = instance_variable_get(:@dsh_uuid_cursor) || 0
+  cursor = instance_variable_get(:@omh_uuid_cursor) || 0
   while available.length <= count
-    candidate = Digest::SHA256.hexdigest("dsh-ios-project-object-#{cursor}")[0, 24].upcase
+    candidate = Digest::SHA256.hexdigest("omh-ios-project-object-#{cursor}")[0, 24].upcase
     cursor += 1
     next if generated.include?(candidate) || uuids.include?(candidate)
     generated << candidate
     available << candidate
   end
-  instance_variable_set(:@dsh_uuid_cursor, cursor)
+  instance_variable_set(:@omh_uuid_cursor, cursor)
 end
 project.root_object.attributes['LastUpgradeCheck'] = '2700'
 
@@ -111,10 +111,10 @@ libarchive_target = libarchive_project.targets.find { |t| t.name == 'libarchive'
 app_dir = ROOT + 'app'
 app_source_refs = Dir[(app_dir + '*.{m,swift}').to_s].sort.map { |f| app_group.new_file(File.basename(f)) }
 Dir[(app_dir + '*.h').to_s].sort.each { |f| app_group.new_file(File.basename(f)) }
-xcconfig_ref = app_group.new_file('AppDSH.xcconfig')
+xcconfig_ref = app_group.new_file('AppOMH.xcconfig')
 app_group.new_file('Info.plist')
-app_group.new_file('DSH.entitlements')
-app_resource_refs = %w[DSHAssets.xcassets DSHLaunchScreen.storyboard PrivacyInfo.xcprivacy].map { |f| app_group.new_file(f) }
+app_group.new_file('OMH.entitlements')
+app_resource_refs = %w[OMHAssets.xcassets OMHLaunchScreen.storyboard PrivacyInfo.xcprivacy].map { |f| app_group.new_file(f) }
 project.main_group.new_file('README.md')
 project.main_group.new_file('Makefile')
 scripts_group = project.main_group.new_group('scripts', 'scripts')
@@ -125,8 +125,8 @@ Dir[(ROOT + 'rootfs/**/*').to_s].sort.select { |f| File.file?(f) }.each do |f|
 end
 
 # --- app target ---------------------------------------------------------------
-dsh = project.new_target(:application, 'DSH', :ios, '16.0')
-dsh.build_configuration_list.build_configurations.each do |bc|
+omh = project.new_target(:application, 'OMH', :ios, '16.0')
+omh.build_configuration_list.build_configurations.each do |bc|
   bc.build_settings.clear
   bc.base_configuration_reference = xcconfig_ref
 end
@@ -136,25 +136,25 @@ rule.file_type = mig_rule.file_type
 rule.is_editable = mig_rule.is_editable
 rule.output_files = mig_rule.output_files.dup
 rule.script = mig_rule.script
-dsh.build_rules << rule
+omh.build_rules << rule
 
-(ish_source_refs + app_source_refs).each { |r| dsh.source_build_phase.add_file_reference(r, true) }
-mig_bf = dsh.source_build_phase.add_file_reference(mig_ref, true)
+(ish_source_refs + app_source_refs).each { |r| omh.source_build_phase.add_file_reference(r, true) }
+mig_bf = omh.source_build_phase.add_file_reference(mig_ref, true)
 mig_bf.settings = { 'ATTRIBUTES' => ['Server'] }
 
 system_frameworks.each do |path|
   ref = project.frameworks_group.new_file(path)
   ref.source_tree = 'SDKROOT'
-  dsh.frameworks_build_phase.add_file_reference(ref, true)
+  omh.frameworks_build_phase.add_file_reference(ref, true)
 end
-dsh.add_dependency(libarchive_target)
+omh.add_dependency(libarchive_target)
 product_group = project.root_object.project_references.find { |r| r[:project_ref] == libarchive_ref }[:product_group]
 libarchive_product = product_group.children.find { |c| c.path.to_s == 'libarchive.a' } or abort 'libarchive.a proxy missing'
-dsh.frameworks_build_phase.add_file_reference(libarchive_product, true)
+omh.frameworks_build_phase.add_file_reference(libarchive_product, true)
 
-(ish_resource_refs + app_resource_refs).each { |r| dsh.resources_build_phase.add_file_reference(r, true) }
+(ish_resource_refs + app_resource_refs).each { |r| omh.resources_build_phase.add_file_reference(r, true) }
 
-meson = dsh.new_shell_script_build_phase('Build Meson (iSH-ARM64)')
+meson = omh.new_shell_script_build_phase('Build Meson (iSH-ARM64)')
 meson.shell_script = <<~SH
   # Builds libish.a / libish_emu.a / libfakefs.a with meson from ./ish-arm64.
   export ISH_SRC="$SRCROOT/ish-arm64"
@@ -166,31 +166,31 @@ SH
 meson.always_out_of_date = '1'
 meson.show_env_vars_in_log = '0'
 
-copy_root = dsh.new_shell_script_build_phase('Copy DSH Root')
+copy_root = omh.new_shell_script_build_phase('Copy OMH Root')
 copy_root.shell_script = <<~SH
   set -e
-  if [ ! -f "$DSH_ROOTFS_TARBALL" ]; then
-    echo "error: $DSH_ROOTFS_TARBALL not found. Run: make -C \\"$SRCROOT\\" rootfs" >&2
+  if [ ! -f "$OMH_ROOTFS_TARBALL" ]; then
+    echo "error: $OMH_ROOTFS_TARBALL not found. Run: make -C \\"$SRCROOT\\" rootfs" >&2
     exit 1
   fi
-  cp "$DSH_ROOTFS_TARBALL" "$BUILT_PRODUCTS_DIR/$CONTENTS_FOLDER_PATH/root.tar.gz"
-  shasum -a 256 "$DSH_ROOTFS_TARBALL" | cut -d' ' -f1 > "$BUILT_PRODUCTS_DIR/$CONTENTS_FOLDER_PATH/root.tar.gz.sha256"
+  cp "$OMH_ROOTFS_TARBALL" "$BUILT_PRODUCTS_DIR/$CONTENTS_FOLDER_PATH/root.tar.gz"
+  shasum -a 256 "$OMH_ROOTFS_TARBALL" | cut -d' ' -f1 > "$BUILT_PRODUCTS_DIR/$CONTENTS_FOLDER_PATH/root.tar.gz.sha256"
 SH
-copy_root.input_paths = ['$(DSH_ROOTFS_TARBALL)']
+copy_root.input_paths = ['$(OMH_ROOTFS_TARBALL)']
 copy_root.output_paths = ['$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/root.tar.gz', '$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/root.tar.gz.sha256']
 
-apk = dsh.new_shell_script_build_phase('Generate APK Repositories File')
+apk = omh.new_shell_script_build_phase('Generate APK Repositories File')
 apk.shell_script = "SRCROOT=\"$SRCROOT/ish-arm64\" python3 \"$SRCROOT/ish-arm64/app/gen_apk_repositories.py\"\n"
 apk.input_paths = ['$(SRCROOT)/ish-arm64/app/gen_apk_repositories.py']
 apk.output_paths = ['$(BUILT_PRODUCTS_DIR)/$(CONTENTS_FOLDER_PATH)/repositories.txt']
 
-js = dsh.new_shell_script_build_phase('Compile hterm JavaScript')
+js = omh.new_shell_script_build_phase('Compile hterm JavaScript')
 js.shell_script = "cd \"$SRCROOT/ish-arm64/deps/libapps\" && ./hterm/bin/mkdist\n"
 js.input_paths = ['$(SRCROOT)/ish-arm64/deps/libapps/hterm/js']
 js.output_paths = ['$(SRCROOT)/ish-arm64/deps/libapps/hterm/dist/js/hterm_all.js']
 
-phases = dsh.build_phases
-ordered = [meson, dsh.source_build_phase, dsh.frameworks_build_phase, copy_root, apk, js, dsh.resources_build_phase]
+phases = omh.build_phases
+ordered = [meson, omh.source_build_phase, omh.frameworks_build_phase, copy_root, apk, js, omh.resources_build_phase]
 ordered.each { |ph| phases.delete(ph) }
 ordered.each { |ph| phases << ph }
 
@@ -202,7 +202,7 @@ common_test_settings = {
   'SUPPORTED_PLATFORMS' => 'iphoneos iphonesimulator',
   'TARGETED_DEVICE_FAMILY' => '1,2',
   'CODE_SIGN_STYLE' => 'Automatic',
-  'DEVELOPMENT_TEAM' => '$(DSH_DEVELOPMENT_TEAM)',
+  'DEVELOPMENT_TEAM' => '$(OMH_DEVELOPMENT_TEAM)',
   'GENERATE_INFOPLIST_FILE' => 'NO',
   'CLANG_ENABLE_OBJC_ARC' => 'YES',
   'CLANG_ENABLE_MODULES' => 'YES',
@@ -213,36 +213,36 @@ common_test_settings = {
   'HEADER_SEARCH_PATHS' => '$(inherited) $(SRCROOT)/ish-arm64 $(SRCROOT)/ish-arm64/app $(SRCROOT)/app',
 }
 
-tests = project.new_target(:unit_test_bundle, 'DSHTests', :ios, '16.0')
-tg = tests_group.new_group('DSHTests', 'DSHTests')
-Dir[(ROOT + 'tests/DSHTests/*.m').to_s].sort.each { |f| tests.source_build_phase.add_file_reference(tg.new_file(File.basename(f)), true) }
-Dir[(ROOT + 'tests/DSHTests/*.h').to_s].sort.each { |f| tg.new_file(File.basename(f)) }
+tests = project.new_target(:unit_test_bundle, 'OMHTests', :ios, '16.0')
+tg = tests_group.new_group('OMHTests', 'OMHTests')
+Dir[(ROOT + 'tests/OMHTests/*.m').to_s].sort.each { |f| tests.source_build_phase.add_file_reference(tg.new_file(File.basename(f)), true) }
+Dir[(ROOT + 'tests/OMHTests/*.h').to_s].sort.each { |f| tg.new_file(File.basename(f)) }
 tg.new_file('Info.plist')
 tests.build_configuration_list.build_configurations.each do |bc|
   bc.build_settings.clear
   bc.build_settings.merge!(common_test_settings, {
-    'PRODUCT_BUNDLE_IDENTIFIER' => 'com.xnuapp.dsh.tests',
-    'INFOPLIST_FILE' => '$(SRCROOT)/tests/DSHTests/Info.plist',
-    'TEST_HOST' => '$(BUILT_PRODUCTS_DIR)/DSH.app/DSH',
+    'PRODUCT_BUNDLE_IDENTIFIER' => 'app.jackfruit686.openmind-harness.tests',
+    'INFOPLIST_FILE' => '$(SRCROOT)/tests/OMHTests/Info.plist',
+    'TEST_HOST' => '$(BUILT_PRODUCTS_DIR)/OMH.app/OMH',
     'BUNDLE_LOADER' => '$(TEST_HOST)',
   })
 end
-tests.add_dependency(dsh)
+tests.add_dependency(omh)
 
-uitests = project.new_target(:ui_test_bundle, 'DSHUITests', :ios, '16.0')
-ug = tests_group.new_group('DSHUITests', 'DSHUITests')
-Dir[(ROOT + 'tests/DSHUITests/*.m').to_s].sort.each { |f| uitests.source_build_phase.add_file_reference(ug.new_file(File.basename(f)), true) }
+uitests = project.new_target(:ui_test_bundle, 'OMHUITests', :ios, '16.0')
+ug = tests_group.new_group('OMHUITests', 'OMHUITests')
+Dir[(ROOT + 'tests/OMHUITests/*.m').to_s].sort.each { |f| uitests.source_build_phase.add_file_reference(ug.new_file(File.basename(f)), true) }
 ug.new_file('Info.plist')
 uitests.build_configuration_list.build_configurations.each do |bc|
   bc.build_settings.clear
   bc.build_settings.merge!(common_test_settings, {
-    'PRODUCT_BUNDLE_IDENTIFIER' => 'com.xnuapp.dsh.uitests',
-    'INFOPLIST_FILE' => '$(SRCROOT)/tests/DSHUITests/Info.plist',
-    'TEST_TARGET_NAME' => 'DSH',
+    'PRODUCT_BUNDLE_IDENTIFIER' => 'app.jackfruit686.openmind-harness.uitests',
+    'INFOPLIST_FILE' => '$(SRCROOT)/tests/OMHUITests/Info.plist',
+    'TEST_TARGET_NAME' => 'OMH',
     'USES_XCTRUNNER' => 'YES',
   })
 end
-uitests.add_dependency(dsh)
+uitests.add_dependency(omh)
 
 # host-side test scripts, for browsing
 scripts_tests = tests_group
@@ -250,13 +250,13 @@ scripts_tests = tests_group
 tests_group.new_group('emu', 'emu').new_file('neon_convert_test.c')
 
 attrs = (project.root_object.attributes['TargetAttributes'] ||= {})
-attrs[tests.uuid] = { 'TestTargetID' => dsh.uuid }
-attrs[uitests.uuid] = { 'TestTargetID' => dsh.uuid }
+attrs[tests.uuid] = { 'TestTargetID' => omh.uuid }
+attrs[uitests.uuid] = { 'TestTargetID' => omh.uuid }
 project.save
 
 # --- scheme -------------------------------------------------------------------
 scheme = Xcodeproj::XCScheme.new
-scheme.configure_with_targets(dsh, tests, launch_target: true)
+scheme.configure_with_targets(omh, tests, launch_target: true)
 # The emulator uses SIGUSR1/SIGTTIN/SIGPIPE as normal machinery; without this
 # LLDB stops on every one of them and it looks like a crash. See .lldbinit.
 scheme.launch_action.xml_element.attributes['customLLDBInitFile'] = '$(SRCROOT)/.lldbinit'
@@ -266,5 +266,5 @@ scheme.test_action.add_testable(Xcodeproj::XCScheme::TestAction::TestableReferen
 %w[test_action launch_action profile_action analyze_action archive_action].each do |a|
   scheme.send(a).build_configuration = 'Release'
 end
-scheme.save_as(PROJECT_PATH.to_s, 'DSH', true)
-puts "ok: #{PROJECT_PATH} (DSH, DSHTests, DSHUITests) — open it and pick the DSH scheme"
+scheme.save_as(PROJECT_PATH.to_s, 'OMH', true)
+puts "ok: #{PROJECT_PATH} (OMH, OMHTests, OMHUITests) — open it and pick the OMH scheme"

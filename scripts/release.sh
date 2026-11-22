@@ -22,10 +22,10 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-XCCONFIG=app/AppDSH.xcconfig
-ARCHIVE=build/DSH.xcarchive
+XCCONFIG=app/AppOMH.xcconfig
+ARCHIVE=build/OMH.xcarchive
 EXPORT_DIR=build/export
-SCHEME=DSH
+SCHEME=OMH
 
 part=patch
 dry_run=false
@@ -150,13 +150,13 @@ fi
 
 step "Archiving"
 rm -rf "$ARCHIVE" "$EXPORT_DIR"
-xcodebuild -project DSH.xcodeproj -scheme "$SCHEME" -configuration Release \
-    DSH_DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+xcodebuild -project OMH.xcodeproj -scheme "$SCHEME" -configuration Release \
+    OMH_DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
     -allowProvisioningUpdates \
     -destination 'generic/platform=iOS' \
     -archivePath "$ARCHIVE" archive
 
-plist="$ARCHIVE/Products/Applications/DSH.app/Info.plist"
+plist="$ARCHIVE/Products/Applications/OMH.app/Info.plist"
 # Apple's own validator catches these, but only after a ten-minute upload.
 for key in NSHealthShareUsageDescription NSHealthUpdateUsageDescription \
            NSCalendarsFullAccessUsageDescription NSRemindersFullAccessUsageDescription \
@@ -205,7 +205,7 @@ if $dry_run; then
 fi
 
 step "Uploading to App Store Connect"
-upload_log=$(mktemp /tmp/dsh-upload.XXXXXX)
+upload_log=$(mktemp /tmp/omh-upload.XXXXXX)
 if ! xcrun altool --upload-app -f "$ipa" -t ios \
     -u "$APPLE_ID" -p "$APPLE_SPECIFIC_PASSWORD" 2>&1 | tee "$upload_log"; then
     rm -f "$upload_log"
@@ -235,7 +235,7 @@ JSON
 # The whole generated project, not just the pbxproj: gen-xcode-project.rb rewrites
 # the scheme's blueprint identifiers on every run, and a leftover dirty file would
 # block the next release at the clean-tree check.
-git add "$XCCONFIG" DSH.xcodeproj "releases/${version}-build${next_build}.json"
+git add "$XCCONFIG" OMH.xcodeproj "releases/${version}-build${next_build}.json"
 git commit -m "Release ${version} (${next_build})"
 git tag "$release_tag"
 echo "  committed and tagged ${release_tag} — 'git push && git push origin ${release_tag}' when ready"

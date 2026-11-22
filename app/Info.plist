@@ -65,7 +65,7 @@
 					<key>UISceneConfigurationName</key>
 					<string>Main App</string>
 					<key>UISceneDelegateClassName</key>
-					<string>DSHSceneDelegate</string>
+					<string>OMHSceneDelegate</string>
 				</dict>
 			</array>
 		</dict>
@@ -73,7 +73,7 @@
 	<key>UIFileSharingEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
-	<string>DSHLaunchScreen</string>
+	<string>OMHLaunchScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>arm64</string>

@@ -2,8 +2,8 @@
 #
 #   make emulator      build the iSH-ARM64 CLI (needed by rootfs + tests)
 #   make rootfs        build build/root.tar.gz (Alpine + OpenCode)
-#   make project       (re)generate DSH.xcodeproj (run after adding/removing source files)
-#   make app           signed device build (DSH.app)
+#   make project       (re)generate OMH.xcodeproj (run after adding/removing source files)
+#   make app           signed device build (OMH.app)
 #   make install       build + install on the connected iPad (DEVICE=<udid>)
 #   make run           install + launch
 #   make test          everything that runs unattended on this Mac:
@@ -16,14 +16,14 @@
 
 ISH_SRC   ?= $(CURDIR)/ish-arm64
 ISH_BUILD ?= $(ISH_SRC)/build-arm64-release
-PROJECT   ?= $(CURDIR)/DSH.xcodeproj
-SCHEME    ?= DSH
+PROJECT   ?= $(CURDIR)/OMH.xcodeproj
+SCHEME    ?= OMH
 TEAM      ?= YPV49M8592
 DEVICE    ?=                       # udid of the connected device (xcrun devicectl list devices)
 SIM       ?= iPad Air 11-inch (M4)
 BUNDLE_ID ?= app.jackfruit686.openmind-harness
-XCB        = xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration Release DSH_DEVELOPMENT_TEAM=$(TEAM)
-DERIVED    = $(shell ls -dt ~/Library/Developer/Xcode/DerivedData/DSH-*/Build/Products 2>/dev/null | head -1)
+XCB        = xcodebuild -project $(PROJECT) -scheme $(SCHEME) -configuration Release OMH_DEVELOPMENT_TEAM=$(TEAM)
+DERIVED    = $(shell ls -dt ~/Library/Developer/Xcode/DerivedData/OMH-*/Build/Products 2>/dev/null | head -1)
 
 .PHONY: all emulator rootfs project app install run test test-emu test-rootfs test-sim test-device test-device-unit archive release clean
 
@@ -49,7 +49,7 @@ app: project
 	$(XCB) -destination 'generic/platform=iOS' build
 
 install: app
-	xcrun devicectl device install app --device $(DEVICE) "$(DERIVED)/Release-iphoneos/DSH.app"
+	xcrun devicectl device install app --device $(DEVICE) "$(DERIVED)/Release-iphoneos/OMH.app"
 
 run: install
 	xcrun devicectl device process launch --device $(DEVICE) --terminate-existing $(BUNDLE_ID)
@@ -78,10 +78,10 @@ test-device: project
 # Unit + guest-integration tests only (no UI automation needed on the device).
 test-device-unit: project
 	rm -rf build/test-device-unit.xcresult
-	$(XCB) -destination 'id=$(DEVICE)' -collect-test-diagnostics never -only-testing:DSHTests -resultBundlePath build/test-device-unit.xcresult test
+	$(XCB) -destination 'id=$(DEVICE)' -collect-test-diagnostics never -only-testing:OMHTests -resultBundlePath build/test-device-unit.xcresult test
 
 archive: project
-	$(XCB) -destination 'generic/platform=iOS' -archivePath build/DSH.xcarchive archive
+	$(XCB) -destination 'generic/platform=iOS' -archivePath build/OMH.xcarchive archive
 
 # Needs APPLE_ID, APPLE_SPECIFIC_PASSWORD and APPLE_TEAM_ID in the environment.
 # Pass arguments through: make release ARGS=--dry-run

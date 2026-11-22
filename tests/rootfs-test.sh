@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Integration test for build/root.tar.gz: import it exactly like the app does
-# (fakefsify), then boot dsh inside the iSH-ARM64 CLI emulator and probe it
+# (fakefsify), then boot the guest inside the iSH-ARM64 CLI emulator and probe it
 # from the macOS host over loopback.
 #
 # Usage: tests/rootfs-test.sh [path/to/root.tar.gz]
@@ -12,11 +12,11 @@ ISH_SRC="${ISH_SRC:-$ROOT/ish-arm64}"
 ISH_BUILD="${ISH_BUILD:-$ISH_SRC/build-arm64-release}"
 TARBALL="${1:-$ROOT/build/root.tar.gz}"
 WORK="${WORK:-$ROOT/build/rootfs-test}"
-PORT="${DSH_TEST_PORT:-3181}"
-MOCK_PORT="${DSH_MOCK_PORT:-3199}"
-BRIDGE_PORT="${DSH_BRIDGE_PORT:-3197}"
-BOOT_TIMEOUT="${DSH_BOOT_TIMEOUT:-300}"
-GUEST_TIMEOUT="${DSH_GUEST_TIMEOUT:-90}"
+PORT="${OMH_TEST_PORT:-3181}"
+MOCK_PORT="${OMH_MOCK_PORT:-3199}"
+BRIDGE_PORT="${OMH_BRIDGE_PORT:-3197}"
+BOOT_TIMEOUT="${OMH_BOOT_TIMEOUT:-300}"
+GUEST_TIMEOUT="${OMH_GUEST_TIMEOUT:-90}"
 
 pass=0; fail=0
 ok()  { pass=$((pass+1)); printf '  \033[32mPASS\033[0m %s\n' "$*"; }
@@ -50,7 +50,7 @@ guest() {
 [ -f "$TARBALL" ] || { echo "missing $TARBALL (run scripts/build-rootfs.sh)"; exit 2; }
 [ -x "$ISH_BUILD/ish" ] || { echo "iSH CLI not built"; exit 2; }
 if curl -fs -o /dev/null "http://127.0.0.1:$PORT/" 2>/dev/null; then
-    echo "port $PORT is already in use on the host; set DSH_TEST_PORT"; exit 2
+    echo "port $PORT is already in use on the host; set OMH_TEST_PORT"; exit 2
 fi
 
 cleanup() {
@@ -66,11 +66,11 @@ rm -rf "$WORK" && mkdir -p "$WORK"
 check "root.tar.gz imports via fakefsify" test -f "$WORK/fakefs/meta.db"
 
 echo "== guest sanity"
-guest 'node -v; dsh --version; dsh-selftest' > "$WORK/sanity.txt"
+guest 'node -v; opencode --version; opencode-selftest' > "$WORK/sanity.txt"
 sed 's/^/     /' "$WORK/sanity.txt"
 check "node >= 22.19 in guest" grep -Eq '^v(22\.(19|[2-9][0-9])|2[3-9]|[3-9][0-9])' "$WORK/sanity.txt"
-check "dsh 0.1.x in guest"      grep -Eq '^0\.1\.' "$WORK/sanity.txt"
-check "dsh-selftest passes"     grep -q 'SELFTEST OK' "$WORK/sanity.txt"
+check "opencode 1.19.x in guest" grep -q '1\.19\.' "$WORK/sanity.txt"
+check "opencode-selftest passes"     grep -q 'selftest OK' "$WORK/sanity.txt"
 check "sharp keeps musl arm64 runtime" test -d "$WORK/fakefs/data/usr/local/lib/node_modules/@img/sharp-linuxmusl-arm64"
 check "sharp drops unusable glibc runtime" test ! -e "$WORK/fakefs/data/usr/local/lib/node_modules/@img/sharp-linux-arm64"
 check "sharp drops unusable wasm fallback" test ! -e "$WORK/fakefs/data/usr/local/lib/node_modules/@img/sharp-wasm32"
@@ -103,7 +103,7 @@ node "$HERE/mock-deepseek.mjs" "$MOCK_PORT" --tool device_info > "$WORK/mock-too
 MOCK_PID=$!
 sleep 1
 guest "export HOME=/root DEEPSEEK_API_KEY=test DEEPSEEK_BASE_URL=http://127.0.0.1:$MOCK_PORT \
-       DSH_HOST_BRIDGE_URL=http://127.0.0.1:$BRIDGE_PORT DSH_HOST_BRIDGE_TOKEN=$BRIDGE_TOKEN; \
+       OMH_HOST_BRIDGE_URL=http://127.0.0.1:$BRIDGE_PORT OMH_HOST_BRIDGE_TOKEN=$BRIDGE_TOKEN; \
        cd /root/workspace; node --expose-internals /usr/local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js --profile headless 'What device is this?'" > "$WORK/bridge-tool.txt"
 sed 's/^/     /' "$WORK/bridge-tool.txt" | tail -3
 check "device_info tool reached the bridge" grep -q '\[stub\] GET /v1/device' "$WORK/stub-bridge.log"
@@ -116,7 +116,7 @@ for tool in calendar_query reminders_query; do
     MOCK_PID=$!
     sleep 1
     guest "export HOME=/root DEEPSEEK_API_KEY=test DEEPSEEK_BASE_URL=http://127.0.0.1:$MOCK_PORT \
-           DSH_HOST_BRIDGE_URL=http://127.0.0.1:$BRIDGE_PORT DSH_HOST_BRIDGE_TOKEN=$BRIDGE_TOKEN; \
+           OMH_HOST_BRIDGE_URL=http://127.0.0.1:$BRIDGE_PORT OMH_HOST_BRIDGE_TOKEN=$BRIDGE_TOKEN; \
            cd /root/workspace; node --expose-internals /usr/local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js --profile headless 'What is on my schedule?'" > "$WORK/tool-$tool.txt"
     check "$tool reaches the bridge and renders a result" grep -qE 'Standup|Buy milk' "$WORK/tool-$tool.txt"
 done
@@ -129,7 +129,7 @@ for metric_case in "activity:9312 steps" "heart_rate:avg 71" "sleep:asleep" "wor
     MOCK_PID=$!
     sleep 1
     guest "export HOME=/root DEEPSEEK_API_KEY=test DEEPSEEK_BASE_URL=http://127.0.0.1:$MOCK_PORT \
-           DSH_HOST_BRIDGE_URL=http://127.0.0.1:$BRIDGE_PORT DSH_HOST_BRIDGE_TOKEN=$BRIDGE_TOKEN; \
+           OMH_HOST_BRIDGE_URL=http://127.0.0.1:$BRIDGE_PORT OMH_HOST_BRIDGE_TOKEN=$BRIDGE_TOKEN; \
            cd /root/workspace; node --expose-internals /usr/local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js --profile headless 'How active have I been?'" > "$WORK/tool-health-$metric.txt"
     check "health_query $metric reaches the bridge and renders" grep -q "$expected" "$WORK/tool-health-$metric.txt"
 done
@@ -158,14 +158,14 @@ for bridge_case in "${BRIDGE_TOOL_CASES[@]}"; do
     MOCK_PID=$!
     sleep 1
     guest "export HOME=/root DEEPSEEK_API_KEY=test DEEPSEEK_BASE_URL=http://127.0.0.1:$MOCK_PORT \
-           DSH_HOST_BRIDGE_URL=http://127.0.0.1:$BRIDGE_PORT DSH_HOST_BRIDGE_TOKEN=$BRIDGE_TOKEN; \
+           OMH_HOST_BRIDGE_URL=http://127.0.0.1:$BRIDGE_PORT OMH_HOST_BRIDGE_TOKEN=$BRIDGE_TOKEN; \
            cd /root/workspace; node --expose-internals /usr/local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js --profile headless 'Please do it.'" > "$WORK/tool-$tool.txt"
     check "$tool reaches the bridge and renders" grep -qE "$expected" "$WORK/tool-$tool.txt"
 done
 
 # A wrong token must fail loudly instead of silently returning nothing.
 guest "export HOME=/root DEEPSEEK_API_KEY=test DEEPSEEK_BASE_URL=http://127.0.0.1:$MOCK_PORT \
-       DSH_HOST_BRIDGE_URL=http://127.0.0.1:$BRIDGE_PORT DSH_HOST_BRIDGE_TOKEN=wrong-token; \
+       OMH_HOST_BRIDGE_URL=http://127.0.0.1:$BRIDGE_PORT OMH_HOST_BRIDGE_TOKEN=wrong-token; \
        cd /root/workspace; node --expose-internals /usr/local/lib/node_modules/@deepseek-ai/dsh/lib/bin.js --profile headless 'What device is this?'" > "$WORK/bridge-denied.txt"
 check "wrong bridge token is refused" grep -q 'unauthorized' "$WORK/bridge-denied.txt"
 
@@ -174,9 +174,9 @@ guest "export HOME=/root; node --expose-internals /usr/local/lib/node_modules/@d
 check "plugin loads without bridge environment" grep -q 'host-bridge' "$WORK/config-nobridge.yml"
 kill $STUB_PID $MOCK_PID 2>/dev/null
 
-echo "== boot dsh-serve on 127.0.0.1:$PORT (timeout ${BOOT_TIMEOUT}s)"
+echo "== boot opencode-serve on 127.0.0.1:$PORT (timeout ${BOOT_TIMEOUT}s)"
 start=$(date +%s)
-( "$ISH_BUILD/ish" -f "$WORK/fakefs" /bin/sh -c "DSH_PORT=$PORT dsh-serve" 2>&1 | filter > "$WORK/dsh-serve.log" ) &
+( "$ISH_BUILD/ish" -f "$WORK/fakefs" /bin/sh -c "OMH_PORT=$PORT opencode-serve" 2>&1 | filter > "$WORK/opencode-serve.log" ) &
 up=0
 for _ in $(seq 1 "$BOOT_TIMEOUT"); do
     sleep 1
@@ -184,14 +184,14 @@ for _ in $(seq 1 "$BOOT_TIMEOUT"); do
 done
 elapsed=$(( $(date +%s) - start ))
 check "web UI reachable from host loopback (${elapsed}s)" test "$up" = 1
-check "index carries __DSH_BOOT__ manifest" grep -q '__DSH_BOOT__' "$WORK/index.html"
+check "index carries __OMH_BOOT__ manifest" grep -q '__OMH_BOOT__' "$WORK/index.html"
 plugin_url=$(grep -o '/plugins/[^"]*client.js?rev=[0-9a-f]*' "$WORK/index.html" | head -1)
 code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT$plugin_url")
 check "client plugin bundle served ($plugin_url -> $code)" test "$code" = 200
 sleep 5
 check "server still alive after 5s" curl -fs -o /dev/null "http://127.0.0.1:$PORT/"
-grep -Eq 'fatal|Error:' "$WORK/dsh-serve.log"; noerr=$?
-check "no fatal error in dsh-serve log" test "$noerr" != 0
+grep -Eq 'fatal|Error:' "$WORK/opencode-serve.log"; noerr=$?
+check "no fatal error in opencode-serve log" test "$noerr" != 0
 
 echo
 echo "passed=$pass failed=$fail"
