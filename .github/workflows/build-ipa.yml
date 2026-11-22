@@ -11,6 +11,8 @@ on:
     paths:
       - 'app/**'
       - 'tests/DSHUITests/**'
+      - 'tests/omh-port-validation.test.mjs'
+      - 'branding/**'
       - 'rootfs/**'
       - 'scripts/**'
       - 'ish-arm64/**'
@@ -23,7 +25,29 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'push' }}
 
 jobs:
+  validate-port:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check out the verified harness revision
+        uses: actions/checkout@v4
+        with:
+          repository: tjcrims0nx/openmind-harness
+          ref: 55f62a9ad23fa897c21fa40948716b5c5504e626
+          path: harness
+      - name: Static OMH iPadOS port tests
+        run: |
+          node --version
+          node --test tests/omh-port-validation.test.mjs
+          bash -n scripts/build-rootfs.sh
+          bash -n scripts/sync-omh-branding.sh
+          for wrapper in rootfs/overlay/usr/local/bin/omh-*; do
+            bash -n "$wrapper"
+          done
+
   build:
+    needs: validate-port
     runs-on: macos-26
     timeout-minutes: 120
     steps:
