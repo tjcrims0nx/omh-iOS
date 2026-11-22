@@ -87,6 +87,13 @@ test('native iPad workspace and iPhone dashboard share a supervised OMH runtime'
  assert.match(scene,/selectRowAtIndexPath:indexPath animated:NO/);
  // iPad restores dashboard connectivity when foregrounded and must never
  // keep stale tasks or a stale worker status when guest runtime disconnects.
+ assert.match(scene,/@interface OMHStartupViewController : UIViewController/);
+ assert.match(scene,/omh\.startup\.status/);
+ assert.match(scene,/OMHBootStateDidChangeNotification/);
+ assert.match(scene,/OMHHarnessStateDidChangeNotification/);
+ assert.match(scene,/server\.state == OMHHarnessStateReady/);
+ assert.match(scene,/\[strongNav setViewControllers:@\[home\] animated:NO\]/);
+ assert.match(scene,/initWithRootViewController:isIPad \? startup : home/);
  assert.match(scene,/\[root isKindOfClass:OMHNativeIPadController\.class\]/);
  assert.match(scene,/\[OMHHarness\.dashboard verifyAliveWithCompletion:nil\]/);
  assert.match(scene,/\+\+self\.requestGeneration;/);
