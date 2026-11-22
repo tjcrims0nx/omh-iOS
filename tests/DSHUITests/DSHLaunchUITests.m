@@ -42,6 +42,11 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 }
 
 - (void)testHarnessBootsAndShowsWebUI {
+    XCTAssertTrue([self.app waitForState:XCUIApplicationStateRunningForeground timeout:10]);
+    [self attachScreenshot:@"01-launch"];
+    XCUIElement *title = self.app.staticTexts[@"dsh.title"];
+    XCTAssertTrue([title waitForExistenceWithTimeout:10], @"native OpenMind shell should appear");
+
     // While starting, the overlay shows a progress bar and an elapsed/ETA line.
     XCUIElement *progress = self.app.progressIndicators[@"dsh.overlay.progress"];
     XCUIElement *elapsed = self.app.staticTexts[@"dsh.overlay.elapsed"];
@@ -51,7 +56,6 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
         XCTestExpectation *e = [self expectationForPredicate:hasEta evaluatedWithObject:elapsed handler:nil];
         [self waitForExpectations:@[e] timeout:10];
     }
-    [self attachScreenshot:@"01-launch"];
     [self waitForHarnessReady];
     [self attachScreenshot:@"02-ready"];
 
@@ -63,7 +67,6 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     [self attachScreenshot:@"03-web-ui"];
 
     // Title shows the port the server listens on.
-    XCUIElement *title = self.app.staticTexts[@"dsh.title"];
     XCTAssertTrue(title.exists);
     XCTAssertTrue([title.label containsString:@":30"], @"title should show the port, got %@", title.label);
 }

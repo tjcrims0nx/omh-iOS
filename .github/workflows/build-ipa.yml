@@ -68,13 +68,7 @@ jobs:
 
       - name: Build guest rootfs
         if: steps.build-cache.outputs.cache-hit != 'true'
-        run: |
-          # The emulator copies the host hostname into a 65-byte guest field;
-          # the runner hostname is longer than that and aborts the emulator.
-          sudo hostname ish
-          sudo scutil --set HostName ish || true
-          hostname
-          make rootfs
+        run: make rootfs
 
       - name: Regenerate Xcode project
         run: make project
@@ -150,10 +144,7 @@ jobs:
 
       - name: Build guest rootfs
         if: steps.build-cache.outputs.cache-hit != 'true'
-        run: |
-          sudo hostname ish
-          sudo scutil --set HostName ish || true
-          make rootfs
+        run: make rootfs
 
       - name: Regenerate Xcode project
         run: make project
@@ -165,4 +156,23 @@ jobs:
           xcodebuild -project DSH.xcodeproj -scheme DSH -configuration Release \
             -destination "platform=iOS Simulator,name=$SIM" \
             -only-testing:DSHUITests/DSHLaunchUITests/testHarnessBootsAndShowsWebUI \
+            -resultBundlePath build/simulator-smoke.xcresult \
             test
+
+      - name: Export simulator screenshots and diagnostics
+        if: always()
+        run: |
+          RESULT=build/simulator-smoke.xcresult
+          if [ -d "$RESULT" ]; then
+            xcrun xcresulttool export attachments --path "$RESULT" \
+              --output-path build/simulator-attachments
+          fi
+
+      - name: Upload simulator screenshots and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: openmind-ios-simulator-evidence
+          path: |
+            build/simulator-attachments
+            build/simulator-smoke.xcresult

@@ -15,7 +15,7 @@ const char *uname_version = "SUPER AWESOME";
 const char *uname_hostname_override = NULL;
 
 void do_uname(struct uname *uts) {
-    struct utsname real_uname;
+    struct utsname real_uname = {0};
     uname(&real_uname);
     const char *hostname = real_uname.nodename;
     if (uname_hostname_override)
@@ -23,7 +23,9 @@ void do_uname(struct uname *uts) {
 
     memset(uts, 0, sizeof(struct uname));
     strcpy(uts->system, "Linux");
-    strcpy(uts->hostname, hostname);
+    // A Darwin host name can be longer than Linux's 64-byte limit.
+    snprintf(uts->hostname, sizeof(uts->hostname), "%.*s",
+             (int) sizeof(uts->hostname) - 1, hostname);
     strcpy(uts->release, "4.20.69-ish");
     snprintf(uts->version, sizeof(uts->version), "%s %s %s", uname_version, __DATE__, __TIME__);
 #if defined(GUEST_ARM64)
