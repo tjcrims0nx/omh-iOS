@@ -11,6 +11,26 @@
 #import "AppDelegate.h"
 #import "AboutViewController.h"
 
+// UINavigationBar may compress a 44-point custom UIBarButtonItem to a 36-point
+// visible frame. Expand the actual hit area and accessibility frame into the
+// unused vertical navigation-bar padding, including after device rotation.
+@interface OMHRefreshButton : UIButton
+@end
+
+@implementation OMHRefreshButton
+- (CGRect)expandedBounds {
+    CGFloat verticalPadding = MAX(0.0, (44.0 - CGRectGetHeight(self.bounds)) / 2.0);
+    CGFloat horizontalPadding = MAX(0.0, (44.0 - CGRectGetWidth(self.bounds)) / 2.0);
+    return CGRectInset(self.bounds, -horizontalPadding, -verticalPadding);
+}
+- (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent *)event {
+    return CGRectContainsPoint([self expandedBounds], point);
+}
+- (CGRect)accessibilityFrame {
+    return UIAccessibilityConvertFrameToScreenCoordinates([self expandedBounds], self);
+}
+@end
+
 // The iPad home is the same loopback dashboard that the standalone harness serves.
 @interface OMHDashboardViewController : UIViewController <WKNavigationDelegate>
 @property (nonatomic) WKWebView *dashboard;
@@ -70,7 +90,7 @@
     // button with the same refresh glyph so the measured target is
     // genuinely 44pt. UIBarButtonItem forwards `enabled` to a UIControl
     // custom view, so updateDashboard keeps working unchanged.
-    UIButton *refreshButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    UIButton *refreshButton = [OMHRefreshButton buttonWithType:UIButtonTypeSystem];
     [refreshButton setImage:[UIImage systemImageNamed:@"arrow.clockwise"] forState:UIControlStateNormal];
     [refreshButton addTarget:self action:@selector(retryDashboard) forControlEvents:UIControlEventTouchUpInside];
     refreshButton.translatesAutoresizingMaskIntoConstraints = NO;
