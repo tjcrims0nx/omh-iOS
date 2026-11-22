@@ -2,7 +2,7 @@
 set -eu
 export HOME=/root
 export OMH_WORKSPACE="${OPENCODE_WORKSPACE:-/root/workspace}"
-export OMH_DASHBOARD_PORT="${DSH_PORT:-4177}"
+export OMH_DASHBOARD_PORT="${OMH_PORT:-4177}"
 mkdir -p "$OMH_WORKSPACE"
 cd "$OMH_WORKSPACE"
 exec /usr/bin/node /usr/local/share/omh-runtime/scripts/omh-dashboard.mjs

@@ -2,9 +2,9 @@
 # Launch the full OpenCode web UI inside the OpenMind Harness iOS app's Linux guest.
 #
 # The iOS app runs this as the supervised foreground process and points its
-# WKWebView at http://127.0.0.1:$DSH_PORT once the server answers.
+# WKWebView at http://127.0.0.1:$OMH_PORT once the server answers.
 #
-#   DSH_PORT            listen port (default 3080; set by the iOS app)
+#   OMH_PORT            listen port (default 3080; set by the iOS app)
 #   OPENCODE_WORKSPACE  initial working directory (default /root/workspace)
 #   EXPLABS_API_KEY     API key for the default Experiential Labs provider.
 #                       Leave unset and the OpenCode web UI prompts for a key
@@ -16,7 +16,7 @@
 # login screen in front of the app's web view.
 export HOME=/root
 export OPENCODE_WORKSPACE="${OPENCODE_WORKSPACE:-/root/workspace}"
-PORT="${DSH_PORT:-3080}"
+PORT="${OMH_PORT:-3080}"
 
 mkdir -p "$OPENCODE_WORKSPACE"
 cd "$OPENCODE_WORKSPACE"
