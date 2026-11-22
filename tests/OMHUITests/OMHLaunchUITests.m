@@ -79,139 +79,54 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 
 - (void)testHarnessBootsAndShowsWebUI {
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationLandscapeLeft;
-    // The startup gate should be visible while the local Linux guest boots.
-    // It must disappear before the native workspace becomes interactive.
     XCUIElement *startup = self.app.staticTexts[@"omh.startup.status"];
     if ([startup waitForExistenceWithTimeout:8]) {
         XCTAssertTrue(self.app.progressIndicators[@"omh.startup.progress"].exists,
-                      @"Startup must show progress before native workspace");
+                      @"Native iPad startup reports boot progress");
         XCTAssertTrue(self.app.buttons[@"omh.startup.toggle-logs"].exists,
-                      @"Boot diagnostics must be accessible before workspace");
+                      @"Boot logs must remain available before entering chat");
         [self attachScreenshot:@"00-ipad-startup-native"];
     }
-    XCTAssertTrue([self.app.tables[@"omh.native.ipad.sidebar"] waitForExistenceWithTimeout:kBootTimeout],
-                  @"iPad must wait for a ready guest before entering native workspace");
-    XCTAssertFalse(startup.exists, @"Startup must finish before native workspace appears");
-    XCTAssertTrue(self.app.tables[@"omh.native.ipad.content"].exists,
-                  @"iPad must render native data panes without browser scaling");
-    XCUIElement *tasksSection = self.app.cells[@"omh.native.ipad.section.2"];
-    XCTAssertTrue([tasksSection waitForExistenceWithTimeout:10]);
-    [tasksSection tap];
-    XCTAssertTrue(self.app.staticTexts[@"Tasks"].exists);
-    // A native view appearing isn't enough: confirm it can read the guest
-    // dashboard API before the test switches into the secondary WebKit UI.
-    XCTAssertTrue([self.app.staticTexts[@"● Connected to local runtime"]
-        waitForExistenceWithTimeout:kBootTimeout],
-        @"Native iPad workspace must connect to the guest runtime");
-    [self attachScreenshot:@"00-ipad-native-runtime-connected"];
-    XCUIElement *advanced = self.app.buttons[@"omh.native.advanced-web"];
-    XCTAssertTrue([advanced waitForExistenceWithTimeout:10]);
-    [advanced tap];
-    // Native UIKit shell must remain visible while the guest WebKit app loads.
-    // This is deliberately separate from the embedded dashboard DOM.
-    XCUIElement *nativeRefresh = self.app.buttons[@"omh.native.refresh"];
-    XCUIElement *nativeEditor = self.app.buttons[@"omh.open-editor"];
-    XCTAssertTrue([nativeRefresh waitForExistenceWithTimeout:15], @"Native dashboard refresh belongs in the iPad toolbar");
-    XCTAssertTrue([nativeEditor waitForExistenceWithTimeout:15], @"Native OpenCode navigation belongs in the toolbar");
-    XCTAssertTrue(self.app.images[@"omh.native.brand.logo"].exists, @"Use the official OMH brand in UIKit");
-    XCTAssertGreaterThanOrEqual(CGRectGetHeight(nativeRefresh.frame), 40.0, @"Refresh must have an accessible tap target");
-    XCUIElement *home = self.app.webViews.firstMatch;
-    XCUIElement *refresh = home.buttons[@"Refresh runtime state"];
-    XCTAssertTrue([refresh waitForExistenceWithTimeout:kBootTimeout], @"iPad must open the shared OMH dashboard");
-    XCUIElement *connected = [[home descendantsMatchingType:XCUIElementTypeAny]
-        matchingPredicate:[NSPredicate predicateWithFormat:@"label == 'Connected'"]].firstMatch;
-    XCTAssertTrue([connected waitForExistenceWithTimeout:30], @"Dashboard must read guest runtime state");
-    [refresh tap];
-    [self attachScreenshot:@"01-ipad-harness-dashboard"];
-    // WebKit exposes buttons with aria-pressed as switches to iPad accessibility.
-    XCUIElement *rail = home.otherElements[@"Workspace navigation, navigation"];
-    NSArray<NSString *> *views = @[@"Agent teams", @"Workflows", @"Tasks", @"Skills",
-        @"Plugins", @"Trace", @"Sandbox", @"Schedules", @"Workspaces", @"Memory"];
-    for (NSString *name in views) {
-        XCUIElement *item = rail.switches[name];
-        [item tap];
-        XCTAssertEqualObjects(item.value, @"1", @"%@ should be selected", name);
-    }
-    XCUIElement *empty = [[home descendantsMatchingType:XCUIElementTypeAny]
-        matchingPredicate:[NSPredicate predicateWithFormat:@"label == 'No records match this view.'"]].firstMatch;
-    XCTAssertTrue([empty waitForExistenceWithTimeout:8]);
-    [rail.switches[@"Workspace"] tap];
-    XCUIElement *tiles = home.otherElements[@"Explore harness features, navigation"];
-    NSArray<XCUIElement *> *cards = tiles.switches.allElementsBoundByIndex;
-    XCTAssertEqual(cards.count, 8u);
-    for (XCUIElement *card in cards) {
-        [card tap];
-        XCTAssertFalse(tiles.exists);
-        [rail.switches[@"Workspace"] tap];
-        XCTAssertTrue(tiles.exists);
-    }
-    XCUIElement *quick = home.otherElements[@"Quick views, navigation"];
-    for (NSString *name in @[@"Agent team", @"Queue", @"Overview"]) {
-        [quick.switches[name] tap];
-        XCTAssertEqualObjects(quick.switches[name].value, @"1");
-    }
-    for (NSString *name in @[@"Workspaces", @"Schedules", @"Logs", @"Console"]) {
-        [home.buttons[name] tap];
-        XCTAssertTrue(home.otherElements[[name stringByAppendingString:@", tab panel"]].exists);
-    }
-    [home.buttons[@"Run search"] tap];
-    XCTAssertTrue(home.buttons[@"Clear"].exists);
-    [home.buttons[@"Clear"] tap];
-    XCTAssertFalse(home.buttons[@"Clear"].exists);
-    XCUIDevice.sharedDevice.orientation = UIDeviceOrientationPortrait;
-    XCTAssertTrue([nativeRefresh waitForExistenceWithTimeout:8], @"Native toolbar should survive rotation");
-    XCTAssertTrue(nativeEditor.hittable, @"OpenCode native control should survive rotation");
-    XCTAssertTrue(refresh.hittable);
-    [self attachScreenshot:@"02-ipad-dashboard-portrait"];
-    XCUIDevice.sharedDevice.orientation = UIDeviceOrientationLandscapeLeft;
-    [self waitForHarnessReady];
-    [self attachScreenshot:@"02-ready"];
+    // The app must not enter its chat screen until BOTH local services answer.
+    XCUIElement *web = self.app.webViews[@"omh.webview"];
+    XCTAssertTrue([web waitForExistenceWithTimeout:kBootTimeout],
+                  @"A ready Linux guest must open the iPad conversation web view");
+    XCTAssertFalse(startup.exists, @"The pre-chat boot gate must have finished");
+    XCUIElement *dot = self.app.otherElements[@"omh.statusdot"];
+    NSPredicate *ready = [NSPredicate predicateWithFormat:@"value == 'ready'"];
+    [self waitForExpectations:@[[self expectationForPredicate:ready evaluatedWithObject:dot handler:nil]]
+                     timeout:kBootTimeout];
+    XCTAssertTrue([self.app.otherElements[@"omh.controlbar"] waitForExistenceWithTimeout:10],
+                  @"The compact native iPad control bar is required");
+    XCTAssertFalse(self.app.navigationBars.buttons.firstMatch.exists,
+                   @"The redundant blank iPad navigation/back button must be removed");
+    [self attachScreenshot:@"01-ipad-chat-landscape"];
 
-    XCUIElement *web = self.app.webViews.firstMatch;
-    XCTAssertTrue([web waitForExistenceWithTimeout:30], @"web view should exist");
-
-    // Wait for the local web client to render an interactive control.
-    NSPredicate *uiUp = [NSPredicate predicateWithFormat:@"exists == YES"];
-    XCUIElementQuery *markers = [[web descendantsMatchingType:XCUIElementTypeAny]
-        matchingPredicate:[NSPredicate predicateWithFormat:@"elementType == %d OR elementType == %d OR elementType == %d", XCUIElementTypeButton, XCUIElementTypeLink, XCUIElementTypeTextField]];
-    XCTestExpectation *e = [self expectationForPredicate:uiUp evaluatedWithObject:markers.firstMatch handler:nil];
-    [self waitForExpectations:@[e] timeout:90];
-    [self attachScreenshot:@"03-web-ui"];
-
-    XCUIElement *workspace = self.app.buttons[@"omh.sidebar.workspace"];
-    XCTAssertTrue([workspace waitForExistenceWithTimeout:8], @"iPad landscape should show desktop navigation");
+    // Real loaded OpenCode UI, not the read-only OMH search dashboard.
+    XCUIElementQuery *inputs = [web descendantsMatchingType:XCUIElementTypeTextView];
+    XCUIElementQuery *fields = [web descendantsMatchingType:XCUIElementTypeTextField];
+    BOOL hasComposer = [inputs.firstMatch waitForExistenceWithTimeout:60] ||
+                       [fields.firstMatch waitForExistenceWithTimeout:10];
+    XCTAssertTrue(hasComposer, @"OpenCode must expose a conversation text composer");
+    XCTAssertTrue([self.app.buttons[@"omh.sidebar.workspace"] waitForExistenceWithTimeout:10],
+                  @"iPad landscape must show the compact tool rail");
     XCUIElement *log = self.app.buttons[@"omh.sidebar.log"];
     [log tap];
     XCUIElement *logView = self.app.textViews[@"omh.logview"];
-    XCTAssertTrue([logView waitForExistenceWithTimeout:8]);
+    XCTAssertTrue([logView waitForExistenceWithTimeout:10]);
     NSString *startupLog = logView.value;
-    XCTAssertTrue([startupLog containsString:@"server answered"]);
-    XCTAssertFalse([startupLog containsString:@"ESPIPE: invalid seek"], @"The guest must recognize the output pipes");
-    if (CGRectGetWidth(self.app.frame) >= 1040) {
-        XCTAssertLessThanOrEqual(CGRectGetMaxX(web.frame), CGRectGetMinX(logView.frame) + 1);
-    }
-    [self attachScreenshot:@"04-ipad-workspace-and-log"];
+    XCTAssertTrue([startupLog containsString:@"server answered"],
+                  @"Server must really answer before the chat screen appears");
+    XCTAssertFalse([startupLog containsString:@"ESPIPE: invalid seek"]);
+    [self attachScreenshot:@"02-ipad-chat-log"];
     [self.app.buttons[@"Done"] tap];
-    XCTAssertFalse(logView.exists);
-    [self.app.buttons[@"omh.sidebar.activity"] tap];
-    XCTAssertTrue([self.app.tables[@"omh.activity"] waitForExistenceWithTimeout:8]);
-    [workspace tap];
-    [self.app.buttons[@"omh.sidebar.capabilities"] tap];
-    XCTAssertTrue([self.app.tables[@"omh.capabilities"] waitForExistenceWithTimeout:8]);
-    [workspace tap];
-    XCTAssertTrue(web.hittable);
+    XCTAssertTrue(web.hittable, @"Closing diagnostics restores live chat");
+
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationPortrait;
-    XCTAssertTrue([self.app.buttons[@"omh.menu"] waitForExistenceWithTimeout:8]);
-    [self attachScreenshot:@"05-ipad-portrait"];
-
-    // Title shows the port the server listens on.
-    XCUIElement *title = self.app.staticTexts[@"omh.title"];
-    XCTAssertTrue(title.exists);
-    XCTAssertTrue([title.label containsString:@":30"], @"title should show the port, got %@", title.label);
-    [self.app.navigationBars.buttons.firstMatch tap];
-    XCTAssertTrue([refresh waitForExistenceWithTimeout:10], @"Back must return to the running dashboard");
-    XCTAssertTrue(connected.exists);
-
+    XCTAssertTrue([self.app.buttons[@"omh.menu"] waitForExistenceWithTimeout:10],
+                  @"More menu must survive orientation change");
+    XCTAssertTrue(web.hittable, @"Chat remains usable in iPad portrait");
+    [self attachScreenshot:@"03-ipad-chat-portrait"];
 }
 
 - (void)testServerLogIsReachableFromMenu {
