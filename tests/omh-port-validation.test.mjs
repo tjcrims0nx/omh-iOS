@@ -58,3 +58,19 @@ test('canonical harness model and official icon agree when harness checkout is p
  const b=await readFile(join(root,'branding/omh-hexagon.webp'));
  assert.deepEqual(a,b);
 });
+
+test('new IPA identity is OMH.app and legacy DSH.app is rejected',async()=>{
+ const config=await read('app/AppDSH.xcconfig');
+ const projectGenerator=await read('scripts/gen-xcode-project.rb');
+ const project=await read('DSH.xcodeproj/project.pbxproj');
+ const ci=await read('.github/workflows/build-ipa.yml');
+ assert.match(config,/^PRODUCT_NAME = OMH$/m);
+ assert.match(config,/^MARKETING_VERSION = 1\.0\.17$/m);
+ assert.match(projectGenerator,/OMH\.app\/OMH/);
+ assert.match(project,/OMH\.app\/OMH/);
+ assert.doesNotMatch(project,/DSH\.app\/DSH/);
+ assert.match(ci,/Payload\/OMH\.app\/OMH/);
+ assert.match(ci,/Payload\/DSH\.app/);
+ const make=await read('Makefile');
+ assert.match(make,/Release-iphoneos\/OMH\.app/);
+});
