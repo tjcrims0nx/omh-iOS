@@ -184,5 +184,14 @@ jobs:
         if: always()
         with:
           name: ipad-desktop-ui-test
+          path: |
+            ${{ runner.temp }}/ipad-evidence/*.png
+            ${{ runner.temp }}/ipad-evidence/manifest.json
+            ${{ runner.temp }}/ipad-evidence/tests.json
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: ipad-test-diagnostics
           path: ${{ runner.temp }}/ipad-evidence
           if-no-files-found: warn

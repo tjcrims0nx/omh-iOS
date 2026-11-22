@@ -57,11 +57,41 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCTAssertTrue([connected waitForExistenceWithTimeout:30], @"Dashboard must read guest runtime state");
     [refresh tap];
     [self attachScreenshot:@"01-ipad-harness-dashboard"];
-    [[home.buttons matchingIdentifier:@"Memory"].firstMatch tap];
+    // WebKit exposes buttons with aria-pressed as switches to iPad accessibility.
+    XCUIElement *rail = home.otherElements[@"Workspace navigation, navigation"];
+    NSArray<NSString *> *views = @[@"Agent teams", @"Workflows", @"Tasks", @"Skills",
+        @"Plugins", @"Trace", @"Sandbox", @"Schedules", @"Workspaces", @"Memory"];
+    for (NSString *name in views) {
+        XCUIElement *item = rail.switches[name];
+        [item tap];
+        XCTAssertEqualObjects(item.value, @"1", @"%@ should be selected", name);
+    }
     XCUIElement *empty = [[home descendantsMatchingType:XCUIElementTypeAny]
         matchingPredicate:[NSPredicate predicateWithFormat:@"label == 'No records match this view.'"]].firstMatch;
     XCTAssertTrue([empty waitForExistenceWithTimeout:8]);
-    [[home.buttons matchingIdentifier:@"Workspace"].firstMatch tap];
+    [rail.switches[@"Workspace"] tap];
+    XCUIElement *tiles = home.otherElements[@"Explore harness features, navigation"];
+    NSArray<XCUIElement *> *cards = tiles.switches.allElementsBoundByIndex;
+    XCTAssertEqual(cards.count, 8u);
+    for (XCUIElement *card in cards) {
+        [card tap];
+        XCTAssertFalse(tiles.exists);
+        [rail.switches[@"Workspace"] tap];
+        XCTAssertTrue(tiles.exists);
+    }
+    XCUIElement *quick = home.otherElements[@"Quick views, navigation"];
+    for (NSString *name in @[@"Agent team", @"Queue", @"Overview"]) {
+        [quick.switches[name] tap];
+        XCTAssertEqualObjects(quick.switches[name].value, @"1");
+    }
+    for (NSString *name in @[@"Workspaces", @"Schedules", @"Logs", @"Console"]) {
+        [home.buttons[name] tap];
+        XCTAssertTrue(home.otherElements[[name stringByAppendingString:@", tab panel"]].exists);
+    }
+    [home.buttons[@"Run search"] tap];
+    XCTAssertTrue(home.buttons[@"Clear"].exists);
+    [home.buttons[@"Clear"] tap];
+    XCTAssertFalse(home.buttons[@"Clear"].exists);
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationPortrait;
     XCTAssertTrue(refresh.hittable);
     [self attachScreenshot:@"02-ipad-dashboard-portrait"];
