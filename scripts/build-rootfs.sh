@@ -187,6 +187,29 @@ node -e 'const c=require("/usr/local/share/omh-runtime/ipad-opencode.json"); if(
 # This check only records support; failed isolation must not break app startup.
 omh-runtime doctor > /tmp/omh-sandbox-diagnostic.json
 node -e 'const d=require("/tmp/omh-sandbox-diagnostic.json"); if(d.schema!=="omh.doctor.v1"||d.sandbox.engine!=="bubblewrap"||typeof d.sandbox.verified!=="boolean")process.exit(1); console.log("iPad sandbox verified:",d.sandbox.verified,"reason:",d.sandbox.reason)'
+
+# Print the underlying Bubblewrap stderr when verification fails. A successful
+# version probe alone never permits sandbox.exec, and the guest remains
+# fail-closed if iSH cannot implement Linux user/mount namespaces.
+node <<'NODE'
+const fs=require('node:fs');
+const {spawnSync}=require('node:child_process');
+const d=JSON.parse(fs.readFileSync('/tmp/omh-sandbox-diagnostic.json','utf8'));
+if(!d.sandbox.verified) {
+  const args=['--die-with-parent','--new-session','--unshare-all',
+    '--ro-bind','/usr','/usr','--ro-bind-try','/bin','/bin',
+    '--ro-bind-try','/lib','/lib','--ro-bind-try','/lib64','/lib64',
+    '--proc','/proc','--dev','/dev','--tmpfs','/tmp',
+    '--bind','/root/workspace','/workspace','--chdir','/workspace',
+    '--setenv','HOME','/tmp','--setenv','PATH','/usr/bin:/bin',
+    '--','sh','-c','test -d /workspace && test ! -e /etc/passwd'];
+  const result=spawnSync('bwrap',args,{encoding:'utf8',timeout:5000,maxBuffer:8192});
+  console.log('OMH isolation unavailable; sandbox.exec remains blocked.');
+  console.log('Bubblewrap probe exit:',result.status,'signal:',result.signal||'none');
+  if(result.error)console.log('Bubblewrap spawn error:',result.error.message);
+  if(result.stderr)console.log('Bubblewrap stderr:',result.stderr.trim().slice(0,2048));
+}
+NODE
 # Exercise the packaged CLI in a temporary workspace, leaving the shipped workspace clean.
 (
   export OMH_WORKSPACE=/tmp/omh-runtime-smoke
