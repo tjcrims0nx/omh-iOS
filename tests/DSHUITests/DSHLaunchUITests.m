@@ -64,6 +64,9 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     [log tap];
     XCUIElement *logView = self.app.textViews[@"dsh.logview"];
     XCTAssertTrue([logView waitForExistenceWithTimeout:8]);
+    NSString *startupLog = logView.value;
+    XCTAssertTrue([startupLog containsString:@"server answered"]);
+    XCTAssertFalse([startupLog containsString:@"ESPIPE: invalid seek"], @"The guest must recognize the output pipes");
     if (CGRectGetWidth(self.app.frame) >= 1040) {
         XCTAssertLessThanOrEqual(CGRectGetMaxX(web.frame), CGRectGetMinX(logView.frame) + 1);
     }

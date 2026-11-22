@@ -9,6 +9,7 @@
 #import "AppDelegate.h"
 #import "LinuxInterop.h"
 
+#include <sys/stat.h>
 #include "kernel/init.h"
 #include "kernel/calls.h"
 #include "kernel/task.h"
@@ -164,6 +165,7 @@ static dispatch_once_t _onceToken;
     // Setup stdin as /dev/null
     struct fd *stdin_fd = adhoc_fd_create(&realfs_fdops);
     if (stdin_fd) {
+        stdin_fd->stat.mode = S_IFCHR | 0400;
         stdin_fd->real_fd = open("/dev/null", O_RDONLY);
         task->files->files[0] = stdin_fd;
     }
@@ -171,6 +173,7 @@ static dispatch_once_t _onceToken;
     // Setup stdout to pipe
     struct fd *stdout_fd = adhoc_fd_create(&realfs_fdops);
     if (stdout_fd) {
+        stdout_fd->stat.mode = S_IFIFO | 0600;
         stdout_fd->real_fd = dup([ctx stdoutPipe][1]);
         task->files->files[1] = stdout_fd;
     }
@@ -178,6 +181,7 @@ static dispatch_once_t _onceToken;
     // Setup stderr to pipe
     struct fd *stderr_fd = adhoc_fd_create(&realfs_fdops);
     if (stderr_fd) {
+        stderr_fd->stat.mode = S_IFIFO | 0600;
         stderr_fd->real_fd = dup([ctx stderrPipe][1]);
         task->files->files[2] = stderr_fd;
     }
