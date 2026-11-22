@@ -234,7 +234,7 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
         [items.trailingAnchor constraintEqualToAnchor:rail.contentLayoutGuide.trailingAnchor constant:-8],
         [items.topAnchor constraintEqualToAnchor:rail.contentLayoutGuide.topAnchor constant:16],
         [items.bottomAnchor constraintEqualToAnchor:rail.contentLayoutGuide.bottomAnchor constant:-16],
-        [items.widthAnchor constraintEqualToConstant:164],
+        [items.widthAnchor constraintEqualToConstant:50],
         [self.webView.leadingAnchor constraintEqualToAnchor:rail.trailingAnchor],
         self.workspaceInset,
         [inspector.topAnchor constraintEqualToAnchor:self.controlBar.bottomAnchor],
@@ -246,7 +246,10 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
 
 - (UIButton *)sidebarButton:(NSString *)title symbol:(NSString *)symbol action:(SEL)action key:(NSString *)key {
     UIButtonConfiguration *config = [UIButtonConfiguration plainButtonConfiguration];
-    config.title = title;
+    // DSH-like compact rail: tools are icon-first, never another full
+    // navigation dashboard beside the conversation UI.
+    BOOL compactRail = self.traitCollection.userInterfaceIdiom == UIUserInterfaceIdiomPad;
+    config.title = compactRail ? nil : title;
     config.image = [UIImage systemImageNamed:symbol];
     config.imagePadding = 9;
     config.contentInsets = NSDirectionalEdgeInsetsMake(12, 10, 12, 8);
@@ -255,6 +258,8 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     [button.heightAnchor constraintGreaterThanOrEqualToConstant:44].active = YES;
     button.contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeading;
     button.accessibilityIdentifier = [@"omh.sidebar." stringByAppendingString:key];
+    button.accessibilityLabel = title;
+    button.accessibilityHint = @"Open tool panel";
     button.configurationUpdateHandler = ^(UIButton *item) {
         UIButtonConfiguration *style = item.configuration;
         style.baseForegroundColor = item.selected ? UIColor.cyanColor : UIColor.lightTextColor;
@@ -273,7 +278,7 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     // Size-class changes alter navigation geometry, not the color scheme.
     if (self.overrideUserInterfaceStyle != UIUserInterfaceStyleDark)
         self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-    self.sidebarWidth.constant = desktop ? 180 : 0;
+    self.sidebarWidth.constant = desktop ? 68 : 0;
     self.sidebar.hidden = !desktop;
     self.controlBarHeight.constant = 52; // 44-pt controls plus native spacing
     // Keep the live web session mounted through rotation, split view and inspector changes.
