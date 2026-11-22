@@ -206,6 +206,44 @@ grep -o '<title>[^<]*</title>' "$WORK/opencode-index.html" | head -1
 stop_server
 echo "guest opencode serves its web UI on 127.0.0.1:$PORT"
 
+# Distinguish a working dashboard on the host from a working Node runtime
+# inside the actual packaged iSH guest. The iPad app invokes this entrypoint.
+log "Guest dashboard: boot on loopback and verify runtime API"
+DASH_PORT=4177
+"$ISH_BUILD/ish" -f "$WORK/fakefs" /bin/sh -c "DSH_PORT=$DASH_PORT /usr/local/bin/omh-dashboard" > "$WORK/omh-dashboard.log" 2>&1 &
+DASH_ISH_PID=$!
+dashboard_up=0
+for _ in $(seq 1 90); do
+    sleep 1
+    if curl --fail --silent --show-error --output "$WORK/omh-dashboard-state.json" \
+        --max-time 2 "http://127.0.0.1:$DASH_PORT/api/state" 2>/dev/null; then
+        dashboard_up=1
+        break
+    fi
+done
+if [ "$dashboard_up" = 1 ]; then
+    node - "$WORK/omh-dashboard-state.json" <<'NODE'
+const fs = require('fs');
+const state = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+if (state.version !== 1 || !state.counts) {
+  console.error('Guest dashboard returned an invalid runtime state response');
+  process.exit(1);
+}
+console.log('Guest OMH dashboard API ready on port 4177');
+NODE
+    dashboard_valid=$?
+else
+    dashboard_valid=1
+fi
+kill "$DASH_ISH_PID" 2>/dev/null || true
+pkill -f "$ISH_BUILD/ish -f $WORK/fakefs" 2>/dev/null || true
+wait "$DASH_ISH_PID" 2>/dev/null || true
+if [ "$dashboard_valid" != 0 ]; then
+    echo "--- guest dashboard stderr/stdout ---"
+    tail -100 "$WORK/omh-dashboard.log" || true
+    die "packaged Linux guest dashboard did not serve a valid /api/state response on port 4177"
+fi
+
 log "Export root.tar.gz"
 rm -f "$OUT"
 "$ISH_BUILD/tools/unfakefsify" fakefs "$OUT"
