@@ -1,3 +1,4 @@
+#include <arpa/inet.h>
 #include <fcntl.h>
 #include <netinet/tcp.h>
 #include <poll.h>
@@ -387,8 +388,22 @@ int_t sys_connect(fd_t sock_fd, addr_t sockaddr_addr, uint_t sockaddr_len) {
         // Log connect failures except the routine nonblock in-progress case,
         // so VPN / routing issues are visible in user-shared logs.
         if (ce != EINPROGRESS && ce != EALREADY) {
-            printk("NETDIAG connect(pid=%d comm=%s fd=%d) errno=%d\n",
-                   current->pid, current->comm, sock_fd, ce);
+            // Include destination and family to distinguish guest loopback
+            // failures from remote provider traffic. Do not log payloads.
+            char target[INET6_ADDRSTRLEN] = "?";
+            unsigned port = 0;
+            if (((struct sockaddr *) &sockaddr)->sa_family == AF_INET) {
+                const struct sockaddr_in *addr = (const struct sockaddr_in *) &sockaddr;
+                inet_ntop(AF_INET, &addr->sin_addr, target, sizeof(target));
+                port = ntohs(addr->sin_port);
+            } else if (((struct sockaddr *) &sockaddr)->sa_family == AF_INET6) {
+                const struct sockaddr_in6 *addr = (const struct sockaddr_in6 *) &sockaddr;
+                inet_ntop(AF_INET6, &addr->sin6_addr, target, sizeof(target));
+                port = ntohs(addr->sin6_port);
+            }
+            printk("NETDIAG connect(pid=%d comm=%s fd=%d family=%d target=%s port=%u) errno=%d\n",
+                   current->pid, current->comm, sock_fd,
+                   ((struct sockaddr *) &sockaddr)->sa_family, target, port, ce);
         }
         errno = ce;
         return errno_map();
