@@ -249,8 +249,10 @@ static NSString *const kDSHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     config.title = title;
     config.image = [UIImage systemImageNamed:symbol];
     config.imagePadding = 9;
-    config.contentInsets = NSDirectionalEdgeInsetsMake(10, 10, 10, 8);
+    config.contentInsets = NSDirectionalEdgeInsetsMake(12, 10, 12, 8);
     UIButton *button = [UIButton buttonWithConfiguration:config primaryAction:nil];
+    // Touch targets meet the native iPad minimum, including Pointer/VoiceOver.
+    [button.heightAnchor constraintGreaterThanOrEqualToConstant:44].active = YES;
     button.contentHorizontalAlignment = UIControlContentHorizontalAlignmentLeading;
     button.accessibilityIdentifier = [@"omh.sidebar." stringByAppendingString:key];
     button.configurationUpdateHandler = ^(UIButton *item) {
@@ -267,11 +269,13 @@ static NSString *const kDSHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     [super viewWillLayoutSubviews];
     CGFloat width = CGRectGetWidth(self.view.bounds) - self.view.safeAreaInsets.left - self.view.safeAreaInsets.right;
     BOOL desktop = self.traitCollection.userInterfaceIdiom == UIUserInterfaceIdiomPad && width >= 740;
-    UIUserInterfaceStyle appearance = desktop ? UIUserInterfaceStyleDark : UIUserInterfaceStyleUnspecified;
-    if (self.overrideUserInterfaceStyle != appearance) self.overrideUserInterfaceStyle = appearance;
+    // Keep the OMH dark/cyan identity in compact iPad windows and portrait.
+    // Size-class changes alter navigation geometry, not the color scheme.
+    if (self.overrideUserInterfaceStyle != UIUserInterfaceStyleDark)
+        self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     self.sidebarWidth.constant = desktop ? 180 : 0;
     self.sidebar.hidden = !desktop;
-    self.controlBarHeight.constant = desktop ? 50 : 40;
+    self.controlBarHeight.constant = 52; // 44-pt controls plus native spacing
     // Keep the live web session mounted through rotation, split view and inspector changes.
     BOOL besideWorkspace = desktop && width >= 1040;
     CGFloat inspector = self.inspectorController ? (besideWorkspace ? 332 : MAX(0, width - self.sidebarWidth.constant)) : 0;
@@ -322,10 +326,12 @@ static NSString *const kDSHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
 - (UIButton *)barButtonWithSymbol:(NSString *)symbol action:(nullable SEL)action identifier:(NSString *)identifier {
     UIButtonConfiguration *conf = [UIButtonConfiguration plainButtonConfiguration];
     conf.image = [UIImage systemImageNamed:symbol withConfiguration:[UIImageSymbolConfiguration configurationWithPointSize:14 weight:UIImageSymbolWeightMedium]];
-    conf.contentInsets = NSDirectionalEdgeInsetsMake(2, 6, 2, 6);
+    conf.contentInsets = NSDirectionalEdgeInsetsMake(12, 12, 12, 12);
     conf.baseForegroundColor = UIColor.secondaryLabelColor;
     UIButton *button = [UIButton buttonWithConfiguration:conf primaryAction:nil];
     button.translatesAutoresizingMaskIntoConstraints = NO;
+    [button.widthAnchor constraintGreaterThanOrEqualToConstant:44].active = YES;
+    [button.heightAnchor constraintGreaterThanOrEqualToConstant:44].active = YES;
     button.accessibilityIdentifier = identifier;
     if (action)
         [button addTarget:self action:action forControlEvents:UIControlEventTouchUpInside];
