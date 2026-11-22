@@ -92,6 +92,12 @@ test('native iPad workspace and iPhone dashboard share a supervised OMH runtime'
  assert.match(scene,/OMHBootStateDidChangeNotification/);
  assert.match(scene,/OMHHarnessStateDidChangeNotification/);
  assert.match(scene,/server\.state == OMHHarnessStateReady/);
+ assert.match(scene,/editor\.state == OMHHarnessStateReady/);
+ assert.match(scene,/omh\.startup\.toggle-logs/);
+ assert.match(scene,/editor\.log\.diagnosticReport/);
+ const boot=await read('app/OMHBootCoordinator.m');
+ assert.match(boot,/\[OMHHarness\.dashboard start\];\s*\[OMHHarness\.shared start\];/);
+
  assert.match(scene,/\[strongNav setViewControllers:@\[home\] animated:NO\]/);
  assert.match(scene,/initWithRootViewController:isIPad \? startup : home/);
  assert.match(scene,/\[root isKindOfClass:OMHNativeIPadController\.class\]/);
@@ -104,6 +110,10 @@ test('native iPad workspace and iPhone dashboard share a supervised OMH runtime'
  const ui=await read('tests/OMHUITests/OMHLaunchUITests.m');
  assert.match(ui,/testIOSPhoneNativeDashboardAndEditor/);
  assert.match(ui,/testHarnessBootsAndShowsWebUI/);
+ assert.match(ui,/omh\.startup\.status/);
+ assert.match(ui,/omh\.startup\.toggle-logs/);
+ assert.match(ui,/waitForExistenceWithTimeout:kBootTimeout/);
+
  const ci=await read('.github/workflows/build-ipa.yml');
  assert.match(ci,/^  iphone-simulator-smoke:/m);
  assert.match(ci,/^  simulator-smoke:/m);
