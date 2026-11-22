@@ -3,7 +3,7 @@
 #   make emulator      build the iSH-ARM64 CLI (needed by rootfs + tests)
 #   make rootfs        build build/root.tar.gz (Alpine + OpenCode)
 #   make project       (re)generate DSH.xcodeproj (run after adding/removing source files)
-#   make app           signed device build (DSH.app)
+#   make app           signed device build (OMH.app)
 #   make install       build + install on the connected iPad (DEVICE=<udid>)
 #   make run           install + launch
 #   make test          everything that runs unattended on this Mac:
@@ -49,7 +49,7 @@ app: project
 	$(XCB) -destination 'generic/platform=iOS' build
 
 install: app
-	xcrun devicectl device install app --device $(DEVICE) "$(DERIVED)/Release-iphoneos/DSH.app"
+	xcrun devicectl device install app --device $(DEVICE) "$(DERIVED)/Release-iphoneos/OMH.app"
 
 run: install
 	xcrun devicectl device process launch --device $(DEVICE) --terminate-existing $(BUNDLE_ID)
