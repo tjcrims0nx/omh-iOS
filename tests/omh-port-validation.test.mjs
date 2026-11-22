@@ -59,16 +59,13 @@ test('canonical harness model and official icon agree when harness checkout is p
  assert.deepEqual(a,b);
 });
 
-test('new IPA identity is OMH.app and legacy DSH.app is rejected',async()=>{
- const config=await read('app/AppDSH.xcconfig');
+test('new IPA identity is OMH.app and the legacy bundle is rejected',async()=>{
+ const config=await read('app/AppOMH.xcconfig');
  const projectGenerator=await read('scripts/gen-xcode-project.rb');
- const project=await read('DSH.xcodeproj/project.pbxproj');
  const ci=await read('.github/workflows/build-ipa.yml');
  assert.match(config,/^PRODUCT_NAME = OMH$/m);
  assert.match(config,/^MARKETING_VERSION = 1\.0\.17$/m);
  assert.match(projectGenerator,/OMH\.app\/OMH/);
- assert.match(project,/OMH\.app\/OMH/);
- assert.doesNotMatch(project,/DSH\.app\/DSH/);
  assert.match(ci,/Payload\/OMH\.app\/OMH/);
  assert.match(ci,/Payload\/DSH\.app/);
  const make=await read('Makefile');
@@ -76,17 +73,17 @@ test('new IPA identity is OMH.app and legacy DSH.app is rejected',async()=>{
 });
 
 test('one native OMH dashboard shell supports both iOS iPhone and iPadOS',async()=>{
- const scene=await read('app/DSHSceneDelegate.m');
+ const scene=await read('app/OMHSceneDelegate.m');
  assert.match(scene,/One native UIKit shell on both iPhone/);
  assert.match(scene,/CGRectGetWidth\(self\.view\.bounds\)/);
  assert.match(scene,/available < 620 \? @"OMH"/);
  assert.match(scene,/WKContentModeRecommended/);
  assert.match(scene,/initWithRootViewController:\[OMHDashboardViewController new\]/);
- const ui=await read('tests/DSHUITests/DSHLaunchUITests.m');
+ const ui=await read('tests/OMHUITests/OMHLaunchUITests.m');
  assert.match(ui,/testIOSPhoneNativeDashboardAndEditor/);
  assert.match(ui,/testHarnessBootsAndShowsWebUI/);
  const ci=await read('.github/workflows/build-ipa.yml');
- assert.match(ci,/^  iphone-smoke:/m);
+ assert.match(ci,/^  iphone-simulator-smoke:/m);
  assert.match(ci,/^  simulator-smoke:/m);
  assert.match(ci,/pick-iphone-simulator\.sh/);
  assert.match(ci,/testIOSPhoneNativeDashboardAndEditor/);

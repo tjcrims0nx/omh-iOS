@@ -124,8 +124,8 @@ jobs:
       - name: Regenerate Xcode project
         run: |
           make project
-          grep -q 'OMH.app/OMH' DSH.xcodeproj/project.pbxproj
-          grep -q 'PRODUCT_NAME = OMH' app/AppDSH.xcconfig
+          grep -q 'OMH.app/OMH' OMH.xcodeproj/project.pbxproj
+          grep -q 'PRODUCT_NAME = OMH' app/AppOMH.xcconfig
 
       - name: Build app (unsigned)
         run: |
@@ -239,8 +239,8 @@ jobs:
       - name: Regenerate Xcode project
         run: |
           make project
-          grep -q 'OMH.app/OMH' DSH.xcodeproj/project.pbxproj
-          grep -q 'PRODUCT_NAME = OMH' app/AppDSH.xcconfig
+          grep -q 'OMH.app/OMH' OMH.xcodeproj/project.pbxproj
+          grep -q 'PRODUCT_NAME = OMH' app/AppOMH.xcconfig
 
       - name: Simulator smoke test (iPad)
         run: |

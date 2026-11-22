@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Select an iOS iPhone simulator for the native iPhone smoke test.
 set -euo pipefail
-if [ -n "${DSH_SIMULATOR_LIST_FILE:-}" ]; then
-  list=$(<"$DSH_SIMULATOR_LIST_FILE")
+if [ -n "${OMH_SIMULATOR_LIST_FILE:-}" ]; then
+  list=$(<"$OMH_SIMULATOR_LIST_FILE")
 else
   list=$(xcrun simctl list devices available)
 fi

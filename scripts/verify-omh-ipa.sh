@@ -9,7 +9,7 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 if unzip -Z1 "$IPA" | grep -q '^Payload/DSH.app/'; then
-  echo "Legacy DSH.app unexpectedly shipped" >&2
+  echo "Legacy app bundle unexpectedly shipped" >&2
   exit 1
 fi
 unzip -q "$IPA" 'Payload/OMH.app/*' -d "$TMP"
