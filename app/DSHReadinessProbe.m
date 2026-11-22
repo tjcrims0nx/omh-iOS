@@ -77,16 +77,16 @@
         return;
     }
     NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:self.url];
-    req.HTTPMethod = @"HEAD";
+    req.HTTPMethod = @"GET";
     req.cachePolicy = NSURLRequestReloadIgnoringLocalAndRemoteCacheData;
     __weak typeof(self) weakSelf = self;
     NSURLSessionDataTask *task = [self.session dataTaskWithRequest:req completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         BOOL ok = NO;
         if ([response isKindOfClass:NSHTTPURLResponse.class]) {
             NSInteger code = ((NSHTTPURLResponse *) response).statusCode;
-            // HEAD may be refused with 405 by some servers; any HTTP answer
-            // still proves the listener is up.
-            ok = code > 0 && code < 500;
+            // A 404/405 can come from an unrelated listener or an unready
+            // guest server. Require a successful endpoint response.
+            ok = code >= 200 && code < 400;
         }
         dispatch_async(dispatch_get_main_queue(), ^{
             typeof(self) self = weakSelf;
@@ -111,11 +111,11 @@
     config.requestCachePolicy = NSURLRequestReloadIgnoringLocalAndRemoteCacheData;
     NSURLSession *session = [NSURLSession sessionWithConfiguration:config];
     NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url];
-    req.HTTPMethod = @"HEAD";
+    req.HTTPMethod = @"GET";
     [[session dataTaskWithRequest:req completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
         BOOL ok = NO;
         if ([response isKindOfClass:NSHTTPURLResponse.class])
-            ok = ((NSHTTPURLResponse *) response).statusCode < 500;
+            ok = ((NSHTTPURLResponse *) response).statusCode >= 200 && ((NSHTTPURLResponse *) response).statusCode < 400;
         dispatch_async(dispatch_get_main_queue(), ^{ completion(ok); });
         [session finishTasksAndInvalidate];
     }] resume];
