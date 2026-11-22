@@ -12,8 +12,8 @@ if [ -f "$CANONICAL" ] && ! cmp -s "$SOURCE" "$CANONICAL"; then
 fi
 [ -s "$SOURCE" ] || { echo "Missing canonical OMH icon: $SOURCE" >&2; exit 1; }
 command -v sips >/dev/null || { echo "sips (macOS ImageIO) is required to convert app icon" >&2; exit 1; }
-ICON="$ROOT/app/DSHAssets.xcassets/DSHAppIcon.appiconset/icon-1024.png"
-BRAND="$ROOT/app/DSHAssets.xcassets/OMHBrandMark.imageset/brand.png"
+ICON="$ROOT/app/OMHAssets.xcassets/OMHAppIcon.appiconset/icon-1024.png"
+BRAND="$ROOT/app/OMHAssets.xcassets/OMHBrandMark.imageset/brand.png"
 sips -s format png -z 1024 1024 "$SOURCE" --out "$ICON" >/dev/null
 sips -s format png -z 512 512 "$SOURCE" --out "$BRAND" >/dev/null
 test -s "$ICON" && test -s "$BRAND"

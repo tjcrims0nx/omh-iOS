@@ -206,13 +206,13 @@ rm -rf /var/cache/apk/* /tmp/*
 EOF
 
 # Part 2 — boot the server in its own emulator session and probe it from the
-# host loopback, the same pattern rootfs-test.sh uses for dsh-serve (and the
+# host loopback, the same pattern rootfs-test.sh uses for opencode-serve (and the
 # same path the iOS app uses: WKWebView + readiness probe hit the forwarded
 # loopback port). Probing from inside the guest does not work reliably in the
 # CLI emulator — the first build failed here with HTTP 000 after ~35s even
 # though the binary runs fine — so the host probe is authoritative.
 PORT=4099
-"$ISH_BUILD/ish" -f "$WORK/fakefs" /bin/sh -c "DSH_PORT=$PORT /usr/local/bin/opencode-serve" > "$WORK/opencode-serve.log" 2>&1 &
+"$ISH_BUILD/ish" -f "$WORK/fakefs" /bin/sh -c "OMH_PORT=$PORT /usr/local/bin/opencode-serve" > "$WORK/opencode-serve.log" 2>&1 &
 SERVER_ISH_PID=$!
 stop_server() {
     kill "$SERVER_ISH_PID" 2>/dev/null || true
@@ -240,7 +240,7 @@ echo "guest opencode serves its web UI on 127.0.0.1:$PORT"
 # inside the actual packaged iSH guest. The iPad app invokes this entrypoint.
 log "Guest dashboard: boot on loopback and verify runtime API"
 DASH_PORT=4177
-"$ISH_BUILD/ish" -f "$WORK/fakefs" /bin/sh -c "DSH_PORT=$DASH_PORT /usr/local/bin/omh-dashboard" > "$WORK/omh-dashboard.log" 2>&1 &
+"$ISH_BUILD/ish" -f "$WORK/fakefs" /bin/sh -c "OMH_PORT=$DASH_PORT /usr/local/bin/omh-dashboard" > "$WORK/omh-dashboard.log" 2>&1 &
 DASH_ISH_PID=$!
 dashboard_up=0
 for _ in $(seq 1 90); do

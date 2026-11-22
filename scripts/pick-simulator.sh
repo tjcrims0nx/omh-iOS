@@ -2,8 +2,8 @@
 # Prints the name of an available iPad simulator (falls back to any iPhone), so
 # CI does not hard-code a device that a given Xcode image may not ship.
 set -euo pipefail
-if [ -n "${DSH_SIMULATOR_LIST_FILE:-}" ]; then
-    list=$(<"$DSH_SIMULATOR_LIST_FILE")
+if [ -n "${OMH_SIMULATOR_LIST_FILE:-}" ]; then
+    list=$(<"$OMH_SIMULATOR_LIST_FILE")
 else
     list=$(xcrun simctl list devices available)
 fi

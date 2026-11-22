@@ -10,7 +10,7 @@ on:
     branches: [main]
     paths:
       - 'app/**'
-      - 'tests/DSHUITests/**'
+      - 'tests/OMHUITests/**'
       - 'tests/omh-port-validation.test.mjs'
       - 'branding/**'
       - 'rootfs/**'
@@ -129,7 +129,7 @@ jobs:
 
       - name: Build app (unsigned)
         run: |
-          xcodebuild -project DSH.xcodeproj -scheme DSH -configuration Release \
+          xcodebuild -project OMH.xcodeproj -scheme OMH -configuration Release \
             -destination 'generic/platform=iOS' \
             CODE_SIGNING_ALLOWED=NO \
             PRODUCT_BUNDLE_IDENTIFIER=app.jackfruit686.openmind-harness \
@@ -249,10 +249,10 @@ jobs:
           # Boot and settle SpringBoard before XCTest launches the emulator app.
           xcrun simctl boot "$SIM" || true
           xcrun simctl bootstatus "$SIM" -b
-          xcodebuild -project DSH.xcodeproj -scheme DSH -configuration Release \
+          xcodebuild -project OMH.xcodeproj -scheme OMH -configuration Release \
             -destination "platform=iOS Simulator,name=$SIM" \
             -parallel-testing-enabled NO -resultBundlePath "$RUNNER_TEMP/ipad.xcresult" \
-            -only-testing:DSHUITests/DSHLaunchUITests/testHarnessBootsAndShowsWebUI \
+            -only-testing:OMHUITests/OMHLaunchUITests/testHarnessBootsAndShowsWebUI \
             test
 
       - name: Export iPad screenshots and test diagnostics
