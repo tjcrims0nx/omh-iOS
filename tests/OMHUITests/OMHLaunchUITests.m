@@ -79,10 +79,19 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 
 - (void)testHarnessBootsAndShowsWebUI {
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationLandscapeLeft;
-    // Native UIKit is now the primary iPad home screen; the old web
-    // dashboard remains an optional compatibility/diagnostic destination.
-    XCTAssertTrue([self.app.tables[@"omh.native.ipad.sidebar"] waitForExistenceWithTimeout:15],
-                  @"iPad must launch its native UIKit navigation sidebar");
+    // The startup gate should be visible while the local Linux guest boots.
+    // It must disappear before the native workspace becomes interactive.
+    XCUIElement *startup = self.app.staticTexts[@"omh.startup.status"];
+    if ([startup waitForExistenceWithTimeout:8]) {
+        XCTAssertTrue(self.app.progressIndicators[@"omh.startup.progress"].exists,
+                      @"Startup must show progress before native workspace");
+        XCTAssertTrue(self.app.buttons[@"omh.startup.toggle-logs"].exists,
+                      @"Boot diagnostics must be accessible before workspace");
+        [self attachScreenshot:@"00-ipad-startup-native"];
+    }
+    XCTAssertTrue([self.app.tables[@"omh.native.ipad.sidebar"] waitForExistenceWithTimeout:kBootTimeout],
+                  @"iPad must wait for a ready guest before entering native workspace");
+    XCTAssertFalse(startup.exists, @"Startup must finish before native workspace appears");
     XCTAssertTrue(self.app.tables[@"omh.native.ipad.content"].exists,
                   @"iPad must render native data panes without browser scaling");
     XCUIElement *tasksSection = self.app.cells[@"omh.native.ipad.section.2"];
