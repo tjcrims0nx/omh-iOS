@@ -120,7 +120,10 @@ jobs:
           node -e "const c=require('./harness/opencode.json');if(c.model!=='google/gemini-3.5-flash-lite')process.exit(1)"
 
       - name: Regenerate Xcode project
-        run: make project
+        run: |
+          make project
+          grep -q 'OMH.app/OMH' DSH.xcodeproj/project.pbxproj
+          grep -q 'PRODUCT_NAME = OMH' app/AppDSH.xcconfig
 
       - name: Build app (unsigned)
         run: |
@@ -129,15 +132,24 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             PRODUCT_BUNDLE_IDENTIFIER=app.jackfruit686.openmind-harness \
             build
-          ls -lh build/Release-iphoneos/DSH.app build/Release-iphoneos/DSH.app 2>/dev/null || ls -lh ~/Library/Developer/Xcode/DerivedData/DSH-*/Build/Products/Release-iphoneos/DSH.app
+          APP=$(find build ~/Library/Developer/Xcode/DerivedData -path '*/Release-iphoneos/OMH.app' -type d -print -quit 2>/dev/null)
+          test -n "$APP" && test -f "$APP/Info.plist" && test -f "$APP/OMH"
+          test "$(defaults read "$APP/Info.plist" CFBundleName)" = "OMH"
+          test "$(defaults read "$APP/Info.plist" CFBundleDisplayName)" = "OpenMind Harness"
+          test "$(defaults read "$APP/Info.plist" CFBundleIdentifier)" = "app.jackfruit686.openmind-harness"
+          echo "Validated new OMH.app bundle: $APP"
 
       - name: Package IPA
         run: |
-          APP=$(ls -dt build/Release-iphoneos/DSH.app build/Release-iphoneos/DSH.app ~/Library/Developer/Xcode/DerivedData/DSH-*/Build/Products/Release-iphoneos/DSH.app 2>/dev/null | head -1)
+          APP=$(find build ~/Library/Developer/Xcode/DerivedData -path '*/Release-iphoneos/OMH.app' -type d -print -quit 2>/dev/null)
+          test -n "$APP" && test -f "$APP/OMH"
           mkdir -p Payload
           cp -r "$APP" Payload/
+          test -f Payload/OMH.app/Info.plist
+          test -f Payload/OMH.app/OMH
           zip -r -y OpenMind-Harness-unsigned.ipa Payload
-          unzip -l OpenMind-Harness-unsigned.ipa
+          unzip -l OpenMind-Harness-unsigned.ipa | grep -q 'Payload/OMH.app/OMH'
+          ! unzip -Z1 OpenMind-Harness-unsigned.ipa | grep -q '^Payload/DSH.app/'
           ls -lh OpenMind-Harness-unsigned.ipa
 
       - name: Upload IPA
@@ -221,7 +233,10 @@ jobs:
           node -e "const c=require('./harness/opencode.json');if(c.model!=='google/gemini-3.5-flash-lite')process.exit(1)"
 
       - name: Regenerate Xcode project
-        run: make project
+        run: |
+          make project
+          grep -q 'OMH.app/OMH' DSH.xcodeproj/project.pbxproj
+          grep -q 'PRODUCT_NAME = OMH' app/AppDSH.xcconfig
 
       - name: Simulator smoke test (iPad)
         run: |
