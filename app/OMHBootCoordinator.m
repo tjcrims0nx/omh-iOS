@@ -150,9 +150,13 @@ NSNotificationName const OMHBootStateDidChangeNotification = @"OMHBootStateDidCh
         [OMHHarness.shared.log append:@"[openmind-harness] host bridge could not start; iOS capabilities are unavailable"];
     }
     [OMHStartupMetrics.shared mark:@"bridge_ready"];
-    if (UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad)
-        [OMHHarness.dashboard start];
-    else
+    // The home screen is the dashboard web view on both idioms, so the
+    // dashboard harness must start on iPhone too — not only on iPad.
+    // (Before the native shell was unified, the iPhone home was the editor
+    // and only the shared harness started here; the dashboard harness
+    // staying Idle left the iPhone web view hidden forever.)
+    [OMHHarness.dashboard start];
+    if (UIDevice.currentDevice.userInterfaceIdiom != UIUserInterfaceIdiomPad)
         [OMHHarness.shared start];
 }
 
