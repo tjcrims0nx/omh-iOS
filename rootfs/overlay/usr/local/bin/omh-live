@@ -1,0 +1,7 @@
+#!/bin/sh
+# Start the optional authenticated OMH live connector inside the guest.
+# The iPad application does not automatically publish this endpoint.
+set -eu
+export HOME=/root
+export OMH_WORKSPACE="${OMH_WORKSPACE:-${OPENCODE_WORKSPACE:-/root/workspace}}"
+exec /usr/bin/node /usr/local/share/omh-runtime/scripts/omh-live.mjs "$@"
