@@ -155,9 +155,11 @@ NSNotificationName const OMHBootStateDidChangeNotification = @"OMHBootStateDidCh
     // (Before the native shell was unified, the iPhone home was the editor
     // and only the shared harness started here; the dashboard harness
     // staying Idle left the iPhone web view hidden forever.)
+    // Both local services must warm up behind the native startup screen.
+    // Previously iPad deferred the OpenCode editor server until the user
+    // entered it, causing a second "Starting OpenMind Harness" experience.
     [OMHHarness.dashboard start];
-    if (UIDevice.currentDevice.userInterfaceIdiom != UIUserInterfaceIdiomPad)
-        [OMHHarness.shared start];
+    [OMHHarness.shared start];
 }
 
 @end
