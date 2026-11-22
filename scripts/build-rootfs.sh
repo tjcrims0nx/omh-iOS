@@ -222,7 +222,7 @@ for _ in $(seq 1 90); do
     fi
 done
 if [ "$dashboard_up" = 1 ]; then
-    node - "$WORK/omh-dashboard-state.json" <<'NODE'
+    if node - "$WORK/omh-dashboard-state.json" <<'NODE'
 const fs = require('fs');
 const state = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 if (state.version !== 1 || !state.counts) {
@@ -231,7 +231,11 @@ if (state.version !== 1 || !state.counts) {
 }
 console.log('Guest OMH dashboard API ready on port 4177');
 NODE
-    dashboard_valid=$?
+    then
+        dashboard_valid=0
+    else
+        dashboard_valid=1
+    fi
 else
     dashboard_valid=1
 fi
