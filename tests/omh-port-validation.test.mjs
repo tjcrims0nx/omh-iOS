@@ -81,6 +81,10 @@ test('native iPad workspace and iPhone dashboard share a supervised OMH runtime'
  assert.match(scene,/omh\.native\.ipad\.content/);
  assert.match(scene,/URLByAppendingPathComponent:@"api\/state"/);
  assert.match(scene,/WKContentModeRecommended/);
+ assert.match(scene,/self\.sidebarWidthConstraint = \[self\.sectionsTable\.widthAnchor constraintEqualToConstant:246\]/);
+ assert.match(scene,/floor\(width \* 0\.32\)/);
+ assert.match(scene,/self\.detailTable\.tableHeaderView = header/);
+ assert.match(scene,/selectRowAtIndexPath:indexPath animated:NO/);
  const ui=await read('tests/OMHUITests/OMHLaunchUITests.m');
  assert.match(ui,/testIOSPhoneNativeDashboardAndEditor/);
  assert.match(ui,/testHarnessBootsAndShowsWebUI/);
