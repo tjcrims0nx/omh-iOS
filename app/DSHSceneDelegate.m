@@ -38,6 +38,9 @@
     UIImageView *brand = [[UIImageView alloc] initWithImage:[UIImage imageNamed:@"OMHBrandMark"]];
     brand.translatesAutoresizingMaskIntoConstraints = NO;
     brand.contentMode = UIViewContentModeScaleAspectFit;
+    brand.isAccessibilityElement = YES;
+    brand.accessibilityLabel = @"OpenMind Harness logo";
+    brand.accessibilityIdentifier = @"omh.native.brand.logo";
     [NSLayoutConstraint activateConstraints:@[
         [brand.widthAnchor constraintEqualToConstant:30],
         [brand.heightAnchor constraintEqualToConstant:30]
@@ -58,7 +61,8 @@
     self.editorItem = [[UIBarButtonItem alloc] initWithTitle:@"OpenCode"
         style:UIBarButtonItemStylePlain target:self action:@selector(openEditor)];
     self.editorItem.accessibilityIdentifier = @"omh.open-editor";
-    self.editorItem.image = [UIImage systemImageNamed:@"chevron.forward.circle"];
+    // Keep the "OpenCode" text visible in native navigation, not an icon-only
+    // control that becomes ambiguous to touch and VoiceOver users.
     self.refreshItem = [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemRefresh
         target:self action:@selector(retryDashboard)];
     self.refreshItem.accessibilityIdentifier = @"omh.native.refresh";
