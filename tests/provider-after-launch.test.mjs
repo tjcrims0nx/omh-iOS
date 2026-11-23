@@ -32,5 +32,7 @@ test('native brand chooses a compact iPhone title before the navigation bar firs
   assert.match(dashboard, /brand\.accessibilityIdentifier = @"omh\.native\.brand\.logo"/);
   assert.match(dashboard, /available < 620 \? @"OMH" : @"OpenMind Harness"/);
   assert.match(dashboard, /if \(!\[self\.nativeTitle\.text isEqualToString:title\]\)/);
-  assert.match(dashboard, /self\.navigationItem\.titleView = self\.navigationItem\.titleView;/);
+  assert.match(dashboard, /\[self\.nativeTitle invalidateIntrinsicContentSize\]/);
+  assert.match(dashboard, /UIView \*titleView = self\.navigationItem\.titleView;/);
+  assert.match(dashboard, /self\.navigationItem\.titleView = nil;\s*self\.navigationItem\.titleView = titleView;/);
 });
