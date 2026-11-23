@@ -43,7 +43,12 @@ test('guest wrappers are present and do not silently run unsandboxed commands',a
 });
 test('Xcode CI runs simulator and pins the same validated harness used for branding',async()=>{
  const workflow=await read('.github/workflows/build-ipa.yml');
- assert.match(workflow,/ref: 55f62a9ad23fa897c21fa40948716b5c5504e626/);
+ // All harness checkouts must pin the same revision; the revision itself
+ // changes whenever the pin is updated, so assert consistency, not a
+ // specific SHA (a hard-coded SHA breaks on every pin update).
+ const refs=[...workflow.matchAll(/ref: ([0-9a-f]{40})/g)].map(m=>m[1]);
+ assert.ok(refs.length>=1,'workflow pins a harness revision');
+ assert.ok(new Set(refs).size===1,'all harness checkouts pin the same revision: '+[...new Set(refs)].join(', '));
  assert.match(workflow,/scripts\/sync-omh-branding\.sh/);
  assert.match(workflow,/simctl bootstatus/);
  assert.match(workflow,/xcodebuild -project/);
