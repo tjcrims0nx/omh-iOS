@@ -16,6 +16,7 @@
 #import "OMHStatusOverlayView.h"
 #import "TerminalViewController.h"
 #import "AppDelegate.h"
+#import "OMHProviderCredentials.h"
 #import <WebKit/WebKit.h>
 
 static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
@@ -360,19 +361,53 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
 }
 
 - (void)showProviderConnections {
-    // The provider UI is served by the same loopback harness dashboard.
-    // No credential is sent through JavaScript or stored in WebKit.
-    NSURL *base = OMHHarness.shared.baseURL;
-    if (!base) {
-        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Harness not ready"
-            message:@"Start the harness before opening provider connections."
-            preferredStyle:UIAlertControllerStyleAlert];
-        [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
-        [self presentViewController:alert animated:YES completion:nil];
-        return;
+    UIAlertController *sheet=[UIAlertController alertControllerWithTitle:@"Provider Connections"
+        message:@"Select a provider to securely save or remove an API key. Restart the harness to apply changes."
+        preferredStyle:UIAlertControllerStyleActionSheet];
+    NSDictionary<NSString *,NSString *> *providers=@{
+        @"OpenAI / ChatGPT":@"openai", @"Anthropic / Claude":@"anthropic",
+        @"Google Gemini":@"google", @"DeepSeek":@"deepseek",
+        @"GLM / Z.AI":@"zai", @"Kimi / Moonshot":@"moonshotai",
+        @"Qwen":@"qwen", @"Universal bearer key":@"custom"};
+    __weak typeof(self) weakSelf=self;
+    for (NSString *label in @[@"OpenAI / ChatGPT",@"Anthropic / Claude",@"Google Gemini",@"DeepSeek",@"GLM / Z.AI",@"Kimi / Moonshot",@"Qwen",@"Universal bearer key"]) {
+        NSString *provider=providers[label];
+        [sheet addAction:[UIAlertAction actionWithTitle:label style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+            [weakSelf editProvider:provider label:label];
+        }]];
     }
-    [self.webView loadRequest:[NSURLRequest requestWithURL:base]];
-    // The local dashboard contains the provider panel at the top of its main content.
+    [sheet addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    sheet.popoverPresentationController.sourceView=self.menuButton ?: self.view;
+    sheet.popoverPresentationController.sourceRect=self.menuButton ? self.menuButton.bounds : CGRectMake(CGRectGetMidX(self.view.bounds),0,1,1);
+    [self presentViewController:sheet animated:YES completion:nil];
+}
+
+- (void)editProvider:(NSString *)provider label:(NSString *)label {
+    UIAlertController *alert=[UIAlertController alertControllerWithTitle:label
+        message:@"API key stored in this device's Keychain. Restart the harness after saving or removing it."
+        preferredStyle:UIAlertControllerStyleAlert];
+    [alert addTextFieldWithConfigurationHandler:^(UITextField *field) {
+        field.placeholder=@"Provider API key";
+        field.secureTextEntry=YES;
+        field.autocorrectionType=UITextAutocorrectionTypeNo;
+        field.autocapitalizationType=UITextAutocapitalizationTypeNone;
+        field.textContentType=UITextContentTypePassword;
+    }];
+    __weak typeof(self) weakSelf=self;
+    [alert addAction:[UIAlertAction actionWithTitle:@"Save Key" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        NSString *token=[alert.textFields.firstObject.text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+        if(![OMHProviderCredentials saveToken:token provider:provider]) {
+            UIAlertController *error=[UIAlertController alertControllerWithTitle:@"Key not saved" message:@"Enter a nonempty key and check Keychain access." preferredStyle:UIAlertControllerStyleAlert];
+            [error addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+            [weakSelf presentViewController:error animated:YES completion:nil];
+        } else [OMHHarness.shared restart];
+    }]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Remove Key" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
+        [OMHProviderCredentials removeProvider:provider];
+        [OMHHarness.shared restart];
+    }]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    [self presentViewController:alert animated:YES completion:nil];
 }
 
 - (void)buildOverlay {
