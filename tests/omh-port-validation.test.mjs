@@ -93,6 +93,23 @@ test('new IPA identity is OMH.app and the legacy bundle is rejected',async()=>{
  assert.match(make,/Release-iphoneos\/OMH\.app/);
 });
 
+test('full-screen startup gate controls dashboard readiness and optional provider setup',async()=>{
+ const scene=await read('app/OMHSceneDelegate.m');
+ const ui=await read('tests/OMHUITests/OMHLaunchUITests.m');
+ assert.match(scene,/@interface OMHLaunchGateController : UIViewController/);
+ assert.match(scene,/initWithRootViewController:\[OMHDashboardViewController new\]/);
+ assert.match(scene,/self\.window\.rootViewController = gate;/);
+ assert.match(scene,/self\.window\.rootViewController = nav;/);
+ assert.match(scene,/OMHBootPhaseReady && server\.state == OMHHarnessStateReady/);
+ assert.match(scene,/omh\.launch\.configure-provider/);
+ assert.match(scene,/\[OMHProviderCredentials saveToken:value provider:provider\]/);
+ assert.match(scene,/\[OMHHarness\.dashboard restart\]/);
+ assert.match(scene,/omh\.launch\.continue/);
+ assert.match(ui,/waitForDashboardLaunch/);
+ assert.match(ui,/Dashboard chrome must remain hidden during boot/);
+ assert.match(ui,/Startup gate must be removed, not overlaid over the dashboard/);
+});
+
 test('one native OMH dashboard shell supports both iOS iPhone and iPadOS',async()=>{
  const scene=await read('app/OMHSceneDelegate.m');
  assert.match(scene,/One native UIKit shell on both iPhone/);

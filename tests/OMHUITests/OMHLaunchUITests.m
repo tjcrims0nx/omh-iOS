@@ -23,6 +23,29 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     self.needsCleanup = NO;
     self.app = [[XCUIApplication alloc] init];
     [self.app launch];
+    [self waitForDashboardLaunch];
+}
+
+- (void)waitForDashboardLaunch {
+    XCUIElement *gate = self.app.staticTexts[@"omh.launch.status"];
+    XCUIElement *dashboard = self.app.buttons[@"omh.native.refresh"];
+    // A first-run install must show setup before any dashboard controls.
+    if (gate.exists) {
+        XCTAssertFalse(dashboard.exists, @"Dashboard chrome must remain hidden during boot");
+        XCTAssertTrue(self.app.buttons[@"omh.launch.configure-provider"].exists,
+                      @"Provider setup must be available before dashboard launch");
+        [self attachScreenshot:@"00-native-boot-gate"];
+    }
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:kBootTimeout];
+    while (!dashboard.exists && [deadline timeIntervalSinceNow] > 0) {
+        XCUIElement *proceed = self.app.buttons[@"omh.launch.continue"];
+        if (proceed.exists && proceed.hittable) [proceed tap];
+        if (dashboard.exists) break;
+        [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.4]];
+    }
+    XCTAssertTrue([dashboard waitForExistenceWithTimeout:10],
+                  @"Dashboard must replace the full-screen gate after verified runtime readiness");
+    XCTAssertFalse(gate.exists, @"Startup gate must be removed, not overlaid over the dashboard");
 }
 
 - (void)tearDown {
@@ -416,6 +439,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     // provider action is performed in the pushed OpenCode editor.
     [self.app terminate];
     [self.app launch];
+    [self waitForDashboardLaunch];
     XCTAssertTrue([home waitForExistenceWithTimeout:kBootTimeout],
                   @"Dashboard must return after a cold app relaunch");
     XCTAssertTrue([connected waitForExistenceWithTimeout:kBootTimeout],
@@ -453,6 +477,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     // Verify removal against a new guest session, not a cached/hidden page.
     [self.app terminate];
     [self.app launch];
+    [self waitForDashboardLaunch];
     XCTAssertTrue([home waitForExistenceWithTimeout:kBootTimeout],
                   @"Dashboard must return after cleanup relaunch");
     XCUIElement *connected = [[home descendantsMatchingType:XCUIElementTypeAny]
