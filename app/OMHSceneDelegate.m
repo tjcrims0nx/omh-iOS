@@ -291,10 +291,14 @@
     self.progressView.accessibilityIdentifier = @"omh.launch.progress";
     self.diagnostics = [UITextView new];
     self.diagnostics.backgroundColor = [UIColor colorWithWhite:0.09 alpha:1];
-    self.diagnostics.textColor = UIColor.lightGrayColor;
+    self.diagnostics.textColor = [UIColor colorWithRed:0.86 green:1.0 blue:0.91 alpha:1];
     self.diagnostics.font = [UIFont monospacedSystemFontOfSize:11 weight:UIFontWeightRegular];
     self.diagnostics.editable = NO;
-    self.diagnostics.layer.cornerRadius = 10;
+    self.diagnostics.layer.cornerRadius = 12;
+    self.diagnostics.layer.borderWidth = 2.0;
+    self.diagnostics.layer.borderColor = [UIColor colorWithRed:0.25 green:1.0 blue:0.48 alpha:1].CGColor;
+    self.diagnostics.textContainerInset = UIEdgeInsetsMake(16, 16, 16, 16);
+    self.diagnostics.alwaysBounceVertical = YES;
     self.diagnostics.accessibilityIdentifier = @"omh.launch.logs";
     UIButton *logs = [UIButton buttonWithType:UIButtonTypeSystem];
     [logs setTitle:@"Full log" forState:UIControlStateNormal];
@@ -334,8 +338,8 @@
         [stack.centerYAnchor constraintEqualToAnchor:safe.centerYAnchor],
         [stack.leadingAnchor constraintGreaterThanOrEqualToAnchor:safe.leadingAnchor constant:20],
         [stack.trailingAnchor constraintLessThanOrEqualToAnchor:safe.trailingAnchor constant:-20],
-        [stack.widthAnchor constraintLessThanOrEqualToConstant:540],
-        [self.diagnostics.heightAnchor constraintEqualToConstant:180]
+        [stack.widthAnchor constraintLessThanOrEqualToConstant:850],
+        [self.diagnostics.heightAnchor constraintEqualToConstant:320]
     ]];
     NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
     [nc addObserver:self selector:@selector(updateGate)
@@ -464,6 +468,7 @@
     BOOL failed = boot.phase == OMHBootPhaseFailed ||
         server.state == OMHHarnessStateFailed || server.state == OMHHarnessStateStopped;
     self.retryButton.hidden = !failed || boot.phase != OMHBootPhaseReady;
+    self.stateLabel.textColor = failed ? [UIColor colorWithRed:1.0 green:0.38 blue:0.43 alpha:1] : UIColor.whiteColor;
     self.stateLabel.text = boot.phase == OMHBootPhaseFailed ?
         (boot.statusMessage ?: @"Guest boot failed.") :
         boot.phase != OMHBootPhaseReady ?
