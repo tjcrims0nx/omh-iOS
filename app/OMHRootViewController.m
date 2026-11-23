@@ -419,7 +419,13 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
             UIAlertController *error=[UIAlertController alertControllerWithTitle:@"Key not saved" message:@"Enter a nonempty key and check Keychain access." preferredStyle:UIAlertControllerStyleAlert];
             [error addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
             [weakSelf presentViewController:error animated:YES completion:nil];
-        } else [OMHHarness.shared restart];
+        } else {
+            // The editor consumes the key for model calls, while the local
+            // dashboard renders provider status from its own guest process
+            // environment. Both must restart to pick up Keychain changes.
+            [OMHHarness.shared restart];
+            [OMHHarness.dashboard restart];
+        }
     }]];
     if (![provider isEqualToString:@"custom"]) {
         [alert addAction:[UIAlertAction actionWithTitle:@"Verify Saved Key" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
@@ -433,6 +439,7 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     [alert addAction:[UIAlertAction actionWithTitle:@"Remove Key" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
         [OMHProviderCredentials removeProvider:provider];
         [OMHHarness.shared restart];
+        [OMHHarness.dashboard restart];
     }]];
     [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
     [self presentViewController:alert animated:YES completion:nil];
