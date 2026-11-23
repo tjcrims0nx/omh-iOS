@@ -111,6 +111,12 @@ test('full-screen startup gate controls dashboard readiness and optional provide
  assert.match(ui,/Startup gate must be removed, not overlaid over the dashboard/);
 });
 
+test('dashboard root has no empty left navigation control',async()=>{
+ const scene=await read('app/OMHSceneDelegate.m');
+ assert.match(scene,/self\\.navigationItem\\.leftBarButtonItem = nil;/);
+ assert.doesNotMatch(scene,/initWithCustomView:self\\.loadingIndicator/);
+});
+
 test('one native OMH dashboard shell supports both iOS iPhone and iPadOS',async()=>{
  const scene=await read('app/OMHSceneDelegate.m');
  assert.match(scene,/One native UIKit shell on both iPhone/);
