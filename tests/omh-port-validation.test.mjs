@@ -64,6 +64,22 @@ test('canonical harness model and official icon agree when harness checkout is p
  assert.deepEqual(a,b);
 });
 
+test('provider key persistence test navigates through editor and reboots for fresh environment',async()=>{
+ const scene=await read('app/OMHSceneDelegate.m');
+ const editor=await read('app/OMHRootViewController.m');
+ const ui=await read('tests/OMHUITests/OMHLaunchUITests.m');
+ assert.match(scene,/initWithRootViewController:\[OMHDashboardViewController new\]/);
+ assert.match(scene,/omh\.open-editor/);
+ assert.match(editor,/identifier:@"omh\.menu"/);
+ assert.match(editor,/@\"Provider Connections\"/);
+ assert.match(editor,/\[OMHHarness\.shared restart\];\s*\[OMHHarness\.dashboard restart\];/);
+ assert.match(ui,/\[self openEditorProviderMenu\];/);
+ assert.match(ui,/\[editor tap\];/);
+ assert.match(ui,/\[self\.app terminate\];\s*\[self\.app launch\];/);
+ assert.match(ui,/Exactly one provider \(DeepSeek\) must read configured after the restart/);
+ assert.match(ui,/No provider should remain configured after cleanup/);
+});
+
 test('new IPA identity is OMH.app and the legacy bundle is rejected',async()=>{
  const config=await read('app/AppOMH.xcconfig');
  const projectGenerator=await read('scripts/gen-xcode-project.rb');
