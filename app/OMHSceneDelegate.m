@@ -245,6 +245,181 @@
 }
 @end
 
+// Full-screen native launch gate. The dashboard is not created until the
+// guest has booted and its HTTP health check succeeds.
+@interface OMHLaunchGateController : UIViewController
+@property (nonatomic, copy) void (^onReady)(void);
+@property (nonatomic) UILabel *stateLabel;
+@property (nonatomic) UIProgressView *progressView;
+@property (nonatomic) UITextView *diagnostics;
+@property (nonatomic) UIButton *retryButton;
+@property (nonatomic) UIButton *continueButton;
+@property (nonatomic) BOOL showingFullLog;
+@property (nonatomic) NSTimer *refreshTimer;
+@property (nonatomic) BOOL transitioned;
+@end
+
+@implementation OMHLaunchGateController
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.view.backgroundColor = [UIColor colorWithRed:0.012 green:0.018 blue:0.039 alpha:1];
+    self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+    UIColor *cyan = [UIColor colorWithRed:0.17 green:0.87 blue:0.94 alpha:1];
+    UILabel *brand = [UILabel new];
+    brand.text = @"OpenMind Harness";
+    brand.font = [UIFont preferredFontForTextStyle:UIFontTextStyleLargeTitle];
+    brand.adjustsFontForContentSizeCategory = YES;
+    brand.textAlignment = NSTextAlignmentCenter;
+    brand.textColor = UIColor.whiteColor;
+    brand.numberOfLines = 0;
+    brand.accessibilityIdentifier = @"omh.launch.brand";
+    UILabel *sub = [UILabel new];
+    sub.text = @"Preparing your local workspace";
+    sub.textColor = UIColor.secondaryLabelColor;
+    sub.textAlignment = NSTextAlignmentCenter;
+    self.stateLabel = [UILabel new];
+    self.stateLabel.text = @"Preparing Linux guest…";
+    self.stateLabel.textAlignment = NSTextAlignmentCenter;
+    self.stateLabel.numberOfLines = 0;
+    self.stateLabel.textColor = UIColor.whiteColor;
+    self.stateLabel.accessibilityIdentifier = @"omh.launch.status";
+    self.progressView = [UIProgressView new];
+    self.progressView.progressTintColor = cyan;
+    self.progressView.trackTintColor = UIColor.darkGrayColor;
+    self.progressView.accessibilityIdentifier = @"omh.launch.progress";
+    self.diagnostics = [UITextView new];
+    self.diagnostics.backgroundColor = [UIColor colorWithWhite:0.09 alpha:1];
+    self.diagnostics.textColor = UIColor.lightGrayColor;
+    self.diagnostics.font = [UIFont monospacedSystemFontOfSize:11 weight:UIFontWeightRegular];
+    self.diagnostics.editable = NO;
+    self.diagnostics.layer.cornerRadius = 10;
+    self.diagnostics.accessibilityIdentifier = @"omh.launch.logs";
+    UIButton *logs = [UIButton buttonWithType:UIButtonTypeSystem];
+    [logs setTitle:@"Full log" forState:UIControlStateNormal];
+    logs.accessibilityIdentifier = @"omh.launch.full-log";
+    [logs addTarget:self action:@selector(toggleLog:) forControlEvents:UIControlEventTouchUpInside];
+    self.retryButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    [self.retryButton setTitle:@"Retry startup" forState:UIControlStateNormal];
+    self.retryButton.accessibilityIdentifier = @"omh.launch.retry";
+    [self.retryButton addTarget:self action:@selector(retryLaunch) forControlEvents:UIControlEventTouchUpInside];
+    self.retryButton.hidden = YES;
+    self.continueButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    [self.continueButton setTitle:@"Open dashboard" forState:UIControlStateNormal];
+    self.continueButton.accessibilityIdentifier = @"omh.launch.continue";
+    [self.continueButton addTarget:self action:@selector(completeSetup) forControlEvents:UIControlEventTouchUpInside];
+    self.continueButton.hidden = YES;
+    UIStackView *actions = [[UIStackView alloc] initWithArrangedSubviews:@[logs,self.retryButton,self.continueButton]];
+    actions.axis = UILayoutConstraintAxisHorizontal;
+    actions.alignment = UIStackViewAlignmentCenter;
+    actions.distribution = UIStackViewDistributionEqualSpacing;
+    actions.spacing = 15;
+    for (UIButton *button in @[logs,self.retryButton,self.continueButton])
+        [button.heightAnchor constraintGreaterThanOrEqualToConstant:44].active = YES;
+    UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[
+        brand,sub,self.stateLabel,self.progressView,actions,self.diagnostics]];
+    stack.axis = UILayoutConstraintAxisVertical;
+    stack.alignment = UIStackViewAlignmentFill;
+    stack.spacing = 20;
+    stack.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:stack];
+    UILayoutGuide *safe = self.view.safeAreaLayoutGuide;
+    [NSLayoutConstraint activateConstraints:@[
+        [stack.centerXAnchor constraintEqualToAnchor:safe.centerXAnchor],
+        [stack.centerYAnchor constraintEqualToAnchor:safe.centerYAnchor],
+        [stack.leadingAnchor constraintGreaterThanOrEqualToAnchor:safe.leadingAnchor constant:20],
+        [stack.trailingAnchor constraintLessThanOrEqualToAnchor:safe.trailingAnchor constant:-20],
+        [stack.widthAnchor constraintLessThanOrEqualToConstant:540],
+        [self.diagnostics.heightAnchor constraintEqualToConstant:180]
+    ]];
+    NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
+    [nc addObserver:self selector:@selector(updateGate)
+             name:OMHBootStateDidChangeNotification object:nil];
+    [nc addObserver:self selector:@selector(updateGate)
+             name:OMHHarnessStateDidChangeNotification object:OMHHarness.dashboard];
+    [nc addObserver:self selector:@selector(updateGate)
+             name:OMHLogBufferDidChangeNotification object:nil];
+    [self updateGate];
+}
+- (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
+    self.refreshTimer = [NSTimer scheduledTimerWithTimeInterval:0.5 target:self
+                             selector:@selector(updateGate) userInfo:nil repeats:YES];
+    [self updateGate];
+}
+- (void)viewWillDisappear:(BOOL)animated {
+    [super viewWillDisappear:animated];
+    [self.refreshTimer invalidate];
+    self.refreshTimer = nil;
+}
+- (void)dealloc {
+    [self.refreshTimer invalidate];
+    [NSNotificationCenter.defaultCenter removeObserver:self];
+}
+- (void)toggleLog:(UIButton *)sender {
+    self.showingFullLog = !self.showingFullLog;
+    [sender setTitle:self.showingFullLog ? @"Recent log" : @"Full log" forState:UIControlStateNormal];
+    [self updateGate];
+}
+- (void)retryLaunch {
+    OMHHarness *dashboard = OMHHarness.dashboard;
+    if (OMHBootCoordinator.shared.phase != OMHBootPhaseReady) return;
+    if (dashboard.state == OMHHarnessStateFailed || dashboard.state == OMHHarnessStateStopped)
+        [dashboard restart];
+}
+- (void)completeSetup {
+    if (self.transitioned || OMHBootCoordinator.shared.phase != OMHBootPhaseReady ||
+        OMHHarness.dashboard.state != OMHHarnessStateReady) return;
+    [NSUserDefaults.standardUserDefaults setBool:YES forKey:@"omh.launch.setup-completed"];
+    [self finishGate];
+}
+- (void)finishGate {
+    if (self.transitioned) return;
+    self.transitioned = YES;
+    [self.refreshTimer invalidate];
+    self.refreshTimer = nil;
+    if (self.onReady) self.onReady();
+}
+- (void)updateGate {
+    if (!NSThread.isMainThread) {
+        dispatch_async(dispatch_get_main_queue(), ^{ [self updateGate]; });
+        return;
+    }
+    if (!self.isViewLoaded || self.transitioned) return;
+    OMHBootCoordinator *boot = OMHBootCoordinator.shared;
+    OMHHarness *server = OMHHarness.dashboard;
+    self.diagnostics.text = self.showingFullLog ? server.log.diagnosticReport : [server.log tail:14];
+    BOOL ready = boot.phase == OMHBootPhaseReady && server.state == OMHHarnessStateReady;
+    if (ready) {
+        self.progressView.progress = 1.0f;
+        self.retryButton.hidden = YES;
+        // First run allows the user to acknowledge setup. Every later
+        // launch transitions automatically after actual HTTP readiness.
+        if ([NSUserDefaults.standardUserDefaults boolForKey:@"omh.launch.setup-completed"]) {
+            [self finishGate];
+            return;
+        }
+        self.stateLabel.text = @"Local runtime is ready. Continue to dashboard.";
+        self.continueButton.hidden = NO;
+        return;
+    }
+    self.continueButton.hidden = YES;
+    BOOL failed = boot.phase == OMHBootPhaseFailed ||
+        server.state == OMHHarnessStateFailed || server.state == OMHHarnessStateStopped;
+    self.retryButton.hidden = !failed || boot.phase != OMHBootPhaseReady;
+    self.stateLabel.text = boot.phase == OMHBootPhaseFailed ?
+        (boot.statusMessage ?: @"Guest boot failed.") :
+        boot.phase != OMHBootPhaseReady ?
+        (boot.statusMessage ?: @"Preparing Linux guest…") :
+        failed ? (server.lastError ?: @"Runtime failed; retry startup.") :
+        @"Starting local dashboard server…";
+    // The rootfs import has measurable progress; do not pretend that
+    // process readiness has a known percent or countdown.
+    self.progressView.progress = boot.phase == OMHBootPhaseImportingImage &&
+        boot.progress >= 0 && boot.progress <= 1 ?
+        (float)(boot.progress * .8) : boot.phase == OMHBootPhaseReady ? .9f : .82f;
+}
+@end
+
 @implementation OMHSceneDelegate
 
 - (void)scene:(UIScene *)scene willConnectToSession:(UISceneSession *)session options:(UISceneConnectionOptions *)connectionOptions {
@@ -259,11 +434,21 @@
         // One native UIKit shell on both iPhone (iOS) and iPad (iPadOS).
         // The dashboard adapts its own viewport; the editor is available
         // through the same labeled navigation action on either device.
-        UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:[OMHDashboardViewController new]];
-        nav.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-        nav.navigationBar.tintColor = [UIColor colorWithRed:0.17 green:0.87 blue:0.94 alpha:1];
-        nav.navigationBar.prefersLargeTitles = NO;
-        self.window.rootViewController = nav;
+        OMHLaunchGateController *gate = [OMHLaunchGateController new];
+        // Create the dashboard only after setup and HTTP readiness. This
+        // prevents a sidebar and toolbar appearing behind the boot screen.
+        __weak typeof(self) weakSelf = self;
+        gate.onReady = ^{
+            typeof(self) self = weakSelf;
+            if (!self) return;
+            UINavigationController *nav = [[UINavigationController alloc]
+                initWithRootViewController:[OMHDashboardViewController new]];
+            nav.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
+            nav.navigationBar.tintColor = [UIColor colorWithRed:0.17 green:0.87 blue:0.94 alpha:1];
+            nav.navigationBar.prefersLargeTitles = NO;
+            self.window.rootViewController = nav;
+        };
+        self.window.rootViewController = gate;
     }
     [self.window makeKeyAndVisible];
 }
