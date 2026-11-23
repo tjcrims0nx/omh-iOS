@@ -17,6 +17,7 @@
 #import "TerminalViewController.h"
 #import "AppDelegate.h"
 #import "OMHProviderCredentials.h"
+#import "OMHProviderVerifier.h"
 #import <WebKit/WebKit.h>
 
 static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
@@ -402,6 +403,15 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
             [weakSelf presentViewController:error animated:YES completion:nil];
         } else [OMHHarness.shared restart];
     }]];
+    if (![provider isEqualToString:@"custom"]) {
+        [alert addAction:[UIAlertAction actionWithTitle:@"Verify Saved Key" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+            [OMHProviderVerifier verifyProvider:provider completion:^(NSString *status) {
+                UIAlertController *result=[UIAlertController alertControllerWithTitle:label message:status preferredStyle:UIAlertControllerStyleAlert];
+                [result addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+                [weakSelf presentViewController:result animated:YES completion:nil];
+            }];
+        }]];
+    }
     [alert addAction:[UIAlertAction actionWithTitle:@"Remove Key" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
         [OMHProviderCredentials removeProvider:provider];
         [OMHHarness.shared restart];
