@@ -23,3 +23,14 @@ test('dashboard exposes optional universal provider configuration', () => {
   assert.match(dashboard, /OMHProviderCredentials saveToken/);
   assert.match(dashboard, /secureTextEntry = YES/);
 });
+
+test('native brand chooses a compact iPhone title before the navigation bar first measures it', () => {
+  const firstLayout = dashboard.indexOf('self.navigationItem.titleView = identity;');
+  const compactText = dashboard.indexOf('self.traitCollection.horizontalSizeClass == UIUserInterfaceSizeClassCompact ? @"OMH" : @"OpenMind Harness"');
+  assert.ok(compactText >= 0 && compactText < firstLayout,
+    'initial title must be compact before assigning the titleView');
+  assert.match(dashboard, /brand\.accessibilityIdentifier = @"omh\.native\.brand\.logo"/);
+  assert.match(dashboard, /available < 620 \? @"OMH" : @"OpenMind Harness"/);
+  assert.match(dashboard, /if \(!\[self\.nativeTitle\.text isEqualToString:title\]\)/);
+  assert.match(dashboard, /self\.navigationItem\.titleView = self\.navigationItem\.titleView;/);
+});
