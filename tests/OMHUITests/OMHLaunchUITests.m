@@ -356,6 +356,24 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCTAssertTrue(self.app.webViews.firstMatch.exists);
 }
 
+/// The dashboard is the app's home. Provider Connections lives in the
+/// OpenCode editor's native menu, not in the dashboard navigation bar.
+- (void)openEditorProviderMenu {
+    XCUIElement *menu = self.app.buttons[@"omh.menu"];
+    if (!menu.exists) {
+        XCUIElement *editor = self.app.buttons[@"omh.open-editor"];
+        XCTAssertTrue([editor waitForExistenceWithTimeout:kBootTimeout],
+                      @"Dashboard must provide OpenCode navigation");
+        NSPredicate *enabled = [NSPredicate predicateWithFormat:@"enabled == YES"];
+        [self waitForExpectations:@[[self expectationForPredicate:enabled evaluatedWithObject:editor handler:nil]]
+                         timeout:kBootTimeout];
+        [editor tap];
+    }
+    XCTAssertTrue([menu waitForExistenceWithTimeout:30],
+                  @"Provider menu belongs to the native OpenCode editor");
+    [menu tap];
+}
+
 /// A saved provider credential must survive a harness restart: the key
 /// lives in the iOS Keychain, is injected into the guest environment at
 /// launch, and the dashboard must report the provider as configured
@@ -375,9 +393,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
         matchingPredicate:[NSPredicate predicateWithFormat:@"label == 'configured'"]].allElementsBoundByIndex;
     XCTAssertEqual(preConfigured.count, 0, @"No provider should be configured before the test saves a key; a previous run may have left a key in the Keychain");
 
-    XCUIElement *menu = self.app.buttons[@"omh.menu"];
-    XCTAssertTrue([menu waitForExistenceWithTimeout:15], @"Native menu must exist");
-    [menu tap];
+    [self openEditorProviderMenu];
     XCUIElement *connectors = self.app.buttons[@"Provider Connections"];
     XCTAssertTrue([connectors waitForExistenceWithTimeout:10], @"Provider Connections menu item must exist");
     [connectors tap];
@@ -393,13 +409,17 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     [save tap];
     self.needsCleanup = YES;
 
-    // Saving restarts the harness. The old page still shows Connected until
-    // the web view reloads, so wait for it to disappear first, then wait
-    // for the new page to report Connected. A bare waitForExistence here
-    // would return immediately on the stale page and prove nothing.
-    NSPredicate *gone = [NSPredicate predicateWithFormat:@"exists == NO"];
-    [self waitForExpectations:@[[self expectationForPredicate:gone evaluatedWithObject:connected handler:nil]] timeout:kBootTimeout];
-    XCTAssertTrue([connected waitForExistenceWithTimeout:kBootTimeout], @"Dashboard must reconnect after restart");
+    // Saving updates the Keychain and restarts both guest services.
+    // Fully relaunching the app is a stronger persistence check: the
+    // dashboard/editor processes are recreated and must read the key again.
+    // This also avoids inspecting a hidden, stale dashboard while the
+    // provider action is performed in the pushed OpenCode editor.
+    [self.app terminate];
+    [self.app launch];
+    XCTAssertTrue([home waitForExistenceWithTimeout:kBootTimeout],
+                  @"Dashboard must return after a cold app relaunch");
+    XCTAssertTrue([connected waitForExistenceWithTimeout:kBootTimeout],
+                  @"Dashboard must reconnect after guest services restart");
 
     // Only DeepSeek has a saved key, so exactly one provider must read configured.
     XCUIElement *configured = [[home descendantsMatchingType:XCUIElementTypeStaticText]
@@ -420,9 +440,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 /// persistence test and by tearDown (best-effort) if the test fails.
 - (void)removeTestCredential {
     XCUIElement *home = self.app.webViews.firstMatch;
-    XCUIElement *menu = self.app.buttons[@"omh.menu"];
-    XCTAssertTrue([menu waitForExistenceWithTimeout:15], @"Native menu must exist for cleanup");
-    [menu tap];
+    [self openEditorProviderMenu];
     XCUIElement *connectors = self.app.buttons[@"Provider Connections"];
     XCTAssertTrue([connectors waitForExistenceWithTimeout:10], @"Provider Connections must exist for cleanup");
     [connectors tap];
@@ -432,11 +450,15 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCUIElement *remove = self.app.buttons[@"Remove Key"];
     XCTAssertTrue([remove waitForExistenceWithTimeout:10], @"Remove Key must exist");
     [remove tap];
-    // Removal restarts the harness; wait for the dashboard to come back
-    // and confirm no provider remains configured.
+    // Verify removal against a new guest session, not a cached/hidden page.
+    [self.app terminate];
+    [self.app launch];
+    XCTAssertTrue([home waitForExistenceWithTimeout:kBootTimeout],
+                  @"Dashboard must return after cleanup relaunch");
     XCUIElement *connected = [[home descendantsMatchingType:XCUIElementTypeAny]
         matchingPredicate:[NSPredicate predicateWithFormat:@"label == 'Connected'"]].firstMatch;
-    XCTAssertTrue([connected waitForExistenceWithTimeout:kBootTimeout], @"Dashboard must reconnect after cleanup restart");
+    XCTAssertTrue([connected waitForExistenceWithTimeout:kBootTimeout],
+                  @"Dashboard must reconnect after cleanup restart");
     NSArray<XCUIElement *> *remaining = [[home descendantsMatchingType:XCUIElementTypeStaticText]
         matchingPredicate:[NSPredicate predicateWithFormat:@"label == 'configured'"]].allElementsBoundByIndex;
     XCTAssertEqual(remaining.count, 0, @"No provider should remain configured after cleanup");
