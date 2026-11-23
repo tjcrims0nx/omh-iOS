@@ -398,7 +398,7 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     if ([provider isEqualToString:@"openai"] || [provider isEqualToString:@"anthropic"]) {
         [alert addAction:[UIAlertAction actionWithTitle:@"Official Account Login" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
             NSString *command=[provider isEqualToString:@"openai"]
-                ? @"opencode auth login --provider openai --method \\"ChatGPT Pro/Plus (headless)\\""
+                ? @"opencode auth login --provider openai --method \"ChatGPT Pro/Plus (headless)\""
                 : @"opencode auth login";
             NSString *message=[NSString stringWithFormat:@"OpenCode handles the official provider authorization. In the terminal, run:\n\n%@\n\nFollow the provider's instructions in your browser. OMH never requests your account password.",command];
             UIAlertController *instructions=[UIAlertController alertControllerWithTitle:@"OpenCode Account Authorization" message:message preferredStyle:UIAlertControllerStyleAlert];
