@@ -253,10 +253,10 @@
             return;
         }
         // Only processes started after this point receive the updated
-        // environment. Restart active services before advancing the gate.
+        // environment. Restart active services to apply the new credentials.
         if (OMHHarness.dashboard.state == OMHHarnessStateReady) [OMHHarness.dashboard restart];
         if (OMHHarness.shared.state == OMHHarnessStateReady) [OMHHarness.shared restart];
-        [weakSelf updateGate];
+        [weakSelf updateDashboard];
     }]];
     [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
     [self presentViewController:alert animated:YES completion:nil];
