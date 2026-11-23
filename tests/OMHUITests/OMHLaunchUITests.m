@@ -334,4 +334,52 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCTAssertTrue(self.app.webViews.firstMatch.exists);
 }
 
+/// A saved provider credential must survive a harness restart: the key
+/// lives in the iOS Keychain, is injected into the guest environment at
+/// launch, and the dashboard must report the provider as configured
+/// (not disconnected) after the restart. Uses a throwaway test key for
+/// DeepSeek; no real credential is involved and the key is removed after.
+- (void)testProviderCredentialSurvivesHarnessRestart {
+    XCUIElement *home = self.app.webViews.firstMatch;
+    XCTAssertTrue([home waitForExistenceWithTimeout:kBootTimeout], @"Dashboard must load before credential test");
+    XCUIElement *connected = [[home descendantsMatchingType:XCUIElementTypeAny]
+        matchingPredicate:[NSPredicate predicateWithFormat:@"label == 'Connected'"]].firstMatch;
+    XCTAssertTrue([connected waitForExistenceWithTimeout:60], @"Dashboard must report Connected before credential test");
+
+    XCUIElement *menu = self.app.buttons[@"omh.menu"];
+    XCTAssertTrue([menu waitForExistenceWithTimeout:15], @"Native menu must exist");
+    [menu tap];
+    XCUIElement *connectors = self.app.buttons[@"Provider Connections"];
+    XCTAssertTrue([connectors waitForExistenceWithTimeout:10], @"Provider Connections menu item must exist");
+    [connectors tap];
+    XCUIElement *deepseek = self.app.buttons[@"DeepSeek"];
+    XCTAssertTrue([deepseek waitForExistenceWithTimeout:10], @"DeepSeek must be listed");
+    [deepseek tap];
+    XCUIElement *keyField = self.app.secureTextFields[@"Provider API key"];
+    XCTAssertTrue([keyField waitForExistenceWithTimeout:10], @"API key field must exist");
+    [keyField tap];
+    [keyField typeText:@"omh-test-persistence-key"];
+    XCUIElement *save = self.app.buttons[@"Save Key"];
+    XCTAssertTrue([save waitForExistenceWithTimeout:10], @"Save Key must exist");
+    [save tap];
+    // Saving restarts the harness; wait for the dashboard to come back.
+    XCTAssertTrue([connected waitForExistenceWithTimeout:kBootTimeout], @"Dashboard must reconnect after restart");
+    // Only DeepSeek has a saved key, so it alone must read configured.
+    XCUIElement *configured = [[home descendantsMatchingType:XCUIElementTypeStaticText]
+        matchingPredicate:[NSPredicate predicateWithFormat:@"label == 'configured'"]].firstMatch;
+    XCTAssertTrue([configured waitForExistenceWithTimeout:60], @"Saved provider credential must survive a harness restart");
+    [self attachScreenshot:@"07-credential-survives-restart"];
+
+    // Clean up: remove the throwaway key so later runs start clean.
+    [menu tap];
+    XCTAssertTrue([connectors waitForExistenceWithTimeout:10], @"Provider Connections must exist for cleanup");
+    [connectors tap];
+    XCTAssertTrue([deepseek waitForExistenceWithTimeout:10], @"DeepSeek must be listed for cleanup");
+    [deepseek tap];
+    XCUIElement *remove = self.app.buttons[@"Remove Key"];
+    XCTAssertTrue([remove waitForExistenceWithTimeout:10], @"Remove Key must exist");
+    [remove tap];
+    XCTAssertTrue([connected waitForExistenceWithTimeout:kBootTimeout], @"Dashboard must reconnect after cleanup restart");
+}
+
 @end
