@@ -1,13 +1,8 @@
+#import "OMHProviderCredentials.h"
 #import <Foundation/Foundation.h>
 #import <Security/Security.h>
 
 // Credentials remain in the iOS Keychain at rest. Never use UserDefaults for keys.
-@interface OMHProviderCredentials : NSObject
-+ (NSDictionary<NSString *, NSString *> *)environment;
-+ (BOOL)saveToken:(NSString *)token provider:(NSString *)provider;
-+ (void)removeProvider:(NSString *)provider;
-@end
-
 @implementation OMHProviderCredentials
 + (NSDictionary<NSString *, NSString *> *)names {
     return @{@"openai":@"OPENAI_API_KEY", @"anthropic":@"ANTHROPIC_API_KEY",
