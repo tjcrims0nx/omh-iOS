@@ -32,8 +32,8 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     // A first-run install must show setup before any dashboard controls.
     if (gate.exists) {
         XCTAssertFalse(dashboard.exists, @"Dashboard chrome must remain hidden during boot");
-        XCTAssertTrue(self.app.buttons[@"omh.launch.configure-provider"].exists,
-                      @"Provider setup must be available before dashboard launch");
+        XCTAssertFalse(self.app.buttons[@"omh.launch.configure-provider"].exists,
+                       @"The first-run startup must remain provider-neutral");
         [self attachScreenshot:@"00-native-boot-gate"];
     }
     NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:kBootTimeout];
@@ -46,6 +46,8 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCTAssertTrue([dashboard waitForExistenceWithTimeout:10],
                   @"Dashboard must replace the full-screen gate after verified runtime readiness");
     XCTAssertFalse(gate.exists, @"Startup gate must be removed, not overlaid over the dashboard");
+    XCTAssertTrue([self.app.buttons[@"omh.native.providers"] waitForExistenceWithTimeout:10],
+                  @"Provider setup belongs in the dashboard settings, not first-run startup");
 }
 
 - (void)tearDown {
