@@ -13,14 +13,30 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 
 @interface OMHLaunchUITests : XCTestCase
 @property (nonatomic) XCUIApplication *app;
+@property (nonatomic) BOOL needsCleanup;
 @end
 
 @implementation OMHLaunchUITests
 
 - (void)setUp {
     self.continueAfterFailure = NO;
+    self.needsCleanup = NO;
     self.app = [[XCUIApplication alloc] init];
     [self.app launch];
+}
+
+- (void)tearDown {
+    if (self.needsCleanup) {
+        // Best-effort cleanup so a failed run does not leave the throwaway
+        // key in the Keychain and poison the next run's pre-state.
+        @try {
+            [self removeTestCredential];
+        } @catch (NSException *exception) {
+            // Cleanup is best-effort in tearDown; the original failure stands.
+        }
+        self.needsCleanup = NO;
+    }
+    [super tearDown];
 }
 
 - (void)attachScreenshot:(NSString *)name {
@@ -352,6 +368,13 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
         matchingPredicate:[NSPredicate predicateWithFormat:@"label == 'Connected'"]].firstMatch;
     XCTAssertTrue([connected waitForExistenceWithTimeout:60], @"Dashboard must report Connected before credential test");
 
+    // Pre-state: no provider may be configured. If a previous failed run
+    // left a key in the simulator Keychain, fail here instead of passing
+    // vacuously later.
+    NSArray<XCUIElement *> *preConfigured = [[home descendantsMatchingType:XCUIElementTypeStaticText]
+        matchingPredicate:[NSPredicate predicateWithFormat:@"label == 'configured'"]].allElementsBoundByIndex;
+    XCTAssertEqual(preConfigured.count, 0, @"No provider should be configured before the test saves a key; a previous run may have left a key in the Keychain");
+
     XCUIElement *menu = self.app.buttons[@"omh.menu"];
     XCTAssertTrue([menu waitForExistenceWithTimeout:15], @"Native menu must exist");
     [menu tap];
@@ -368,24 +391,55 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCUIElement *save = self.app.buttons[@"Save Key"];
     XCTAssertTrue([save waitForExistenceWithTimeout:10], @"Save Key must exist");
     [save tap];
-    // Saving restarts the harness; wait for the dashboard to come back.
+    self.needsCleanup = YES;
+
+    // Saving restarts the harness. The old page still shows Connected until
+    // the web view reloads, so wait for it to disappear first, then wait
+    // for the new page to report Connected. A bare waitForExistence here
+    // would return immediately on the stale page and prove nothing.
+    NSPredicate *gone = [NSPredicate predicateWithFormat:@"exists == NO"];
+    [self waitForExpectations:@[[self expectationForPredicate:gone evaluatedWithObject:connected handler:nil]] timeout:kBootTimeout];
     XCTAssertTrue([connected waitForExistenceWithTimeout:kBootTimeout], @"Dashboard must reconnect after restart");
-    // Only DeepSeek has a saved key, so it alone must read configured.
+
+    // Only DeepSeek has a saved key, so exactly one provider must read configured.
     XCUIElement *configured = [[home descendantsMatchingType:XCUIElementTypeStaticText]
         matchingPredicate:[NSPredicate predicateWithFormat:@"label == 'configured'"]].firstMatch;
     XCTAssertTrue([configured waitForExistenceWithTimeout:60], @"Saved provider credential must survive a harness restart");
+    NSArray<XCUIElement *> *allConfigured = [[home descendantsMatchingType:XCUIElementTypeStaticText]
+        matchingPredicate:[NSPredicate predicateWithFormat:@"label == 'configured'"]].allElementsBoundByIndex;
+    XCTAssertEqual(allConfigured.count, 1, @"Exactly one provider (DeepSeek) must read configured after the restart");
     [self attachScreenshot:@"07-credential-survives-restart"];
 
     // Clean up: remove the throwaway key so later runs start clean.
+    [self removeTestCredential];
+    self.needsCleanup = NO;
+}
+
+/// Removes the throwaway DeepSeek key via the provider UI and verifies the
+/// dashboard reports no provider configured afterwards. Used by the
+/// persistence test and by tearDown (best-effort) if the test fails.
+- (void)removeTestCredential {
+    XCUIElement *home = self.app.webViews.firstMatch;
+    XCUIElement *menu = self.app.buttons[@"omh.menu"];
+    XCTAssertTrue([menu waitForExistenceWithTimeout:15], @"Native menu must exist for cleanup");
     [menu tap];
+    XCUIElement *connectors = self.app.buttons[@"Provider Connections"];
     XCTAssertTrue([connectors waitForExistenceWithTimeout:10], @"Provider Connections must exist for cleanup");
     [connectors tap];
+    XCUIElement *deepseek = self.app.buttons[@"DeepSeek"];
     XCTAssertTrue([deepseek waitForExistenceWithTimeout:10], @"DeepSeek must be listed for cleanup");
     [deepseek tap];
     XCUIElement *remove = self.app.buttons[@"Remove Key"];
     XCTAssertTrue([remove waitForExistenceWithTimeout:10], @"Remove Key must exist");
     [remove tap];
+    // Removal restarts the harness; wait for the dashboard to come back
+    // and confirm no provider remains configured.
+    XCUIElement *connected = [[home descendantsMatchingType:XCUIElementTypeAny]
+        matchingPredicate:[NSPredicate predicateWithFormat:@"label == 'Connected'"]].firstMatch;
     XCTAssertTrue([connected waitForExistenceWithTimeout:kBootTimeout], @"Dashboard must reconnect after cleanup restart");
+    NSArray<XCUIElement *> *remaining = [[home descendantsMatchingType:XCUIElementTypeStaticText]
+        matchingPredicate:[NSPredicate predicateWithFormat:@"label == 'configured'"]].allElementsBoundByIndex;
+    XCTAssertEqual(remaining.count, 0, @"No provider should remain configured after cleanup");
 }
 
 @end
