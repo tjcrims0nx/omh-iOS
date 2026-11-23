@@ -130,6 +130,12 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCTAssertTrue(home.buttons[@"Clear"].exists);
     [home.buttons[@"Clear"] tap];
     XCTAssertFalse(home.buttons[@"Clear"].exists);
+    // Tapping Run search focuses the search input and opens the software
+    // keyboard, which scrolls the web view and pushes the topbar (with the
+    // Refresh button) out of the visible viewport. Dismiss the keyboard so
+    // the topbar is back in view before rotating and checking it.
+    XCUIElement *hideKeyboard = self.app.keyboards.buttons[@"Hide keyboard"];
+    if (hideKeyboard.exists) [hideKeyboard tap];
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationPortrait;
     XCTAssertTrue([nativeRefresh waitForExistenceWithTimeout:8], @"Native toolbar should survive rotation");
     XCTAssertTrue(nativeEditor.hittable, @"OpenCode native control should survive rotation");
