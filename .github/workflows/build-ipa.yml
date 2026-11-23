@@ -34,7 +34,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: tjcrims0nx/openmind-harness
-          ref: 3dfb16d4494fa0ae767a5e8f08b67ff8795461a5
+          ref: e754cec06286531283bbdae62e52b7059857340b
           path: harness
       - name: Static OMH iPadOS port tests
         run: |
@@ -60,7 +60,7 @@ jobs:
           repository: tjcrims0nx/openmind-harness
           # Pin the verified OMH Linux release so both Xcode jobs package
           # identical models, assets, MCP modules, and sandbox policy.
-          ref: 3dfb16d4494fa0ae767a5e8f08b67ff8795461a5
+          ref: e754cec06286531283bbdae62e52b7059857340b
           path: harness
 
       - name: Select Xcode 27
@@ -180,7 +180,7 @@ jobs:
           repository: tjcrims0nx/openmind-harness
           # Pin the verified OMH Linux release so both Xcode jobs package
           # identical models, assets, MCP modules, and sandbox policy.
-          ref: 3dfb16d4494fa0ae767a5e8f08b67ff8795461a5
+          ref: e754cec06286531283bbdae62e52b7059857340b
           path: harness
 
       - name: Select Xcode 27
@@ -296,7 +296,7 @@ jobs:
           repository: tjcrims0nx/openmind-harness
           # Pin the verified OMH Linux release so both Xcode jobs package
           # identical models, assets, MCP modules, and sandbox policy.
-          ref: 3dfb16d4494fa0ae767a5e8f08b67ff8795461a5
+          ref: e754cec06286531283bbdae62e52b7059857340b
           path: harness
 
       - name: Select Xcode 27
