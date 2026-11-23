@@ -342,6 +342,7 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     __weak typeof(self) weakSelf = self;
     UIAction *reload = [UIAction actionWithTitle:@"Reload" image:[UIImage systemImageNamed:@"arrow.clockwise"] identifier:@"omh.reload" handler:^(UIAction *a) { [weakSelf reloadWebView]; }];
     UIAction *terminal = [UIAction actionWithTitle:@"Terminal" image:[UIImage systemImageNamed:@"terminal"] identifier:@"omh.terminal.menu" handler:^(UIAction *a) { [weakSelf presentTerminal]; }];
+    UIAction *connectors = [UIAction actionWithTitle:@"Provider Connections" image:[UIImage systemImageNamed:@"key.horizontal"] identifier:@"omh.connectors" handler:^(UIAction *a) { [weakSelf showProviderConnections]; }];
     UIAction *capabilities = [UIAction actionWithTitle:@"Capabilities" image:[UIImage systemImageNamed:@"switch.2"] identifier:@"omh.capabilities" handler:^(UIAction *a) { [weakSelf presentCapabilities]; }];
     UIAction *activity = [UIAction actionWithTitle:@"Activity" image:[UIImage systemImageNamed:@"list.bullet.rectangle"] identifier:@"omh.activity" handler:^(UIAction *a) { [weakSelf presentActivity]; }];
     UIAction *log = [UIAction actionWithTitle:@"Server Log" image:[UIImage systemImageNamed:@"doc.text.magnifyingglass"] identifier:@"omh.log" handler:^(UIAction *a) { [weakSelf presentLog]; }];
@@ -354,8 +355,24 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     }];
     UIAction *about = [UIAction actionWithTitle:@"About OpenMind Harness" image:[UIImage systemImageNamed:@"info.circle"] identifier:@"omh.about" handler:^(UIAction *a) { [weakSelf presentAbout]; }];
     NSMutableArray<UIMenuElement *> *children = [NSMutableArray arrayWithObjects:reload, terminal, nil];
-    [children addObjectsFromArray:@[capabilities, activity, log, [UIMenu menuWithTitle:@"" image:nil identifier:nil options:UIMenuOptionsDisplayInline children:@[safari, restart, repair]], about]];
+    [children addObjectsFromArray:@[connectors, capabilities, activity, log, [UIMenu menuWithTitle:@"" image:nil identifier:nil options:UIMenuOptionsDisplayInline children:@[safari, restart, repair]], about]];
     return [UIMenu menuWithChildren:children];
+}
+
+- (void)showProviderConnections {
+    // The provider UI is served by the same loopback harness dashboard.
+    // No credential is sent through JavaScript or stored in WebKit.
+    NSURL *base = OMHHarness.shared.baseURL;
+    if (!base) {
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Harness not ready"
+            message:@"Start the harness before opening provider connections."
+            preferredStyle:UIAlertControllerStyleAlert];
+        [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+        [self presentViewController:alert animated:YES completion:nil];
+        return;
+    }
+    [self.webView loadRequest:[NSURLRequest requestWithURL:base]];
+    // The local dashboard contains the provider panel at the top of its main content.
 }
 
 - (void)buildOverlay {
