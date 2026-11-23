@@ -69,7 +69,15 @@
         [brand.heightAnchor constraintEqualToConstant:30]
     ]];
     UILabel *brandTitle = [UILabel new];
-    brandTitle.text = @"OpenMind Harness";
+    // Pick the title width up front: the navigation bar measures the
+    // titleView once when the controller first appears. On a narrow iPhone
+    // the full "OpenMind Harness" text is wider than the space left by the
+    // toolbar buttons, and the bar collapses the titleView instead of
+    // shrinking it — so the brand never appears. Start narrow on compact
+    // widths; viewWillLayoutSubviews widens it again on rotation/Stage
+    // Manager. (PR #8 iPhone failure: omh.native.brand.logo never appeared
+    // in portrait; the hierarchy showed the titleView entirely absent.)
+    brandTitle.text = self.traitCollection.horizontalSizeClass == UIUserInterfaceSizeClassCompact ? @"OMH" : @"OpenMind Harness";
     self.nativeTitle = brandTitle;
     brandTitle.font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
     brandTitle.adjustsFontForContentSizeCategory = YES;
@@ -169,7 +177,15 @@
     // In compact iPhone and Stage Manager widths, protect the native
     // toolbar actions rather than truncating or overlapping them.
     CGFloat available = CGRectGetWidth(self.view.bounds);
-    self.nativeTitle.text = available < 620 ? @"OMH" : @"OpenMind Harness";
+    NSString *title = available < 620 ? @"OMH" : @"OpenMind Harness";
+    if (![self.nativeTitle.text isEqualToString:title]) {
+        self.nativeTitle.text = title;
+        // Changing the label text changes the titleView's intrinsic size,
+        // but the navigation bar does not always re-measure it on its own.
+        // Re-assigning the titleView forces the bar to lay it out again,
+        // so the brand appears (or hides) instead of staying collapsed.
+        self.navigationItem.titleView = self.navigationItem.titleView;
+    }
 }
 
 - (void)openEditor {
