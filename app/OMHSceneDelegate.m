@@ -7,6 +7,7 @@
 #import "OMHRootViewController.h"
 #import "OMHHarness.h"
 #import "OMHBootCoordinator.h"
+#import "OMHProviderCredentials.h"
 #import <WebKit/WebKit.h>
 #import "AppDelegate.h"
 #import "AboutViewController.h"
@@ -254,6 +255,7 @@
 @property (nonatomic) UITextView *diagnostics;
 @property (nonatomic) UIButton *retryButton;
 @property (nonatomic) UIButton *continueButton;
+@property (nonatomic) UIButton *configureButton;
 @property (nonatomic) BOOL showingFullLog;
 @property (nonatomic) NSTimer *refreshTimer;
 @property (nonatomic) BOOL transitioned;
@@ -303,17 +305,21 @@
     self.retryButton.accessibilityIdentifier = @"omh.launch.retry";
     [self.retryButton addTarget:self action:@selector(retryLaunch) forControlEvents:UIControlEventTouchUpInside];
     self.retryButton.hidden = YES;
+    self.configureButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    [self.configureButton setTitle:@"Configure provider" forState:UIControlStateNormal];
+    self.configureButton.accessibilityIdentifier = @"omh.launch.configure-provider";
+    [self.configureButton addTarget:self action:@selector(configureProvider) forControlEvents:UIControlEventTouchUpInside];
     self.continueButton = [UIButton buttonWithType:UIButtonTypeSystem];
     [self.continueButton setTitle:@"Open dashboard" forState:UIControlStateNormal];
     self.continueButton.accessibilityIdentifier = @"omh.launch.continue";
     [self.continueButton addTarget:self action:@selector(completeSetup) forControlEvents:UIControlEventTouchUpInside];
     self.continueButton.hidden = YES;
-    UIStackView *actions = [[UIStackView alloc] initWithArrangedSubviews:@[logs,self.retryButton,self.continueButton]];
+    UIStackView *actions = [[UIStackView alloc] initWithArrangedSubviews:@[logs,self.configureButton,self.retryButton,self.continueButton]];
     actions.axis = UILayoutConstraintAxisHorizontal;
     actions.alignment = UIStackViewAlignmentCenter;
     actions.distribution = UIStackViewDistributionEqualSpacing;
     actions.spacing = 15;
-    for (UIButton *button in @[logs,self.retryButton,self.continueButton])
+    for (UIButton *button in @[logs,self.configureButton,self.retryButton,self.continueButton])
         [button.heightAnchor constraintGreaterThanOrEqualToConstant:44].active = YES;
     UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[
         brand,sub,self.stateLabel,self.progressView,actions,self.diagnostics]];
@@ -359,6 +365,58 @@
     self.showingFullLog = !self.showingFullLog;
     [sender setTitle:self.showingFullLog ? @"Recent log" : @"Full log" forState:UIControlStateNormal];
     [self updateGate];
+}
+- (void)configureProvider {
+    UIAlertController *sheet = [UIAlertController alertControllerWithTitle:@"Provider setup"
+        message:@"Optional: save an API key securely on this device. Other sign-in methods remain available after startup."
+        preferredStyle:UIAlertControllerStyleActionSheet];
+    NSDictionary<NSString *,NSString *> *providers = @{
+        @"OpenAI":@"openai", @"Anthropic":@"anthropic",
+        @"Gemini":@"google", @"DeepSeek":@"deepseek",
+        @"GLM / Z.AI":@"zai", @"Kimi / Moonshot":@"moonshotai",
+        @"Qwen":@"qwen"
+    };
+    __weak typeof(self) weakSelf = self;
+    for (NSString *name in @[@"OpenAI",@"Anthropic",@"Gemini",@"DeepSeek",@"GLM / Z.AI",@"Kimi / Moonshot",@"Qwen"]) {
+        NSString *provider = providers[name];
+        [sheet addAction:[UIAlertAction actionWithTitle:name style:UIAlertActionStyleDefault
+            handler:^(UIAlertAction *action) { [weakSelf promptForKey:provider name:name]; }]];
+    }
+    [sheet addAction:[UIAlertAction actionWithTitle:@"Not now" style:UIAlertActionStyleCancel handler:nil]];
+    sheet.popoverPresentationController.sourceView = self.configureButton;
+    sheet.popoverPresentationController.sourceRect = self.configureButton.bounds;
+    [self presentViewController:sheet animated:YES completion:nil];
+}
+- (void)promptForKey:(NSString *)provider name:(NSString *)name {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:name
+        message:@"API keys are stored in the iOS Keychain, never in the dashboard or startup logs."
+        preferredStyle:UIAlertControllerStyleAlert];
+    [alert addTextFieldWithConfigurationHandler:^(UITextField *field) {
+        field.placeholder = @"Provider API key";
+        field.secureTextEntry = YES;
+        field.autocorrectionType = UITextAutocorrectionTypeNo;
+        field.autocapitalizationType = UITextAutocapitalizationTypeNone;
+    }];
+    __weak typeof(self) weakSelf = self;
+    [alert addAction:[UIAlertAction actionWithTitle:@"Save key" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        NSString *value = [alert.textFields.firstObject.text
+            stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+        if (![OMHProviderCredentials saveToken:value provider:provider]) {
+            UIAlertController *error = [UIAlertController alertControllerWithTitle:@"Key not saved"
+                message:@"Enter a valid nonempty key and verify Keychain access."
+                preferredStyle:UIAlertControllerStyleAlert];
+            [error addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
+            [weakSelf presentViewController:error animated:YES completion:nil];
+            return;
+        }
+        // Only processes started after this point receive the updated
+        // environment. Restart active services before advancing the gate.
+        if (OMHHarness.dashboard.state == OMHHarnessStateReady) [OMHHarness.dashboard restart];
+        if (OMHHarness.shared.state == OMHHarnessStateReady) [OMHHarness.shared restart];
+        [weakSelf updateGate];
+    }]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    [self presentViewController:alert animated:YES completion:nil];
 }
 - (void)retryLaunch {
     OMHHarness *dashboard = OMHHarness.dashboard;
