@@ -253,6 +253,7 @@ jobs:
             -destination "platform=iOS Simulator,name=$SIM" \
             -parallel-testing-enabled NO -resultBundlePath "$RUNNER_TEMP/ipad.xcresult" \
             -only-testing:OMHUITests/OMHLaunchUITests/testHarnessBootsAndShowsWebUI \
+            -only-testing:OMHUITests/OMHLaunchUITests/testProviderCredentialSurvivesHarnessRestart \
             test
 
       - name: Export iPad screenshots and test diagnostics
