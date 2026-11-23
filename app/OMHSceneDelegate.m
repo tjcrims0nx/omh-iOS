@@ -184,7 +184,10 @@
         // but the navigation bar does not always re-measure it on its own.
         // Re-assigning the titleView forces the bar to lay it out again,
         // so the brand appears (or hides) instead of staying collapsed.
-        self.navigationItem.titleView = self.navigationItem.titleView;
+        [self.nativeTitle invalidateIntrinsicContentSize];
+        UIView *titleView = self.navigationItem.titleView;
+        self.navigationItem.titleView = nil;
+        self.navigationItem.titleView = titleView;
     }
 }
 
