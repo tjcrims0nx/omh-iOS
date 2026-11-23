@@ -93,3 +93,9 @@ holds the guest and server logs.
 ## Split history
 
 Split out of [tjcrims0nx/openmind-harness](https://github.com/tjcrims0nx/openmind-harness) on 2026-11-21: the iOS app moved here, the harness stayed there. The harness repo's Linux (`linux-setup.sh`) and Termux (`termux-setup.sh`) setups are unchanged.
+
+## Provider connectors (not app sign-in)
+
+The iOS app bundles the canonical OpenMind Harness `opencode.json` from the harness repository. The connector provider list includes Google Gemini (`GEMINI_API_KEY`), DeepSeek (`DEEPSEEK_API_KEY`), GLM/Z.AI (`ZAI_API_KEY`), Kimi/Moonshot (`MOONSHOT_API_KEY`), and Qwen/DashScope (`DASHSCOPE_API_KEY`). The universal OpenAI-compatible endpoint remains available using `OPENMIND_CUSTOM_BASE_URL` and `OPENMIND_CUSTOM_API_KEY`. These are model-provider credentials, **not** credentials for entering the iOS app.
+
+The provider settings use supported API-key authentication; no unverified account OAuth login is presented. OpenCode's own supported authentication commands remain available in the guest terminal. Provider credentials should be configured through the runtime's protected auth/configuration mechanisms, not embedded in source, committed to Git, or placed in URL query strings. A fresh iOS build must fetch the updated harness revision to include these connectors.
