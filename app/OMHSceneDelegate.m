@@ -110,8 +110,10 @@
     self.loadingIndicator = [[UIActivityIndicatorView alloc]
         initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
     self.loadingIndicator.color = [UIColor colorWithRed:0.20 green:0.89 blue:1 alpha:1];
-    self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc]
-        initWithCustomView:self.loadingIndicator];
+    // The dashboard is the navigation root. Never reserve a blank circular
+    // leading control when there is no view to go back to. Startup progress
+    // is already presented by the dedicated full-screen launch gate.
+    self.navigationItem.leftBarButtonItem = nil;
 
     WKWebViewConfiguration *config = [WKWebViewConfiguration new];
     // WebKit stays embedded, but adapts like an iPad app in Stage Manager:
