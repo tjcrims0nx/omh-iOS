@@ -133,7 +133,12 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationPortrait;
     XCTAssertTrue([nativeRefresh waitForExistenceWithTimeout:8], @"Native toolbar should survive rotation");
     XCTAssertTrue(nativeEditor.hittable, @"OpenCode native control should survive rotation");
-    XCTAssertTrue(refresh.hittable);
+    // The web refresh button is disabled while a state load is in flight
+    // (dashboard.js sets disabled=true during /api/state, up to 10s), and
+    // a disabled button is not hittable. Wait for it instead of asserting
+    // immediately after rotation, when a load may still be running.
+    NSPredicate *webRefreshHittable = [NSPredicate predicateWithFormat:@"hittable == YES"];
+    [self waitForExpectations:@[[self expectationForPredicate:webRefreshHittable evaluatedWithObject:refresh handler:nil]] timeout:15];
     [self attachScreenshot:@"02-ipad-dashboard-portrait"];
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationLandscapeLeft;
     [self waitForHarnessReady];
