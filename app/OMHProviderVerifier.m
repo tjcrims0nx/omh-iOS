@@ -1,6 +1,9 @@
 #import "OMHProviderVerifier.h"
 #import "OMHProviderCredentials.h"
 
+@interface OMHNoRedirectDelegate : NSObject <NSURLSessionTaskDelegate>
+@end
+
 // Fixed, official HTTPS origins. Never send a bearer token to an arbitrary URL.
 @implementation OMHProviderVerifier
 + (NSDictionary<NSString *,NSString *> *)endpoints {
@@ -48,8 +51,6 @@
 }
 @end
 
-@interface OMHNoRedirectDelegate : NSObject <NSURLSessionTaskDelegate>
-@end
 @implementation OMHNoRedirectDelegate
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task willPerformHTTPRedirection:(NSHTTPURLResponse *)response newRequest:(NSURLRequest *)request completionHandler:(void (^)(NSURLRequest *))completionHandler {
     completionHandler(nil);
