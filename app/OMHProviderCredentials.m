@@ -18,8 +18,12 @@
 + (BOOL)saveToken:(NSString *)token provider:(NSString *)provider {
     if (![self names][provider] || !token.length) return NO;
     NSMutableDictionary *query=[self query:provider];
-    SecItemDelete((__bridge CFDictionaryRef)query);
-    query[(__bridge id)kSecValueData]=[token dataUsingEncoding:NSUTF8StringEncoding];
+    NSData *data=[token dataUsingEncoding:NSUTF8StringEncoding];
+    NSDictionary *update=@{(__bridge id)kSecValueData:data};
+    OSStatus status=SecItemUpdate((__bridge CFDictionaryRef)query,(__bridge CFDictionaryRef)update);
+    if(status==errSecSuccess)return YES;
+    if(status!=errSecItemNotFound)return NO;
+    query[(__bridge id)kSecValueData]=data;
     query[(__bridge id)kSecAttrAccessible]=(__bridge id)kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly;
     return SecItemAdd((__bridge CFDictionaryRef)query,NULL)==errSecSuccess;
 }
