@@ -7,7 +7,7 @@ name: Build unsigned IPA
 on:
   workflow_dispatch:
   push:
-    branches: [main, rebrand/omh]
+    branches: [main, rebrand/omh, feat/provider-connectors-20261122]
     paths:
       - 'app/**'
       - 'tests/OMHUITests/**'
