@@ -142,7 +142,7 @@ omh.build_rules << rule
 mig_bf = omh.source_build_phase.add_file_reference(mig_ref, true)
 mig_bf.settings = { 'ATTRIBUTES' => ['Server'] }
 
-system_frameworks.each do |path|
+(system_frameworks + ['System/Library/Frameworks/Security.framework']).uniq.each do |path|
   ref = project.frameworks_group.new_file(path)
   ref.source_tree = 'SDKROOT'
   omh.frameworks_build_phase.add_file_reference(ref, true)

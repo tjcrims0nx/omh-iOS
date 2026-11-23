@@ -8,6 +8,7 @@
 #import "OMHReadinessProbe.h"
 #import "OMHGuestLauncher.h"
 #import "OMHStartupMetrics.h"
+#import "OMHProviderCredentials.h"
 
 NSNotificationName const OMHHarnessStateDidChangeNotification = @"OMHHarnessStateDidChangeNotification";
 static NSString *const kExpectedStartupKey = @"OMHExpectedStartupDuration";
@@ -180,6 +181,8 @@ NSString *OMHHarnessStateName(OMHHarnessState state) {
     self.state = OMHHarnessStateStarting;
 
     NSMutableDictionary *env = [self.extraEnvironment mutableCopy];
+    // Only pass credentials to the guest process at launch; never log the values.
+    [env addEntriesFromDictionary:[OMHProviderCredentials environment]];
     env[@"OMH_PORT"] = [NSString stringWithFormat:@"%u", port];
     [self.log append:[NSString stringWithFormat:@"[openmind-harness] launching %@ on port %u", self.serverExecutable, port]];
 

@@ -16,6 +16,8 @@
 #import "OMHStatusOverlayView.h"
 #import "TerminalViewController.h"
 #import "AppDelegate.h"
+#import "OMHProviderCredentials.h"
+#import "OMHProviderVerifier.h"
 #import <WebKit/WebKit.h>
 
 static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
@@ -342,6 +344,7 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     __weak typeof(self) weakSelf = self;
     UIAction *reload = [UIAction actionWithTitle:@"Reload" image:[UIImage systemImageNamed:@"arrow.clockwise"] identifier:@"omh.reload" handler:^(UIAction *a) { [weakSelf reloadWebView]; }];
     UIAction *terminal = [UIAction actionWithTitle:@"Terminal" image:[UIImage systemImageNamed:@"terminal"] identifier:@"omh.terminal.menu" handler:^(UIAction *a) { [weakSelf presentTerminal]; }];
+    UIAction *connectors = [UIAction actionWithTitle:@"Provider Connections" image:[UIImage systemImageNamed:@"key.horizontal"] identifier:@"omh.connectors" handler:^(UIAction *a) { [weakSelf showProviderConnections]; }];
     UIAction *capabilities = [UIAction actionWithTitle:@"Capabilities" image:[UIImage systemImageNamed:@"switch.2"] identifier:@"omh.capabilities" handler:^(UIAction *a) { [weakSelf presentCapabilities]; }];
     UIAction *activity = [UIAction actionWithTitle:@"Activity" image:[UIImage systemImageNamed:@"list.bullet.rectangle"] identifier:@"omh.activity" handler:^(UIAction *a) { [weakSelf presentActivity]; }];
     UIAction *log = [UIAction actionWithTitle:@"Server Log" image:[UIImage systemImageNamed:@"doc.text.magnifyingglass"] identifier:@"omh.log" handler:^(UIAction *a) { [weakSelf presentLog]; }];
@@ -354,8 +357,85 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     }];
     UIAction *about = [UIAction actionWithTitle:@"About OpenMind Harness" image:[UIImage systemImageNamed:@"info.circle"] identifier:@"omh.about" handler:^(UIAction *a) { [weakSelf presentAbout]; }];
     NSMutableArray<UIMenuElement *> *children = [NSMutableArray arrayWithObjects:reload, terminal, nil];
-    [children addObjectsFromArray:@[capabilities, activity, log, [UIMenu menuWithTitle:@"" image:nil identifier:nil options:UIMenuOptionsDisplayInline children:@[safari, restart, repair]], about]];
+    [children addObjectsFromArray:@[connectors, capabilities, activity, log, [UIMenu menuWithTitle:@"" image:nil identifier:nil options:UIMenuOptionsDisplayInline children:@[safari, restart, repair]], about]];
     return [UIMenu menuWithChildren:children];
+}
+
+- (void)showProviderConnections {
+    UIAlertController *sheet=[UIAlertController alertControllerWithTitle:@"Provider Connections"
+        message:@"Select a provider to securely save or remove an API key. Restart the harness to apply changes."
+        preferredStyle:UIAlertControllerStyleActionSheet];
+    NSDictionary<NSString *,NSString *> *providers=@{
+        @"OpenAI / ChatGPT":@"openai", @"Anthropic / Claude":@"anthropic",
+        @"Google Gemini":@"google", @"DeepSeek":@"deepseek",
+        @"GLM / Z.AI":@"zai", @"Kimi / Moonshot":@"moonshotai",
+        @"Qwen":@"qwen", @"Universal bearer key":@"custom"};
+    __weak typeof(self) weakSelf=self;
+    for (NSString *label in @[@"OpenAI / ChatGPT",@"Anthropic / Claude",@"Google Gemini",@"DeepSeek",@"GLM / Z.AI",@"Kimi / Moonshot",@"Qwen",@"Universal bearer key"]) {
+        NSString *provider=providers[label];
+        [sheet addAction:[UIAlertAction actionWithTitle:label style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+            [weakSelf editProvider:provider label:label];
+        }]];
+    }
+    [sheet addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    sheet.popoverPresentationController.sourceView=self.menuButton ?: self.view;
+    sheet.popoverPresentationController.sourceRect=self.menuButton ? self.menuButton.bounds : CGRectMake(CGRectGetMidX(self.view.bounds),0,1,1);
+    [self presentViewController:sheet animated:YES completion:nil];
+}
+
+- (void)editProvider:(NSString *)provider label:(NSString *)label {
+    UIAlertController *alert=[UIAlertController alertControllerWithTitle:label
+        message:@"API key stored in this device's Keychain. Restart the harness after saving or removing it."
+        preferredStyle:UIAlertControllerStyleAlert];
+    [alert addTextFieldWithConfigurationHandler:^(UITextField *field) {
+        field.placeholder=@"Provider API key";
+        field.secureTextEntry=YES;
+        field.autocorrectionType=UITextAutocorrectionTypeNo;
+        field.autocapitalizationType=UITextAutocapitalizationTypeNone;
+        field.textContentType=UITextContentTypePassword;
+    }];
+    __weak typeof(self) weakSelf=self;
+    if ([provider isEqualToString:@"openai"] || [provider isEqualToString:@"anthropic"]) {
+        [alert addAction:[UIAlertAction actionWithTitle:@"Official Account Login" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+            // Let the installed OpenCode version enumerate supported auth methods.
+            // Never hard-code an unverified provider method display label.
+            NSString *command=@"opencode auth login";
+            NSString *message=[NSString stringWithFormat:@"OpenCode handles provider authorization. Run:\n\n%@\n\nSelect %@ and an available authentication method. Follow the browser instructions. OMH never asks for your account password.",command,label];
+            UIAlertController *instructions=[UIAlertController alertControllerWithTitle:@"OpenCode Account Authorization" message:message preferredStyle:UIAlertControllerStyleAlert];
+            [instructions addAction:[UIAlertAction actionWithTitle:@"Copy Command" style:UIAlertActionStyleDefault handler:^(UIAlertAction *copyAction) {
+                UIPasteboard.generalPasteboard.string=command;
+                [weakSelf presentTerminal];
+            }]];
+            [instructions addAction:[UIAlertAction actionWithTitle:@"Open Terminal" style:UIAlertActionStyleDefault handler:^(UIAlertAction *openAction) {
+                [weakSelf presentTerminal];
+            }]];
+            [instructions addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+            [weakSelf presentViewController:instructions animated:YES completion:nil];
+        }]];
+    }
+    [alert addAction:[UIAlertAction actionWithTitle:@"Save Key" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        NSString *token=[alert.textFields.firstObject.text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+        if(![OMHProviderCredentials saveToken:token provider:provider]) {
+            UIAlertController *error=[UIAlertController alertControllerWithTitle:@"Key not saved" message:@"Enter a nonempty key and check Keychain access." preferredStyle:UIAlertControllerStyleAlert];
+            [error addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+            [weakSelf presentViewController:error animated:YES completion:nil];
+        } else [OMHHarness.shared restart];
+    }]];
+    if (![provider isEqualToString:@"custom"]) {
+        [alert addAction:[UIAlertAction actionWithTitle:@"Verify Saved Key" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+            [OMHProviderVerifier verifyProvider:provider completion:^(NSString *status) {
+                UIAlertController *result=[UIAlertController alertControllerWithTitle:label message:status preferredStyle:UIAlertControllerStyleAlert];
+                [result addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+                [weakSelf presentViewController:result animated:YES completion:nil];
+            }];
+        }]];
+    }
+    [alert addAction:[UIAlertAction actionWithTitle:@"Remove Key" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *action) {
+        [OMHProviderCredentials removeProvider:provider];
+        [OMHHarness.shared restart];
+    }]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    [self presentViewController:alert animated:YES completion:nil];
 }
 
 - (void)buildOverlay {

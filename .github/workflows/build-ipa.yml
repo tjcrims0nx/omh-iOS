@@ -7,7 +7,7 @@ name: Build unsigned IPA
 on:
   workflow_dispatch:
   push:
-    branches: [main, rebrand/omh]
+    branches: [main, rebrand/omh, feat/provider-connectors-20261122]
     paths:
       - 'app/**'
       - 'tests/OMHUITests/**'
@@ -34,7 +34,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: tjcrims0nx/openmind-harness
-          ref: 55f62a9ad23fa897c21fa40948716b5c5504e626
+          ref: e754cec06286531283bbdae62e52b7059857340b
           path: harness
       - name: Static OMH iPadOS port tests
         run: |
@@ -60,7 +60,7 @@ jobs:
           repository: tjcrims0nx/openmind-harness
           # Pin the verified OMH Linux release so both Xcode jobs package
           # identical models, assets, MCP modules, and sandbox policy.
-          ref: 55f62a9ad23fa897c21fa40948716b5c5504e626
+          ref: e754cec06286531283bbdae62e52b7059857340b
           path: harness
 
       - name: Select Xcode 27
@@ -180,7 +180,7 @@ jobs:
           repository: tjcrims0nx/openmind-harness
           # Pin the verified OMH Linux release so both Xcode jobs package
           # identical models, assets, MCP modules, and sandbox policy.
-          ref: 55f62a9ad23fa897c21fa40948716b5c5504e626
+          ref: e754cec06286531283bbdae62e52b7059857340b
           path: harness
 
       - name: Select Xcode 27
@@ -253,6 +253,7 @@ jobs:
             -destination "platform=iOS Simulator,name=$SIM" \
             -parallel-testing-enabled NO -resultBundlePath "$RUNNER_TEMP/ipad.xcresult" \
             -only-testing:OMHUITests/OMHLaunchUITests/testHarnessBootsAndShowsWebUI \
+            -only-testing:OMHUITests/OMHLaunchUITests/testProviderCredentialSurvivesHarnessRestart \
             test
 
       - name: Export iPad screenshots and test diagnostics
@@ -296,7 +297,7 @@ jobs:
           repository: tjcrims0nx/openmind-harness
           # Pin the verified OMH Linux release so both Xcode jobs package
           # identical models, assets, MCP modules, and sandbox policy.
-          ref: 55f62a9ad23fa897c21fa40948716b5c5504e626
+          ref: e754cec06286531283bbdae62e52b7059857340b
           path: harness
 
       - name: Select Xcode 27
