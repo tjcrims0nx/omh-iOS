@@ -101,7 +101,8 @@ test('full-screen startup gate controls dashboard readiness and optional provide
  assert.match(scene,/self\.window\.rootViewController = gate;/);
  assert.match(scene,/self\.window\.rootViewController = nav;/);
  assert.match(scene,/OMHBootPhaseReady && server\.state == OMHHarnessStateReady/);
- assert.match(scene,/omh\.launch\.configure-provider/);
+ assert.doesNotMatch(scene,/omh\.launch\.configure-provider/);
+ assert.match(scene,/omh\.native\.providers/);
  assert.match(scene,/\[OMHProviderCredentials saveToken:value provider:provider\]/);
  assert.match(scene,/\[OMHHarness\.dashboard restart\]/);
  assert.match(scene,/omh\.launch\.continue/);
