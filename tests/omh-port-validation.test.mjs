@@ -18,6 +18,7 @@ test('the Alpine iPad rootfs explicitly bundles the latest MCP tools and Bubblew
  const build=await read('scripts/build-rootfs.sh');
  assert.match(build,/apk add[^\n]*bubblewrap/);
  assert.match(build,/omh-\{dashboard,runtime,mcp,daemon,live\}\.mjs/);
+ assert.match(build,/cp -R "\$HARNESS_DIR\/lib" "\$runtime\/"/);
  // Vercel is fully out of the harness (PR #11) and out of this repo:
  // the Vercel connector and wrapper must not be referenced in the build.
  assert.doesNotMatch(build,/connect-vercel-mcp|omh-vercel-mcp/);

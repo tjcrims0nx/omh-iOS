@@ -30,6 +30,7 @@ required=(
   usr/local/share/omh-runtime/scripts/omh-runtime.mjs
   usr/local/share/omh-runtime/scripts/omh-mcp.mjs
   usr/local/share/omh-runtime/scripts/omh-live.mjs
+  usr/local/share/omh-runtime/lib/omh-chat.mjs
   usr/local/share/omh-runtime/modules/sandbox.mjs
   usr/local/share/omh-runtime/dashboard/index.html
   root/.config/opencode/opencode.json

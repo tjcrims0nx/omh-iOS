@@ -124,7 +124,11 @@ NODE
 runtime=payload/usr/local/share/omh-runtime
 mkdir -p "$runtime/scripts"
 cp -R "$HARNESS_DIR/modules" "$HARNESS_DIR/dashboard" "$runtime/"
+cp -R "$HARNESS_DIR/lib" "$runtime/"
 cp "$HARNESS_DIR"/scripts/omh-{dashboard,runtime,mcp,daemon,live}.mjs "$runtime/scripts/"
+# lib/ must ship too: omh-dashboard.mjs imports ../lib/omh-chat.mjs
+# (the chat API added after the old pin), and the guest fails to boot
+# without it (ERR_MODULE_NOT_FOUND in run 45511956857).
 # Vercel is fully out of the harness (removed in PR #11, project deleted),
 # so nothing Vercel is copied here.
 # OpenCode reads OPENCODE_CONFIG as the iPad config path. Bundle the full
