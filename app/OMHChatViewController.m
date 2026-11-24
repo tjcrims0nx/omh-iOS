@@ -29,7 +29,7 @@ static const NSUInteger OMHChatMaxStoredMessages = 50;
 @property (nonatomic, assign) BOOL providersLoading;
 
 @property (nonatomic, strong) UIButton *providerButton;
-@property (nonatomic, strong) UIButton *newChatButton;
+@property (nonatomic, strong) UIButton *startChatButton;
 @property (nonatomic, strong) UILabel *statusLabel;
 @property (nonatomic, strong) UITableView *tableView;
 @property (nonatomic, strong) UITextField *composerField;
@@ -102,20 +102,20 @@ static const NSUInteger OMHChatMaxStoredMessages = 50;
     providerButton.accessibilityIdentifier = @"omh.native.chat.provider";
     self.providerButton = providerButton;
 
-    UIButton *newChatButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    newChatButton.translatesAutoresizingMaskIntoConstraints = NO;
-    newChatButton.backgroundColor = [OMHTheme surfaceColor];
-    newChatButton.layer.cornerRadius = 10;
-    newChatButton.layer.borderWidth = 1;
-    newChatButton.layer.borderColor = [OMHTheme borderColor].CGColor;
-    [newChatButton setTitle:@"New chat" forState:UIControlStateNormal];
-    [newChatButton setTitleColor:[OMHTheme accentLightColor] forState:UIControlStateNormal];
-    newChatButton.titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
-    newChatButton.contentEdgeInsets = UIEdgeInsetsMake(0, 12, 0, 12);
-    [newChatButton addTarget:self action:@selector(newChatTapped) forControlEvents:UIControlEventTouchUpInside];
-    self.newChatButton = newChatButton;
+    UIButton *startChatButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    startChatButton.translatesAutoresizingMaskIntoConstraints = NO;
+    startChatButton.backgroundColor = [OMHTheme surfaceColor];
+    startChatButton.layer.cornerRadius = 10;
+    startChatButton.layer.borderWidth = 1;
+    startChatButton.layer.borderColor = [OMHTheme borderColor].CGColor;
+    [startChatButton setTitle:@"New chat" forState:UIControlStateNormal];
+    [startChatButton setTitleColor:[OMHTheme accentLightColor] forState:UIControlStateNormal];
+    startChatButton.titleLabel.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
+    startChatButton.contentEdgeInsets = UIEdgeInsetsMake(0, 12, 0, 12);
+    [startChatButton addTarget:self action:@selector(startChatTapped) forControlEvents:UIControlEventTouchUpInside];
+    self.startChatButton = startChatButton;
 
-    UIStackView *topRow = [[UIStackView alloc] initWithArrangedSubviews:@[providerButton, newChatButton]];
+    UIStackView *topRow = [[UIStackView alloc] initWithArrangedSubviews:@[providerButton, startChatButton]];
     topRow.translatesAutoresizingMaskIntoConstraints = NO;
     topRow.axis = UILayoutConstraintAxisHorizontal;
     topRow.spacing = 8;
@@ -194,8 +194,8 @@ static const NSUInteger OMHChatMaxStoredMessages = 50;
         [topRow.leadingAnchor constraintEqualToAnchor:safeArea.leadingAnchor constant:16],
         [topRow.trailingAnchor constraintEqualToAnchor:safeArea.trailingAnchor constant:-16],
         [providerButton.heightAnchor constraintEqualToConstant:44],
-        [newChatButton.heightAnchor constraintEqualToConstant:44],
-        [newChatButton.widthAnchor constraintGreaterThanOrEqualToConstant:88],
+        [startChatButton.heightAnchor constraintEqualToConstant:44],
+        [startChatButton.widthAnchor constraintGreaterThanOrEqualToConstant:88],
 
         [statusLabel.topAnchor constraintEqualToAnchor:topRow.bottomAnchor constant:8],
         [statusLabel.leadingAnchor constraintEqualToAnchor:safeArea.leadingAnchor constant:16],
@@ -370,7 +370,7 @@ static const NSUInteger OMHChatMaxStoredMessages = 50;
     [[NSUserDefaults standardUserDefaults] setObject:[self.messages copy] forKey:OMHChatHistoryDefaultsKey];
 }
 
-- (void)newChatTapped {
+- (void)startChatTapped {
     [self.messages removeAllObjects];
     [self persistHistory];
     [self.tableView reloadData];
