@@ -57,6 +57,10 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 /// are present: Providers, OpenCode and Refresh. Dismisses the menu by
 /// tapping the gear again when called only to verify the menu contents.
 - (void)openSettingsMenu {
+    // If a previous menu is still open, the gear is unhittable while its
+    // popover is up (XCTest computes hit point {-1,-1}), so a fresh tap
+    // lands nowhere. Close any stale menu first, then open a fresh one.
+    [self ensureSettingsMenuClosed];
     XCUIElement *settings = self.app.buttons[@"omh.native.settings"];
     XCTAssertTrue([settings waitForExistenceWithTimeout:15], @"Dashboard must provide a Settings gear");
     [settings tap];
@@ -71,9 +75,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 /// computes hit point {-1,-1}), so the tap lands nowhere and the menu stays
 /// open (CI run 45478763878, iPad).
 - (void)dismissSettingsMenu {
-    [self.app.images[@"omh.native.brand.logo"] tap];
-    NSPredicate *gone = [NSPredicate predicateWithFormat:@"exists == NO"];
-    [self waitForExpectations:@[[self expectationForPredicate:gone evaluatedWithObject:self.app.buttons[@"Providers"] handler:nil]] timeout:5];
+    [self ensureSettingsMenuClosed];
 }
 
 /// Opens the OpenCode editor from the dashboard Settings menu, waiting
@@ -108,13 +110,32 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 }
 
 /// Waits until the harness overlay is gone (server answered and page loaded).
+/// Closes the dashboard Settings menu if it is open, by tapping the brand
+/// logo in the header, outside the popover. A no-op when the menu is already
+/// closed. Needed before any fresh gear tap: while the menu popover is open
+/// the gear is unhittable (XCTest computes hit point {-1,-1}), so tapping
+/// it again lands nowhere (CI run 45478763878, iPad).
+- (void)ensureSettingsMenuClosed {
+    if (self.app.buttons[@"Providers"].exists) {
+        [self.app.images[@"omh.native.brand.logo"] tap];
+        NSPredicate *gone = [NSPredicate predicateWithFormat:@"exists == NO"];
+        [self waitForExpectations:@[[self expectationForPredicate:gone evaluatedWithObject:self.app.buttons[@"Providers"] handler:nil]] timeout:5];
+    }
+}
+
 - (void)waitForHarnessReady {
-    // Waits for readiness only. It must NOT open the Settings menu or the
-    // editor as a side effect: on iPad the gear is unhittable while its
-    // menu popover is open (XCTest computes hit point {-1,-1}), so a
-    // wait helper that opens the menu breaks every later gear tap
-    // (CI run 45478763878, iPad). Tests that need the editor call
-    // openEditorFromSettings directly.
+    // Waits for readiness AND navigates to the editor. The navigation is
+    // load-bearing, not a gratuitous side effect: omh.menu and
+    // omh.sidebar.* live in OMHRootViewController (the editor), so tests
+    // that call this helper expect to be in the editor afterwards.
+    // Removing it broke testServerLogIsReachableFromMenu and the iPad
+    // sidebar checks (CI run 45483214834). openSettingsMenu closes any
+    // stale menu before tapping the gear, so a previous popover cannot
+    // leave the gear unhittable (CI run 45478763878, iPad).
+    XCUIElement *settings = self.app.buttons[@"omh.native.settings"];
+    if (settings.exists) {
+        [self openEditorFromSettings];
+    }
     XCUIElement *overlay = self.app.staticTexts[@"omh.overlay.message"];
     XCUIElement *dot = self.app.otherElements[@"omh.statusdot"];
     NSPredicate *gone = [NSPredicate predicateWithFormat:@"exists == NO OR hittable == NO"];
