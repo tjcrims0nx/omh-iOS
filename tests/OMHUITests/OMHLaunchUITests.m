@@ -65,6 +65,17 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCTAssertTrue([self.app.buttons[@"Refresh dashboard"] waitForExistenceWithTimeout:5], @"Settings must list Refresh");
 }
 
+/// Dismisses the dashboard Settings menu by tapping the brand logo in the
+/// header, outside the popover. Tapping the gear again does NOT dismiss it
+/// on iPad: while the menu popover is open the gear is unhittable (XCTest
+/// computes hit point {-1,-1}), so the tap lands nowhere and the menu stays
+/// open (CI run 45478763878, iPad).
+- (void)dismissSettingsMenu {
+    [self.app.images[@"omh.native.brand.logo"] tap];
+    NSPredicate *gone = [NSPredicate predicateWithFormat:@"exists == NO"];
+    [self waitForExpectations:@[[self expectationForPredicate:gone evaluatedWithObject:self.app.buttons[@"Providers"] handler:nil]] timeout:5];
+}
+
 /// Opens the OpenCode editor from the dashboard Settings menu, waiting
 /// until the runtime is ready and the menu action is enabled.
 - (void)openEditorFromSettings {
@@ -98,10 +109,12 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 
 /// Waits until the harness overlay is gone (server answered and page loaded).
 - (void)waitForHarnessReady {
-    XCUIElement *settings = self.app.buttons[@"omh.native.settings"];
-    if (settings.exists) {
-        [self openEditorFromSettings];
-    }
+    // Waits for readiness only. It must NOT open the Settings menu or the
+    // editor as a side effect: on iPad the gear is unhittable while its
+    // menu popover is open (XCTest computes hit point {-1,-1}), so a
+    // wait helper that opens the menu breaks every later gear tap
+    // (CI run 45478763878, iPad). Tests that need the editor call
+    // openEditorFromSettings directly.
     XCUIElement *overlay = self.app.staticTexts[@"omh.overlay.message"];
     XCUIElement *dot = self.app.otherElements[@"omh.statusdot"];
     NSPredicate *gone = [NSPredicate predicateWithFormat:@"exists == NO OR hittable == NO"];
@@ -147,9 +160,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     [self openSettingsMenu];
     [self attachScreenshot:@"ios-settings-menu"];
     // Dismiss the menu without navigating away.
-    [self.app.buttons[@"omh.native.settings"] tap];
-    NSPredicate *gone = [NSPredicate predicateWithFormat:@"exists == NO"];
-    [self waitForExpectations:@[[self expectationForPredicate:gone evaluatedWithObject:self.app.buttons[@"Providers"] handler:nil]] timeout:5];
+    [self dismissSettingsMenu];
 }
 
 - (void)testHarnessBootsAndShowsWebUI {
@@ -214,7 +225,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     // OpenCode lives under the Settings gear; verify it is still reachable after rotation.
     [self openSettingsMenu];
     XCTAssertTrue(self.app.buttons[@"OpenCode"].hittable, @"OpenCode native control should survive rotation");
-    [self.app.buttons[@"omh.native.settings"] tap];
+    [self dismissSettingsMenu];
     // The web refresh button is disabled while a state load is in flight
     // (dashboard.js sets disabled=true during /api/state, up to 10s), and
     // a disabled button is not hittable. Wait for it instead of asserting
