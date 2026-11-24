@@ -6,7 +6,13 @@
 //  one table section per group: Status, Providers, Tasks, Schedules, Plugins,
 //  Skills, Evidence. Evidence status is preferentially fetched fresh from
 //  GET /api/plugins/omjb, falling back to state[@"evidenceMcp"] when that
-//  endpoint is absent or errors.
+//  endpoint is absent or errors. Provider statuses come from
+//  GET /api/connectors, NOT from /api/state: the pinned harness's readState()
+//  has no providers field (connectorStatuses() is only served at
+//  /api/connectors), so reading state[@"providers"] always yields nothing
+//  and every provider reads as unconfigured. State and connectors are
+//  fetched together and the table only renders once both have landed, so
+//  the provider rows are never counted before the connector data arrives.
 //
 //  Actions offered here are the CSRF-only ones. The privileged actions
 //  (schedules Resume, plugins Enable, skills Accept, evidence Enable and
@@ -40,6 +46,7 @@ static NSString * const OMHRuntimeCellIdentifier = @"OMHRuntimeCell";
 @property (nonatomic, strong) UIActivityIndicatorView *spinner;
 
 @property (nonatomic, copy, nullable) NSDictionary *state;
+@property (nonatomic, copy, nullable) NSArray<NSDictionary *> *connectorProviders; // GET /api/connectors (state has no providers field)
 @property (nonatomic, copy, nullable) NSDictionary *evidenceStatus;
 @property (nonatomic, assign) BOOL evidenceUnavailable; // /api/plugins/omjb 404: harness predates it
 @property (nonatomic, assign) BOOL loading;
@@ -152,21 +159,51 @@ static NSString * const OMHRuntimeCellIdentifier = @"OMHRuntimeCell";
     [self setStatusText:@"Loading…" error:NO];
 
     __weak typeof(self) weakSelf = self;
+    // State and connectors are fetched together: the pinned harness's
+    // readState() has no providers field, so the provider rows can only
+    // come from GET /api/connectors. The table only renders once both
+    // have landed, so a provider is never counted before its status
+    // arrives (state stays nil until then, keeping the "No data yet"
+    // placeholder up).
+    dispatch_group_t group = dispatch_group_create();
+    __block NSDictionary *fetchedState = nil;
+    __block NSError *stateError = nil;
+    __block NSArray<NSDictionary *> *fetchedProviders = nil;
+    __block NSError *connectorsError = nil;
+
+    dispatch_group_enter(group);
     [self.apiClient fetchStateWithCompletion:^(NSDictionary * _Nullable state, NSError * _Nullable error) {
+        fetchedState = state;
+        stateError = error;
+        dispatch_group_leave(group);
+    }];
+    dispatch_group_enter(group);
+    [self.apiClient fetchConnectorsWithCompletion:^(NSArray<NSDictionary *> * _Nullable providers, NSError * _Nullable error) {
+        fetchedProviders = providers;
+        connectorsError = error;
+        dispatch_group_leave(group);
+    }];
+
+    dispatch_group_notify(group, dispatch_get_main_queue(), ^{
         __strong typeof(weakSelf) strongSelf = weakSelf;
         if (strongSelf == nil) {
             return;
         }
-        if (error != nil) {
+        if (stateError != nil) {
             // Keep any previous data; with no previous data the table stays empty.
             strongSelf.loading = NO;
             [strongSelf.spinner stopAnimating];
-            [strongSelf setStatusText:[strongSelf errorMessageForError:error] error:YES];
+            [strongSelf setStatusText:[strongSelf errorMessageForError:stateError] error:YES];
             [strongSelf.tableView reloadData];
             return;
         }
-        strongSelf.state = state ?: @{};
-        [strongSelf setStatusText:@"" error:NO];
+        strongSelf.state = fetchedState ?: @{};
+        strongSelf.connectorProviders = fetchedProviders;
+        if (connectorsError != nil) {
+            [strongSelf setStatusText:[strongSelf errorMessageForError:connectorsError] error:YES];
+        } else {
+            [strongSelf setStatusText:@"" error:NO];
+        }
         [strongSelf.apiClient fetchEvidenceStatusWithCompletion:^(NSDictionary * _Nullable status, NSError * _Nullable evidenceError) {
             __strong typeof(weakSelf) strongSelf2 = weakSelf;
             if (strongSelf2 == nil) {
@@ -195,7 +232,7 @@ static NSString * const OMHRuntimeCellIdentifier = @"OMHRuntimeCell";
             }
             [strongSelf2.tableView reloadData];
         }];
-    }];
+    });
 }
 
 #pragma mark - Actions
@@ -363,7 +400,10 @@ static NSString * const OMHRuntimeCellIdentifier = @"OMHRuntimeCell";
         return @[];
     }
     NSMutableArray<NSDictionary *> *rows = [NSMutableArray array];
-    for (id providerValue in [self arrayFrom:self.state[@"providers"]]) {
+    // Providers come from GET /api/connectors (self.connectorProviders),
+    // not from state: the pinned harness's readState() has no providers
+    // field, so state[@"providers"] is always empty.
+    for (id providerValue in [self arrayFrom:self.connectorProviders]) {
         NSDictionary *provider = [self dictionaryFrom:providerValue];
         if (provider == nil) {
             continue;
