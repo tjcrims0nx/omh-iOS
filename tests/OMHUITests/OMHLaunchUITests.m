@@ -28,7 +28,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 
 - (void)waitForDashboardLaunch {
     XCUIElement *gate = self.app.staticTexts[@"omh.launch.status"];
-    XCUIElement *dashboard = self.app.buttons[@"omh.native.refresh"];
+    XCUIElement *dashboard = self.app.buttons[@"omh.native.settings"];
     // A first-run install must show setup before any dashboard controls.
     if (gate.exists) {
         XCTAssertFalse(dashboard.exists, @"Dashboard chrome must remain hidden during boot");
@@ -46,8 +46,33 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCTAssertTrue([dashboard waitForExistenceWithTimeout:10],
                   @"Dashboard must replace the full-screen gate after verified runtime readiness");
     XCTAssertFalse(gate.exists, @"Startup gate must be removed, not overlaid over the dashboard");
-    XCTAssertTrue([self.app.buttons[@"omh.native.providers"] waitForExistenceWithTimeout:10],
+    // The Settings gear is the dashboard settings entry point; provider
+    // setup lives in its menu, not in first-run startup. The menu items
+    // themselves are verified by openSettingsMenu in the tests that use them.
+    XCTAssertTrue([self.app.buttons[@"omh.native.settings"] waitForExistenceWithTimeout:10],
                   @"Provider setup belongs in the dashboard settings, not first-run startup");
+}
+
+/// Opens the dashboard Settings gear menu and asserts its three actions
+/// are present: Providers, OpenCode and Refresh. Dismisses the menu by
+/// tapping the gear again when called only to verify the menu contents.
+- (void)openSettingsMenu {
+    XCUIElement *settings = self.app.buttons[@"omh.native.settings"];
+    XCTAssertTrue([settings waitForExistenceWithTimeout:15], @"Dashboard must provide a Settings gear");
+    [settings tap];
+    XCTAssertTrue([self.app.buttons[@"Providers"] waitForExistenceWithTimeout:5], @"Settings must list Providers");
+    XCTAssertTrue([self.app.buttons[@"OpenCode"] waitForExistenceWithTimeout:5], @"Settings must list OpenCode");
+    XCTAssertTrue([self.app.buttons[@"Refresh dashboard"] waitForExistenceWithTimeout:5], @"Settings must list Refresh");
+}
+
+/// Opens the OpenCode editor from the dashboard Settings menu, waiting
+/// until the runtime is ready and the menu action is enabled.
+- (void)openEditorFromSettings {
+    [self openSettingsMenu];
+    XCUIElement *open = self.app.buttons[@"OpenCode"];
+    NSPredicate *enabled = [NSPredicate predicateWithFormat:@"enabled == YES"];
+    [self waitForExpectations:@[[self expectationForPredicate:enabled evaluatedWithObject:open handler:nil]] timeout:kBootTimeout];
+    [open tap];
 }
 
 - (void)tearDown {
@@ -73,11 +98,9 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 
 /// Waits until the harness overlay is gone (server answered and page loaded).
 - (void)waitForHarnessReady {
-    XCUIElement *open = self.app.buttons[@"omh.open-editor"];
-    if (open.exists) {
-        NSPredicate *enabled = [NSPredicate predicateWithFormat:@"enabled == YES"];
-        [self waitForExpectations:@[[self expectationForPredicate:enabled evaluatedWithObject:open handler:nil]] timeout:kBootTimeout];
-        [open tap];
+    XCUIElement *settings = self.app.buttons[@"omh.native.settings"];
+    if (settings.exists) {
+        [self openEditorFromSettings];
     }
     XCUIElement *overlay = self.app.staticTexts[@"omh.overlay.message"];
     XCUIElement *dot = self.app.otherElements[@"omh.statusdot"];
@@ -92,12 +115,13 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 /// remain touch-usable in portrait and landscape, not only on an iPad.
 - (void)testIOSPhoneNativeDashboardAndEditor {
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationPortrait;
-    XCUIElement *refresh = self.app.buttons[@"omh.native.refresh"];
-    XCUIElement *editor = self.app.buttons[@"omh.open-editor"];
-    XCTAssertTrue([refresh waitForExistenceWithTimeout:15], @"iPhone must open the native OMH dashboard shell");
-    XCTAssertTrue([editor waitForExistenceWithTimeout:15], @"OpenCode must be reachable on iPhone");
-    XCTAssertTrue([self.app.images[@"omh.native.brand.logo"] waitForExistenceWithTimeout:10]);
-    XCTAssertGreaterThanOrEqual(CGRectGetHeight(refresh.frame), 40);
+    XCUIElement *settings = self.app.buttons[@"omh.native.settings"];
+    XCTAssertTrue([settings waitForExistenceWithTimeout:15], @"iPhone must open the native OMH dashboard shell");
+    // The brand logo lives in a dedicated responsive header, not in the
+    // navigation bar, so it must appear on a compact iPhone without
+    // competing with toolbar actions for width.
+    XCTAssertTrue([self.app.images[@"omh.native.brand.logo"] waitForExistenceWithTimeout:10], @"Brand logo must appear in the dashboard header on iPhone");
+    XCTAssertGreaterThanOrEqual(CGRectGetHeight(settings.frame), 40);
     // The dashboard web view stays hidden until the guest boots and the
     // page finishes loading, so wait for it like the iPad test waits for
     // the dashboard's own controls instead of asserting it immediately.
@@ -105,29 +129,37 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     [self attachScreenshot:@"ios-phone-portrait-native-dashboard"];
 
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationLandscapeLeft;
-    XCTAssertTrue([refresh waitForExistenceWithTimeout:10], @"Native actions survive iPhone rotation");
-    XCTAssertTrue([editor waitForExistenceWithTimeout:10]);
+    XCTAssertTrue([settings waitForExistenceWithTimeout:10], @"Native actions survive iPhone rotation");
+    XCTAssertTrue([self.app.images[@"omh.native.brand.logo"] waitForExistenceWithTimeout:10], @"Brand logo must survive iPhone rotation");
     [self attachScreenshot:@"ios-phone-landscape-native-dashboard"];
 
-    NSPredicate *ready = [NSPredicate predicateWithFormat:@"enabled == YES"];
-    [self waitForExpectations:@[[self expectationForPredicate:ready evaluatedWithObject:editor handler:nil]]
-                     timeout:kBootTimeout];
-    [editor tap];
+    // OpenCode, Providers and Refresh live under the Settings gear.
+    [self openEditorFromSettings];
     XCTAssertTrue([self.app.otherElements[@"omh.controlbar"] waitForExistenceWithTimeout:30],
                   @"iOS editor must open inside native OMH navigation");
     [self attachScreenshot:@"ios-phone-open-code-editor"];
+}
+
+/// The secondary dashboard controls (Providers, OpenCode, Refresh) live
+/// under the Settings gear, not as separate navigation-bar buttons, so the
+/// header brand never competes with them for width on a compact iPhone.
+- (void)testDashboardSettingsMenuListsSecondaryControls {
+    [self openSettingsMenu];
+    [self attachScreenshot:@"ios-settings-menu"];
+    // Dismiss the menu without navigating away.
+    [self.app.buttons[@"omh.native.settings"] tap];
+    NSPredicate *gone = [NSPredicate predicateWithFormat:@"exists == NO"];
+    [self waitForExpectations:@[[self expectationForPredicate:gone evaluatedWithObject:self.app.buttons[@"Providers"] handler:nil]] timeout:5];
 }
 
 - (void)testHarnessBootsAndShowsWebUI {
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationLandscapeLeft;
     // Native UIKit shell must remain visible while the guest WebKit app loads.
     // This is deliberately separate from the embedded dashboard DOM.
-    XCUIElement *nativeRefresh = self.app.buttons[@"omh.native.refresh"];
-    XCUIElement *nativeEditor = self.app.buttons[@"omh.open-editor"];
-    XCTAssertTrue([nativeRefresh waitForExistenceWithTimeout:15], @"Native dashboard refresh belongs in the iPad toolbar");
-    XCTAssertTrue([nativeEditor waitForExistenceWithTimeout:15], @"Native OpenCode navigation belongs in the toolbar");
+    XCUIElement *nativeSettings = self.app.buttons[@"omh.native.settings"];
+    XCTAssertTrue([nativeSettings waitForExistenceWithTimeout:15], @"Native dashboard settings belong in the iPad toolbar");
     XCTAssertTrue(self.app.images[@"omh.native.brand.logo"].exists, @"Use the official OMH brand in UIKit");
-    XCTAssertGreaterThanOrEqual(CGRectGetHeight(nativeRefresh.frame), 40.0, @"Refresh must have an accessible tap target");
+    XCTAssertGreaterThanOrEqual(CGRectGetHeight(nativeSettings.frame), 40.0, @"Settings gear must have an accessible tap target");
     XCUIElement *home = self.app.webViews.firstMatch;
     XCUIElement *refresh = home.buttons[@"Refresh runtime state"];
     XCTAssertTrue([refresh waitForExistenceWithTimeout:kBootTimeout], @"iPad must open the shared OMH dashboard");
@@ -178,8 +210,11 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCUIElement *hideKeyboard = self.app.keyboards.buttons[@"Hide keyboard"];
     if (hideKeyboard.exists) [hideKeyboard tap];
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationPortrait;
-    XCTAssertTrue([nativeRefresh waitForExistenceWithTimeout:8], @"Native toolbar should survive rotation");
-    XCTAssertTrue(nativeEditor.hittable, @"OpenCode native control should survive rotation");
+    XCTAssertTrue([nativeSettings waitForExistenceWithTimeout:8], @"Native toolbar should survive rotation");
+    // OpenCode lives under the Settings gear; verify it is still reachable after rotation.
+    [self openSettingsMenu];
+    XCTAssertTrue(self.app.buttons[@"OpenCode"].hittable, @"OpenCode native control should survive rotation");
+    [self.app.buttons[@"omh.native.settings"] tap];
     // The web refresh button is disabled while a state load is in flight
     // (dashboard.js sets disabled=true during /api/state, up to 10s), and
     // a disabled button is not hittable. Wait for it instead of asserting
@@ -386,13 +421,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 - (void)openEditorProviderMenu {
     XCUIElement *menu = self.app.buttons[@"omh.menu"];
     if (!menu.exists) {
-        XCUIElement *editor = self.app.buttons[@"omh.open-editor"];
-        XCTAssertTrue([editor waitForExistenceWithTimeout:kBootTimeout],
-                      @"Dashboard must provide OpenCode navigation");
-        NSPredicate *enabled = [NSPredicate predicateWithFormat:@"enabled == YES"];
-        [self waitForExpectations:@[[self expectationForPredicate:enabled evaluatedWithObject:editor handler:nil]]
-                         timeout:kBootTimeout];
-        [editor tap];
+        [self openEditorFromSettings];
     }
     XCTAssertTrue([menu waitForExistenceWithTimeout:30],
                   @"Provider menu belongs to the native OpenCode editor");

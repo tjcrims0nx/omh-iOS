@@ -12,26 +12,6 @@
 #import "AppDelegate.h"
 #import "AboutViewController.h"
 
-// UINavigationBar may compress a 44-point custom UIBarButtonItem to a 36-point
-// visible frame. Expand the actual hit area and accessibility frame into the
-// unused vertical navigation-bar padding, including after device rotation.
-@interface OMHRefreshButton : UIButton
-@end
-
-@implementation OMHRefreshButton
-- (CGRect)expandedBounds {
-    CGFloat verticalPadding = MAX(0.0, (44.0 - CGRectGetHeight(self.bounds)) / 2.0);
-    CGFloat horizontalPadding = MAX(0.0, (44.0 - CGRectGetWidth(self.bounds)) / 2.0);
-    return CGRectInset(self.bounds, -horizontalPadding, -verticalPadding);
-}
-- (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent *)event {
-    return CGRectContainsPoint([self expandedBounds], point);
-}
-- (CGRect)accessibilityFrame {
-    return UIAccessibilityConvertFrameToScreenCoordinates([self expandedBounds], self);
-}
-@end
-
 // The iPad home is the same loopback dashboard that the standalone harness serves.
 @interface OMHDashboardViewController : UIViewController <WKNavigationDelegate>
 @property (nonatomic) WKWebView *dashboard;
@@ -42,9 +22,11 @@
 @property (nonatomic) NSURL *requestedURL;
 @property (nonatomic) OMHRootViewController *editor;
 @property (nonatomic) UIActivityIndicatorView *loadingIndicator;
-@property (nonatomic) UIBarButtonItem *refreshItem;
-@property (nonatomic) UIBarButtonItem *editorItem;
-@property (nonatomic) UIBarButtonItem *providersItem;
+@property (nonatomic) UIView *headerView;
+@property (nonatomic) UIAction *providersAction;
+@property (nonatomic) UIAction *editorAction;
+@property (nonatomic) UIAction *refreshAction;
+@property (nonatomic) UIBarButtonItem *settingsItem;
 @property (nonatomic) UILabel *nativeTitle;
 @end
 
@@ -56,8 +38,15 @@
     self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     self.view.backgroundColor = [UIColor colorWithRed:0.035 green:0.027 blue:0.047 alpha:1];
 
-    // Native UIKit chrome around the existing neon dashboard: iPad toolbar,
-    // 44-point touch controls, Dynamic Type and the official OMH brand mark.
+    // Dedicated responsive header: the brand lives in its own row above the
+    // WebView, not in the navigation bar, so it never competes with toolbar
+    // actions for width on a compact iPhone. (PR #8 iPhone failure:
+    // omh.native.brand.logo never appeared in the navigation titleView in
+    // portrait; the hierarchy showed the titleView entirely absent.)
+    // The logo keeps its accessibility identity and behavior.
+    self.headerView = [UIView new];
+    self.headerView.translatesAutoresizingMaskIntoConstraints = NO;
+    self.headerView.accessibilityIdentifier = @"omh.native.brand";
     UIImageView *brand = [[UIImageView alloc] initWithImage:[UIImage imageNamed:@"OMHBrandMark"]];
     brand.translatesAutoresizingMaskIntoConstraints = NO;
     brand.contentMode = UIViewContentModeScaleAspectFit;
@@ -69,14 +58,9 @@
         [brand.heightAnchor constraintEqualToConstant:30]
     ]];
     UILabel *brandTitle = [UILabel new];
-    // Pick the title width up front: the navigation bar measures the
-    // titleView once when the controller first appears. On a narrow iPhone
-    // the full "OpenMind Harness" text is wider than the space left by the
-    // toolbar buttons, and the bar collapses the titleView instead of
-    // shrinking it — so the brand never appears. Start narrow on compact
-    // widths; viewWillLayoutSubviews widens it again on rotation/Stage
-    // Manager. (PR #8 iPhone failure: omh.native.brand.logo never appeared
-    // in portrait; the hierarchy showed the titleView entirely absent.)
+    // Start narrow on compact widths; viewWillLayoutSubviews widens it
+    // again on rotation/Stage Manager. The header is a normal view, so the
+    // title is re-measured by Auto Layout instead of collapsing.
     brandTitle.text = self.traitCollection.horizontalSizeClass == UIUserInterfaceSizeClassCompact ? @"OMH" : @"OpenMind Harness";
     self.nativeTitle = brandTitle;
     brandTitle.font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
@@ -87,33 +71,41 @@
     identity.axis = UILayoutConstraintAxisHorizontal;
     identity.alignment = UIStackViewAlignmentCenter;
     identity.spacing = 10;
-    identity.accessibilityIdentifier = @"omh.native.brand";
-    self.navigationItem.titleView = identity;
+    identity.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.headerView addSubview:identity];
+    [self.view addSubview:self.headerView];
 
-    self.editorItem = [[UIBarButtonItem alloc] initWithTitle:@"OpenCode"
-        style:UIBarButtonItemStylePlain target:self action:@selector(openEditor)];
-    self.editorItem.accessibilityIdentifier = @"omh.open-editor";
-    // Keep the "OpenCode" text visible in native navigation, not an icon-only
-    // control that becomes ambiguous to touch and VoiceOver users.
+    // Secondary controls live under a single Settings gear, so the
+    // navigation bar never crowds the brand out on a compact iPhone.
+    // OpenCode, provider configuration and refresh all stay reachable
+    // from this menu; only their presentation changes.
+    __weak typeof(self) weakSelf = self;
+    self.providersAction = [UIAction actionWithTitle:@"Providers" image:nil identifier:nil handler:^(__kindof UIAction *action) {
+        [weakSelf configureProvider];
+    }];
+    self.editorAction = [UIAction actionWithTitle:@"OpenCode" image:nil identifier:nil handler:^(__kindof UIAction *action) {
+        [weakSelf openEditor];
+    }];
+    self.refreshAction = [UIAction actionWithTitle:@"Refresh dashboard" image:nil identifier:nil handler:^(__kindof UIAction *action) {
+        [weakSelf retryDashboard];
+    }];
+    UIMenu *settingsMenu = [UIMenu menuWithTitle:@"" children:@[self.providersAction, self.editorAction, self.refreshAction]];
     // A system bar button item reports a 36pt frame to XCTest, below the
     // 44pt accessible tap target the UI tests assert. Use a custom 44x44
-    // button with the same refresh glyph so the measured target is
-    // genuinely 44pt. UIBarButtonItem forwards `enabled` to a UIControl
-    // custom view, so updateDashboard keeps working unchanged.
-    UIButton *refreshButton = [OMHRefreshButton buttonWithType:UIButtonTypeSystem];
-    [refreshButton setImage:[UIImage systemImageNamed:@"arrow.clockwise"] forState:UIControlStateNormal];
-    [refreshButton addTarget:self action:@selector(retryDashboard) forControlEvents:UIControlEventTouchUpInside];
-    refreshButton.translatesAutoresizingMaskIntoConstraints = NO;
+    // button with the gear glyph so the measured target is genuinely 44pt.
+    UIButton *settingsButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    [settingsButton setImage:[UIImage systemImageNamed:@"gearshape"] forState:UIControlStateNormal];
+    settingsButton.translatesAutoresizingMaskIntoConstraints = NO;
     [NSLayoutConstraint activateConstraints:@[
-        [refreshButton.widthAnchor constraintEqualToConstant:44],
-        [refreshButton.heightAnchor constraintEqualToConstant:44]
+        [settingsButton.widthAnchor constraintEqualToConstant:44],
+        [settingsButton.heightAnchor constraintEqualToConstant:44]
     ]];
-    refreshButton.accessibilityIdentifier = @"omh.native.refresh";
-    refreshButton.accessibilityLabel = @"Refresh dashboard";
-    self.refreshItem = [[UIBarButtonItem alloc] initWithCustomView:refreshButton];
-    self.providersItem = [[UIBarButtonItem alloc] initWithTitle:@"Providers" style:UIBarButtonItemStylePlain target:self action:@selector(configureProvider)];
-    self.providersItem.accessibilityIdentifier = @"omh.native.providers";
-    self.navigationItem.rightBarButtonItems = @[self.providersItem, self.editorItem, self.refreshItem];
+    settingsButton.accessibilityIdentifier = @"omh.native.settings";
+    settingsButton.accessibilityLabel = @"Settings";
+    settingsButton.menu = settingsMenu;
+    settingsButton.showsMenuAsPrimaryAction = YES;
+    self.settingsItem = [[UIBarButtonItem alloc] initWithCustomView:settingsButton];
+    self.navigationItem.rightBarButtonItem = self.settingsItem;
 
     self.loadingIndicator = [[UIActivityIndicatorView alloc]
         initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
@@ -158,7 +150,13 @@
     [self.view addSubview:self.notice];
     UILayoutGuide *safe = self.view.safeAreaLayoutGuide;
     [NSLayoutConstraint activateConstraints:@[
-        [self.dashboard.topAnchor constraintEqualToAnchor:safe.topAnchor],
+        [self.headerView.topAnchor constraintEqualToAnchor:safe.topAnchor],
+        [self.headerView.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor],
+        [self.headerView.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor],
+        [self.headerView.heightAnchor constraintEqualToConstant:52],
+        [identity.centerXAnchor constraintEqualToAnchor:self.headerView.centerXAnchor],
+        [identity.centerYAnchor constraintEqualToAnchor:self.headerView.centerYAnchor],
+        [self.dashboard.topAnchor constraintEqualToAnchor:self.headerView.bottomAnchor],
         [self.dashboard.bottomAnchor constraintEqualToAnchor:self.view.keyboardLayoutGuide.topAnchor],
         [self.dashboard.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor],
         [self.dashboard.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor],
@@ -174,20 +172,15 @@
 
 - (void)viewWillLayoutSubviews {
     [super viewWillLayoutSubviews];
-    // In compact iPhone and Stage Manager widths, protect the native
-    // toolbar actions rather than truncating or overlapping them.
+    // In compact iPhone and Stage Manager widths, show the short brand
+    // name in the header. The header is a normal Auto Layout view, so
+    // changing the label text re-measures it without any titleView
+    // re-assignment (the old navigation-bar titleView collapsed instead
+    // of shrinking on a narrow iPhone).
     CGFloat available = CGRectGetWidth(self.view.bounds);
     NSString *title = available < 620 ? @"OMH" : @"OpenMind Harness";
     if (![self.nativeTitle.text isEqualToString:title]) {
         self.nativeTitle.text = title;
-        // Changing the label text changes the titleView's intrinsic size,
-        // but the navigation bar does not always re-measure it on its own.
-        // Re-assigning the titleView forces the bar to lay it out again,
-        // so the brand appears (or hides) instead of staying collapsed.
-        [self.nativeTitle invalidateIntrinsicContentSize];
-        UIView *titleView = self.navigationItem.titleView;
-        self.navigationItem.titleView = nil;
-        self.navigationItem.titleView = titleView;
     }
 }
 
@@ -213,8 +206,12 @@
 - (void)updateDashboard {
     OMHBootCoordinator *boot = OMHBootCoordinator.shared;
     OMHHarness *server = OMHHarness.dashboard;
-    self.editorItem.enabled = boot.phase == OMHBootPhaseReady;
-    self.refreshItem.enabled = boot.phase == OMHBootPhaseReady;
+    // The Settings menu actions gate on the same readiness the old
+    // toolbar buttons did; Providers stays available so a key can be
+    // saved before the runtime is ready.
+    UIMenuElementAttributes disabled = UIMenuElementAttributesDisabled;
+    self.editorAction.attributes = boot.phase == OMHBootPhaseReady ? 0 : disabled;
+    self.refreshAction.attributes = boot.phase == OMHBootPhaseReady ? 0 : disabled;
     if (boot.phase != OMHBootPhaseReady) {
         [self showMessage:boot.statusMessage retry:NO];
     } else if (server.state == OMHHarnessStateReady) {
@@ -248,7 +245,7 @@
             handler:^(UIAlertAction *action) { [weakSelf promptForKey:provider name:name]; }]];
     }
     [sheet addAction:[UIAlertAction actionWithTitle:@"Not now" style:UIAlertActionStyleCancel handler:nil]];
-    sheet.popoverPresentationController.barButtonItem = self.providersItem;
+    sheet.popoverPresentationController.barButtonItem = self.settingsItem;
     [self presentViewController:sheet animated:YES completion:nil];
 }
 - (void)promptForKey:(NSString *)provider name:(NSString *)name {
