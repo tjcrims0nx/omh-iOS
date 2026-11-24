@@ -12,26 +12,6 @@
 #import "AppDelegate.h"
 #import "AboutViewController.h"
 
-// UINavigationBar may compress a 44-point custom UIBarButtonItem to a 36-point
-// visible frame. Expand the actual hit area and accessibility frame into the
-// unused vertical navigation-bar padding, including after device rotation.
-@interface OMHRefreshButton : UIButton
-@end
-
-@implementation OMHRefreshButton
-- (CGRect)expandedBounds {
-    CGFloat verticalPadding = MAX(0.0, (44.0 - CGRectGetHeight(self.bounds)) / 2.0);
-    CGFloat horizontalPadding = MAX(0.0, (44.0 - CGRectGetWidth(self.bounds)) / 2.0);
-    return CGRectInset(self.bounds, -horizontalPadding, -verticalPadding);
-}
-- (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent *)event {
-    return CGRectContainsPoint([self expandedBounds], point);
-}
-- (CGRect)accessibilityFrame {
-    return UIAccessibilityConvertFrameToScreenCoordinates([self expandedBounds], self);
-}
-@end
-
 // The iPad home is the same loopback dashboard that the standalone harness serves.
 @interface OMHDashboardViewController : UIViewController <WKNavigationDelegate>
 @property (nonatomic) WKWebView *dashboard;
@@ -42,8 +22,11 @@
 @property (nonatomic) NSURL *requestedURL;
 @property (nonatomic) OMHRootViewController *editor;
 @property (nonatomic) UIActivityIndicatorView *loadingIndicator;
-@property (nonatomic) UIBarButtonItem *refreshItem;
-@property (nonatomic) UIBarButtonItem *editorItem;
+@property (nonatomic) UIView *headerView;
+@property (nonatomic) UIAction *providersAction;
+@property (nonatomic) UIAction *editorAction;
+@property (nonatomic) UIAction *refreshAction;
+@property (nonatomic) UIButton *settingsButton;
 @property (nonatomic) UILabel *nativeTitle;
 @end
 
@@ -53,10 +36,17 @@
     [super viewDidLoad];
     self.title = @"Dashboard";
     self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-    self.view.backgroundColor = [UIColor colorWithRed:0.012 green:0.027 blue:0.047 alpha:1];
+    self.view.backgroundColor = [UIColor colorWithRed:0.035 green:0.027 blue:0.047 alpha:1];
 
-    // Native UIKit chrome around the existing neon dashboard: iPad toolbar,
-    // 44-point touch controls, Dynamic Type and the official OMH brand mark.
+    // Dedicated responsive header: the brand lives in its own row above the
+    // WebView, not in the navigation bar, so it never competes with toolbar
+    // actions for width on a compact iPhone. (PR #8 iPhone failure:
+    // omh.native.brand.logo never appeared in the navigation titleView in
+    // portrait; the hierarchy showed the titleView entirely absent.)
+    // The logo keeps its accessibility identity and behavior.
+    self.headerView = [UIView new];
+    self.headerView.translatesAutoresizingMaskIntoConstraints = NO;
+    self.headerView.accessibilityIdentifier = @"omh.native.brand";
     UIImageView *brand = [[UIImageView alloc] initWithImage:[UIImage imageNamed:@"OMHBrandMark"]];
     brand.translatesAutoresizingMaskIntoConstraints = NO;
     brand.contentMode = UIViewContentModeScaleAspectFit;
@@ -68,47 +58,64 @@
         [brand.heightAnchor constraintEqualToConstant:30]
     ]];
     UILabel *brandTitle = [UILabel new];
-    brandTitle.text = @"OpenMind Harness";
+    // Start narrow on compact widths; viewWillLayoutSubviews widens it
+    // again on rotation/Stage Manager. The header is a normal view, so the
+    // title is re-measured by Auto Layout instead of collapsing.
+    brandTitle.text = self.traitCollection.horizontalSizeClass == UIUserInterfaceSizeClassCompact ? @"OMH" : @"OpenMind Harness";
     self.nativeTitle = brandTitle;
     brandTitle.font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
     brandTitle.adjustsFontForContentSizeCategory = YES;
-    brandTitle.textColor = [UIColor colorWithRed:0.20 green:0.89 blue:1 alpha:1];
+    brandTitle.textColor = [UIColor colorWithRed:0.75 green:0.42 blue:1 alpha:1];
     brandTitle.lineBreakMode = NSLineBreakByTruncatingTail;
     UIStackView *identity = [[UIStackView alloc] initWithArrangedSubviews:@[brand, brandTitle]];
     identity.axis = UILayoutConstraintAxisHorizontal;
     identity.alignment = UIStackViewAlignmentCenter;
     identity.spacing = 10;
-    identity.accessibilityIdentifier = @"omh.native.brand";
-    self.navigationItem.titleView = identity;
+    identity.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.headerView addSubview:identity];
+    [self.view addSubview:self.headerView];
 
-    self.editorItem = [[UIBarButtonItem alloc] initWithTitle:@"OpenCode"
-        style:UIBarButtonItemStylePlain target:self action:@selector(openEditor)];
-    self.editorItem.accessibilityIdentifier = @"omh.open-editor";
-    // Keep the "OpenCode" text visible in native navigation, not an icon-only
-    // control that becomes ambiguous to touch and VoiceOver users.
-    // A system bar button item reports a 36pt frame to XCTest, below the
-    // 44pt accessible tap target the UI tests assert. Use a custom 44x44
-    // button with the same refresh glyph so the measured target is
-    // genuinely 44pt. UIBarButtonItem forwards `enabled` to a UIControl
-    // custom view, so updateDashboard keeps working unchanged.
-    UIButton *refreshButton = [OMHRefreshButton buttonWithType:UIButtonTypeSystem];
-    [refreshButton setImage:[UIImage systemImageNamed:@"arrow.clockwise"] forState:UIControlStateNormal];
-    [refreshButton addTarget:self action:@selector(retryDashboard) forControlEvents:UIControlEventTouchUpInside];
-    refreshButton.translatesAutoresizingMaskIntoConstraints = NO;
+    // Secondary controls live under a single Settings gear, so the
+    // navigation bar never crowds the brand out on a compact iPhone.
+    // OpenCode, provider configuration and refresh all stay reachable
+    // from this menu; only their presentation changes.
+    // The gear lives in the header row, not the navigation bar: a bar
+    // button item's custom view is capped at 36pt by the nav bar, below
+    // the 44pt accessible tap target the UI tests assert, and no explicit
+    // size constraint overrides it (CI run 45474077170 measured 36 on
+    // both simulators). The 52pt header gives the 44x44 button room.
+    __weak typeof(self) weakSelf = self;
+    self.providersAction = [UIAction actionWithTitle:@"Providers" image:nil identifier:nil handler:^(__kindof UIAction *action) {
+        [weakSelf configureProvider];
+    }];
+    self.editorAction = [UIAction actionWithTitle:@"OpenCode" image:nil identifier:nil handler:^(__kindof UIAction *action) {
+        [weakSelf openEditor];
+    }];
+    self.refreshAction = [UIAction actionWithTitle:@"Refresh dashboard" image:nil identifier:nil handler:^(__kindof UIAction *action) {
+        [weakSelf retryDashboard];
+    }];
+    UIMenu *settingsMenu = [UIMenu menuWithTitle:@"" children:@[self.providersAction, self.editorAction, self.refreshAction]];
+    UIButton *settingsButton = [UIButton buttonWithType:UIButtonTypeSystem];
+    [settingsButton setImage:[UIImage systemImageNamed:@"gearshape"] forState:UIControlStateNormal];
+    settingsButton.translatesAutoresizingMaskIntoConstraints = NO;
     [NSLayoutConstraint activateConstraints:@[
-        [refreshButton.widthAnchor constraintEqualToConstant:44],
-        [refreshButton.heightAnchor constraintEqualToConstant:44]
+        [settingsButton.widthAnchor constraintEqualToConstant:44],
+        [settingsButton.heightAnchor constraintEqualToConstant:44]
     ]];
-    refreshButton.accessibilityIdentifier = @"omh.native.refresh";
-    refreshButton.accessibilityLabel = @"Refresh dashboard";
-    self.refreshItem = [[UIBarButtonItem alloc] initWithCustomView:refreshButton];
-    self.navigationItem.rightBarButtonItems = @[self.editorItem, self.refreshItem];
+    settingsButton.accessibilityIdentifier = @"omh.native.settings";
+    settingsButton.accessibilityLabel = @"Settings";
+    settingsButton.menu = settingsMenu;
+    settingsButton.showsMenuAsPrimaryAction = YES;
+    self.settingsButton = settingsButton;
+    [self.headerView addSubview:settingsButton];
 
     self.loadingIndicator = [[UIActivityIndicatorView alloc]
         initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
-    self.loadingIndicator.color = [UIColor colorWithRed:0.20 green:0.89 blue:1 alpha:1];
-    self.navigationItem.leftBarButtonItem = [[UIBarButtonItem alloc]
-        initWithCustomView:self.loadingIndicator];
+    self.loadingIndicator.color = [UIColor colorWithRed:0.75 green:0.42 blue:1 alpha:1];
+    // The dashboard is the navigation root. Never reserve a blank circular
+    // leading control when there is no view to go back to. Startup progress
+    // is already presented by the dedicated full-screen launch gate.
+    self.navigationItem.leftBarButtonItem = nil;
 
     WKWebViewConfiguration *config = [WKWebViewConfiguration new];
     // WebKit stays embedded, but adapts like an iPad app in Stage Manager:
@@ -132,7 +139,7 @@
     retryStyle.title = @"Retry dashboard";
     retryStyle.image = [UIImage systemImageNamed:@"arrow.clockwise"];
     retryStyle.imagePadding = 8;
-    retryStyle.baseForegroundColor = [UIColor colorWithRed:0.20 green:0.89 blue:1 alpha:1];
+    retryStyle.baseForegroundColor = [UIColor colorWithRed:0.75 green:0.42 blue:1 alpha:1];
     retryStyle.contentInsets = NSDirectionalEdgeInsetsMake(12, 16, 12, 16);
     self.retry.configuration = retryStyle;
     self.retry.accessibilityIdentifier = @"omh.native.retry";
@@ -145,7 +152,15 @@
     [self.view addSubview:self.notice];
     UILayoutGuide *safe = self.view.safeAreaLayoutGuide;
     [NSLayoutConstraint activateConstraints:@[
-        [self.dashboard.topAnchor constraintEqualToAnchor:safe.topAnchor],
+        [self.headerView.topAnchor constraintEqualToAnchor:safe.topAnchor],
+        [self.headerView.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor],
+        [self.headerView.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor],
+        [self.headerView.heightAnchor constraintEqualToConstant:52],
+        [identity.centerXAnchor constraintEqualToAnchor:self.headerView.centerXAnchor],
+        [identity.centerYAnchor constraintEqualToAnchor:self.headerView.centerYAnchor],
+        [settingsButton.trailingAnchor constraintEqualToAnchor:self.headerView.trailingAnchor constant:-12],
+        [settingsButton.centerYAnchor constraintEqualToAnchor:self.headerView.centerYAnchor],
+        [self.dashboard.topAnchor constraintEqualToAnchor:self.headerView.bottomAnchor],
         [self.dashboard.bottomAnchor constraintEqualToAnchor:self.view.keyboardLayoutGuide.topAnchor],
         [self.dashboard.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor],
         [self.dashboard.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor],
@@ -161,10 +176,16 @@
 
 - (void)viewWillLayoutSubviews {
     [super viewWillLayoutSubviews];
-    // In compact iPhone and Stage Manager widths, protect the native
-    // toolbar actions rather than truncating or overlapping them.
+    // In compact iPhone and Stage Manager widths, show the short brand
+    // name in the header. The header is a normal Auto Layout view, so
+    // changing the label text re-measures it without any titleView
+    // re-assignment (the old navigation-bar titleView collapsed instead
+    // of shrinking on a narrow iPhone).
     CGFloat available = CGRectGetWidth(self.view.bounds);
-    self.nativeTitle.text = available < 620 ? @"OMH" : @"OpenMind Harness";
+    NSString *title = available < 620 ? @"OMH" : @"OpenMind Harness";
+    if (![self.nativeTitle.text isEqualToString:title]) {
+        self.nativeTitle.text = title;
+    }
 }
 
 - (void)openEditor {
@@ -189,8 +210,12 @@
 - (void)updateDashboard {
     OMHBootCoordinator *boot = OMHBootCoordinator.shared;
     OMHHarness *server = OMHHarness.dashboard;
-    self.editorItem.enabled = boot.phase == OMHBootPhaseReady;
-    self.refreshItem.enabled = boot.phase == OMHBootPhaseReady;
+    // The Settings menu actions gate on the same readiness the old
+    // toolbar buttons did; Providers stays available so a key can be
+    // saved before the runtime is ready.
+    UIMenuElementAttributes disabled = UIMenuElementAttributesDisabled;
+    self.editorAction.attributes = boot.phase == OMHBootPhaseReady ? 0 : disabled;
+    self.refreshAction.attributes = boot.phase == OMHBootPhaseReady ? 0 : disabled;
     if (boot.phase != OMHBootPhaseReady) {
         [self showMessage:boot.statusMessage retry:NO];
     } else if (server.state == OMHHarnessStateReady) {
@@ -207,6 +232,58 @@
     }
 }
 
+- (void)configureProvider {
+    UIAlertController *sheet = [UIAlertController alertControllerWithTitle:@"Provider setup"
+        message:@"Optional: save a provider API key securely on this device. Other sign-in methods remain available in OpenCode."
+        preferredStyle:UIAlertControllerStyleActionSheet];
+    NSDictionary<NSString *,NSString *> *providers = @{
+        @"OpenAI":@"openai", @"Anthropic":@"anthropic",
+        @"Gemini":@"google", @"DeepSeek":@"deepseek",
+        @"GLM / Z.AI":@"zai", @"Kimi / Moonshot":@"moonshotai",
+        @"Qwen":@"qwen"
+    };
+    __weak typeof(self) weakSelf = self;
+    for (NSString *name in @[@"OpenAI",@"Anthropic",@"Gemini",@"DeepSeek",@"GLM / Z.AI",@"Kimi / Moonshot",@"Qwen"]) {
+        NSString *provider = providers[name];
+        [sheet addAction:[UIAlertAction actionWithTitle:name style:UIAlertActionStyleDefault
+            handler:^(UIAlertAction *action) { [weakSelf promptForKey:provider name:name]; }]];
+    }
+    [sheet addAction:[UIAlertAction actionWithTitle:@"Not now" style:UIAlertActionStyleCancel handler:nil]];
+    sheet.popoverPresentationController.sourceView = self.settingsButton;
+    sheet.popoverPresentationController.sourceRect = self.settingsButton.bounds;
+    [self presentViewController:sheet animated:YES completion:nil];
+}
+- (void)promptForKey:(NSString *)provider name:(NSString *)name {
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:name
+        message:@"API keys are stored in the iOS Keychain, never in the dashboard or startup logs."
+        preferredStyle:UIAlertControllerStyleAlert];
+    [alert addTextFieldWithConfigurationHandler:^(UITextField *field) {
+        field.placeholder = @"Provider API key";
+        field.secureTextEntry = YES;
+        field.autocorrectionType = UITextAutocorrectionTypeNo;
+        field.autocapitalizationType = UITextAutocapitalizationTypeNone;
+    }];
+    __weak typeof(self) weakSelf = self;
+    [alert addAction:[UIAlertAction actionWithTitle:@"Save key" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        NSString *value = [alert.textFields.firstObject.text
+            stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+        if (![OMHProviderCredentials saveToken:value provider:provider]) {
+            UIAlertController *error = [UIAlertController alertControllerWithTitle:@"Key not saved"
+                message:@"Enter a valid nonempty key and verify Keychain access."
+                preferredStyle:UIAlertControllerStyleAlert];
+            [error addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
+            [weakSelf presentViewController:error animated:YES completion:nil];
+            return;
+        }
+        // Only processes started after this point receive the updated
+        // environment. Restart active services to apply the new credentials.
+        if (OMHHarness.dashboard.state == OMHHarnessStateReady) [OMHHarness.dashboard restart];
+        if (OMHHarness.shared.state == OMHHarnessStateReady) [OMHHarness.shared restart];
+        [weakSelf updateDashboard];
+    }]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    [self presentViewController:alert animated:YES completion:nil];
+}
 - (void)retryDashboard {
     if (OMHHarness.dashboard.state == OMHHarnessStateReady) {
         self.requestedURL = nil;
@@ -255,7 +332,6 @@
 @property (nonatomic) UITextView *diagnostics;
 @property (nonatomic) UIButton *retryButton;
 @property (nonatomic) UIButton *continueButton;
-@property (nonatomic) UIButton *configureButton;
 @property (nonatomic) BOOL showingFullLog;
 @property (nonatomic) NSTimer *refreshTimer;
 @property (nonatomic) BOOL transitioned;
@@ -264,9 +340,13 @@
 @implementation OMHLaunchGateController
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.view.backgroundColor = [UIColor colorWithRed:0.012 green:0.018 blue:0.039 alpha:1];
+    self.view.backgroundColor = [UIColor colorWithRed:0.035 green:0.027 blue:0.047 alpha:1];
     self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-    UIColor *cyan = [UIColor colorWithRed:0.17 green:0.87 blue:0.94 alpha:1];
+    UIColor *openUIAccent = [UIColor colorWithRed:0.66 green:0.33 blue:0.97 alpha:1];
+    UIImageView *mark = [[UIImageView alloc] initWithImage:[UIImage imageNamed:@"OMHBrandMark"]];
+    mark.contentMode = UIViewContentModeScaleAspectFit;
+    mark.isAccessibilityElement = NO;
+    [mark.heightAnchor constraintEqualToConstant:48].active = YES;
     UILabel *brand = [UILabel new];
     brand.text = @"OpenMind Harness";
     brand.font = [UIFont preferredFontForTextStyle:UIFontTextStyleLargeTitle];
@@ -279,6 +359,9 @@
     sub.text = @"Preparing your local workspace";
     sub.textColor = UIColor.secondaryLabelColor;
     sub.textAlignment = NSTextAlignmentCenter;
+    sub.numberOfLines = 0;
+    sub.font = [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
+    sub.adjustsFontForContentSizeCategory = YES;
     self.stateLabel = [UILabel new];
     self.stateLabel.text = @"Preparing Linux guest…";
     self.stateLabel.textAlignment = NSTextAlignmentCenter;
@@ -286,11 +369,11 @@
     self.stateLabel.textColor = UIColor.whiteColor;
     self.stateLabel.accessibilityIdentifier = @"omh.launch.status";
     self.progressView = [UIProgressView new];
-    self.progressView.progressTintColor = cyan;
+    self.progressView.progressTintColor = openUIAccent;
     self.progressView.trackTintColor = UIColor.darkGrayColor;
     self.progressView.accessibilityIdentifier = @"omh.launch.progress";
     self.diagnostics = [UITextView new];
-    self.diagnostics.backgroundColor = [UIColor colorWithWhite:0.09 alpha:1];
+    self.diagnostics.backgroundColor = [UIColor colorWithRed:0.025 green:0.04 blue:0.03 alpha:1];
     self.diagnostics.textColor = [UIColor colorWithRed:0.86 green:1.0 blue:0.91 alpha:1];
     self.diagnostics.font = [UIFont monospacedSystemFontOfSize:11 weight:UIFontWeightRegular];
     self.diagnostics.editable = NO;
@@ -309,37 +392,45 @@
     self.retryButton.accessibilityIdentifier = @"omh.launch.retry";
     [self.retryButton addTarget:self action:@selector(retryLaunch) forControlEvents:UIControlEventTouchUpInside];
     self.retryButton.hidden = YES;
-    self.configureButton = [UIButton buttonWithType:UIButtonTypeSystem];
-    [self.configureButton setTitle:@"Configure provider" forState:UIControlStateNormal];
-    self.configureButton.accessibilityIdentifier = @"omh.launch.configure-provider";
-    [self.configureButton addTarget:self action:@selector(configureProvider) forControlEvents:UIControlEventTouchUpInside];
     self.continueButton = [UIButton buttonWithType:UIButtonTypeSystem];
     [self.continueButton setTitle:@"Open dashboard" forState:UIControlStateNormal];
     self.continueButton.accessibilityIdentifier = @"omh.launch.continue";
     [self.continueButton addTarget:self action:@selector(completeSetup) forControlEvents:UIControlEventTouchUpInside];
     self.continueButton.hidden = YES;
-    UIStackView *actions = [[UIStackView alloc] initWithArrangedSubviews:@[logs,self.configureButton,self.retryButton,self.continueButton]];
+    UIStackView *actions = [[UIStackView alloc] initWithArrangedSubviews:@[logs,self.retryButton,self.continueButton]];
     actions.axis = UILayoutConstraintAxisHorizontal;
     actions.alignment = UIStackViewAlignmentCenter;
     actions.distribution = UIStackViewDistributionEqualSpacing;
     actions.spacing = 15;
-    for (UIButton *button in @[logs,self.configureButton,self.retryButton,self.continueButton])
+    for (UIButton *button in @[logs,self.retryButton,self.continueButton]) {
+        UIButtonConfiguration *style = [UIButtonConfiguration tintedButtonConfiguration];
+        style.title = [button titleForState:UIControlStateNormal];
+        style.baseForegroundColor = openUIAccent;
+        style.cornerStyle = UIButtonConfigurationCornerStyleMedium;
+        button.configuration = style;
         [button.heightAnchor constraintGreaterThanOrEqualToConstant:44].active = YES;
+    }
     UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[
-        brand,sub,self.stateLabel,self.progressView,actions,self.diagnostics]];
+        mark,brand,sub,self.stateLabel,self.progressView,actions,self.diagnostics]];
     stack.axis = UILayoutConstraintAxisVertical;
     stack.alignment = UIStackViewAlignmentFill;
     stack.spacing = 20;
     stack.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.view addSubview:stack];
+    UIScrollView *scroll = [UIScrollView new];
+    scroll.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:scroll];
+    [scroll addSubview:stack];
     UILayoutGuide *safe = self.view.safeAreaLayoutGuide;
     [NSLayoutConstraint activateConstraints:@[
-        [stack.centerXAnchor constraintEqualToAnchor:safe.centerXAnchor],
-        [stack.centerYAnchor constraintEqualToAnchor:safe.centerYAnchor],
-        [stack.leadingAnchor constraintGreaterThanOrEqualToAnchor:safe.leadingAnchor constant:20],
-        [stack.trailingAnchor constraintLessThanOrEqualToAnchor:safe.trailingAnchor constant:-20],
-        [stack.widthAnchor constraintLessThanOrEqualToConstant:850],
-        [self.diagnostics.heightAnchor constraintEqualToConstant:320]
+        [scroll.topAnchor constraintEqualToAnchor:safe.topAnchor],
+        [scroll.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor],
+        [scroll.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor],
+        [scroll.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor],
+        [stack.centerXAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.centerXAnchor],
+        [stack.topAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.topAnchor constant:24],
+        [stack.bottomAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.bottomAnchor constant:-24],
+        [stack.widthAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.widthAnchor multiplier:0.88],
+        [self.diagnostics.heightAnchor constraintEqualToConstant:360]
     ]];
     NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
     [nc addObserver:self selector:@selector(updateGate)
@@ -367,60 +458,10 @@
 }
 - (void)toggleLog:(UIButton *)sender {
     self.showingFullLog = !self.showingFullLog;
-    [sender setTitle:self.showingFullLog ? @"Recent log" : @"Full log" forState:UIControlStateNormal];
+    UIButtonConfiguration *style = sender.configuration;
+    style.title = self.showingFullLog ? @"Recent log" : @"Full log";
+    sender.configuration = style;
     [self updateGate];
-}
-- (void)configureProvider {
-    UIAlertController *sheet = [UIAlertController alertControllerWithTitle:@"Provider setup"
-        message:@"Optional: save an API key securely on this device. Other sign-in methods remain available after startup."
-        preferredStyle:UIAlertControllerStyleActionSheet];
-    NSDictionary<NSString *,NSString *> *providers = @{
-        @"OpenAI":@"openai", @"Anthropic":@"anthropic",
-        @"Gemini":@"google", @"DeepSeek":@"deepseek",
-        @"GLM / Z.AI":@"zai", @"Kimi / Moonshot":@"moonshotai",
-        @"Qwen":@"qwen"
-    };
-    __weak typeof(self) weakSelf = self;
-    for (NSString *name in @[@"OpenAI",@"Anthropic",@"Gemini",@"DeepSeek",@"GLM / Z.AI",@"Kimi / Moonshot",@"Qwen"]) {
-        NSString *provider = providers[name];
-        [sheet addAction:[UIAlertAction actionWithTitle:name style:UIAlertActionStyleDefault
-            handler:^(UIAlertAction *action) { [weakSelf promptForKey:provider name:name]; }]];
-    }
-    [sheet addAction:[UIAlertAction actionWithTitle:@"Not now" style:UIAlertActionStyleCancel handler:nil]];
-    sheet.popoverPresentationController.sourceView = self.configureButton;
-    sheet.popoverPresentationController.sourceRect = self.configureButton.bounds;
-    [self presentViewController:sheet animated:YES completion:nil];
-}
-- (void)promptForKey:(NSString *)provider name:(NSString *)name {
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:name
-        message:@"API keys are stored in the iOS Keychain, never in the dashboard or startup logs."
-        preferredStyle:UIAlertControllerStyleAlert];
-    [alert addTextFieldWithConfigurationHandler:^(UITextField *field) {
-        field.placeholder = @"Provider API key";
-        field.secureTextEntry = YES;
-        field.autocorrectionType = UITextAutocorrectionTypeNo;
-        field.autocapitalizationType = UITextAutocapitalizationTypeNone;
-    }];
-    __weak typeof(self) weakSelf = self;
-    [alert addAction:[UIAlertAction actionWithTitle:@"Save key" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
-        NSString *value = [alert.textFields.firstObject.text
-            stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
-        if (![OMHProviderCredentials saveToken:value provider:provider]) {
-            UIAlertController *error = [UIAlertController alertControllerWithTitle:@"Key not saved"
-                message:@"Enter a valid nonempty key and verify Keychain access."
-                preferredStyle:UIAlertControllerStyleAlert];
-            [error addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
-            [weakSelf presentViewController:error animated:YES completion:nil];
-            return;
-        }
-        // Only processes started after this point receive the updated
-        // environment. Restart active services before advancing the gate.
-        if (OMHHarness.dashboard.state == OMHHarnessStateReady) [OMHHarness.dashboard restart];
-        if (OMHHarness.shared.state == OMHHarnessStateReady) [OMHHarness.shared restart];
-        [weakSelf updateGate];
-    }]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
-    [self presentViewController:alert animated:YES completion:nil];
 }
 - (void)retryLaunch {
     OMHHarness *dashboard = OMHHarness.dashboard;
@@ -507,7 +548,7 @@
             UINavigationController *nav = [[UINavigationController alloc]
                 initWithRootViewController:[OMHDashboardViewController new]];
             nav.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-            nav.navigationBar.tintColor = [UIColor colorWithRed:0.17 green:0.87 blue:0.94 alpha:1];
+            nav.navigationBar.tintColor = [UIColor colorWithRed:0.66 green:0.33 blue:0.97 alpha:1];
             nav.navigationBar.prefersLargeTitles = NO;
             self.window.rootViewController = nav;
         };

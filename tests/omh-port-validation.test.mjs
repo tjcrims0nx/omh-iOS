@@ -69,12 +69,13 @@ test('provider key persistence test navigates through editor and reboots for fre
  const editor=await read('app/OMHRootViewController.m');
  const ui=await read('tests/OMHUITests/OMHLaunchUITests.m');
  assert.match(scene,/initWithRootViewController:\[OMHDashboardViewController new\]/);
- assert.match(scene,/omh\.open-editor/);
+ assert.match(scene,/omh\.native\.settings/);
+ assert.match(scene,/actionWithTitle:@"OpenCode"/);
  assert.match(editor,/identifier:@"omh\.menu"/);
  assert.match(editor,/@\"Provider Connections\"/);
  assert.match(editor,/\[OMHHarness\.shared restart\];\s*\[OMHHarness\.dashboard restart\];/);
  assert.match(ui,/\[self openEditorProviderMenu\];/);
- assert.match(ui,/\[editor tap\];/);
+ assert.match(ui,/\[self openEditorFromSettings\];/);
  assert.match(ui,/\[self\.app terminate\];\s*\[self\.app launch\];/);
  assert.match(ui,/Exactly one provider \(DeepSeek\) must read configured after the restart/);
  assert.match(ui,/No provider should remain configured after cleanup/);
@@ -101,13 +102,20 @@ test('full-screen startup gate controls dashboard readiness and optional provide
  assert.match(scene,/self\.window\.rootViewController = gate;/);
  assert.match(scene,/self\.window\.rootViewController = nav;/);
  assert.match(scene,/OMHBootPhaseReady && server\.state == OMHHarnessStateReady/);
- assert.match(scene,/omh\.launch\.configure-provider/);
+ assert.doesNotMatch(scene,/omh\.launch\.configure-provider/);
+ assert.match(scene,/actionWithTitle:@"Providers"/);
  assert.match(scene,/\[OMHProviderCredentials saveToken:value provider:provider\]/);
  assert.match(scene,/\[OMHHarness\.dashboard restart\]/);
  assert.match(scene,/omh\.launch\.continue/);
  assert.match(ui,/waitForDashboardLaunch/);
  assert.match(ui,/Dashboard chrome must remain hidden during boot/);
  assert.match(ui,/Startup gate must be removed, not overlaid over the dashboard/);
+});
+
+test('dashboard root has no empty left navigation control',async()=>{
+ const scene=await read('app/OMHSceneDelegate.m');
+ assert.match(scene,/self\.navigationItem\.leftBarButtonItem = nil;/);
+ assert.doesNotMatch(scene,/initWithCustomView:self\.loadingIndicator/);
 });
 
 test('one native OMH dashboard shell supports both iOS iPhone and iPadOS',async()=>{
