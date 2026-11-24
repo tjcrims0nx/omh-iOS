@@ -54,7 +54,7 @@
     [super viewDidLoad];
     self.title = @"Dashboard";
     self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-    self.view.backgroundColor = [UIColor colorWithRed:0.012 green:0.027 blue:0.047 alpha:1];
+    self.view.backgroundColor = [UIColor colorWithRed:0.035 green:0.027 blue:0.047 alpha:1];
 
     // Native UIKit chrome around the existing neon dashboard: iPad toolbar,
     // 44-point touch controls, Dynamic Type and the official OMH brand mark.
@@ -81,7 +81,7 @@
     self.nativeTitle = brandTitle;
     brandTitle.font = [UIFont preferredFontForTextStyle:UIFontTextStyleHeadline];
     brandTitle.adjustsFontForContentSizeCategory = YES;
-    brandTitle.textColor = [UIColor colorWithRed:0.20 green:0.89 blue:1 alpha:1];
+    brandTitle.textColor = [UIColor colorWithRed:0.75 green:0.42 blue:1 alpha:1];
     brandTitle.lineBreakMode = NSLineBreakByTruncatingTail;
     UIStackView *identity = [[UIStackView alloc] initWithArrangedSubviews:@[brand, brandTitle]];
     identity.axis = UILayoutConstraintAxisHorizontal;
@@ -117,7 +117,7 @@
 
     self.loadingIndicator = [[UIActivityIndicatorView alloc]
         initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
-    self.loadingIndicator.color = [UIColor colorWithRed:0.20 green:0.89 blue:1 alpha:1];
+    self.loadingIndicator.color = [UIColor colorWithRed:0.75 green:0.42 blue:1 alpha:1];
     // The dashboard is the navigation root. Never reserve a blank circular
     // leading control when there is no view to go back to. Startup progress
     // is already presented by the dedicated full-screen launch gate.
@@ -145,7 +145,7 @@
     retryStyle.title = @"Retry dashboard";
     retryStyle.image = [UIImage systemImageNamed:@"arrow.clockwise"];
     retryStyle.imagePadding = 8;
-    retryStyle.baseForegroundColor = [UIColor colorWithRed:0.20 green:0.89 blue:1 alpha:1];
+    retryStyle.baseForegroundColor = [UIColor colorWithRed:0.75 green:0.42 blue:1 alpha:1];
     retryStyle.contentInsets = NSDirectionalEdgeInsetsMake(12, 16, 12, 16);
     self.retry.configuration = retryStyle;
     self.retry.accessibilityIdentifier = @"omh.native.retry";
@@ -338,9 +338,9 @@
 @implementation OMHLaunchGateController
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.view.backgroundColor = [UIColor colorWithRed:0.012 green:0.018 blue:0.039 alpha:1];
+    self.view.backgroundColor = [UIColor colorWithRed:0.035 green:0.027 blue:0.047 alpha:1];
     self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-    UIColor *cyan = [UIColor colorWithRed:0.17 green:0.87 blue:0.94 alpha:1];
+    UIColor *openUIAccent = [UIColor colorWithRed:0.66 green:0.33 blue:0.97 alpha:1];
     UILabel *brand = [UILabel new];
     brand.text = @"OpenMind Harness";
     brand.font = [UIFont preferredFontForTextStyle:UIFontTextStyleLargeTitle];
@@ -360,7 +360,7 @@
     self.stateLabel.textColor = UIColor.whiteColor;
     self.stateLabel.accessibilityIdentifier = @"omh.launch.status";
     self.progressView = [UIProgressView new];
-    self.progressView.progressTintColor = cyan;
+    self.progressView.progressTintColor = openUIAccent;
     self.progressView.trackTintColor = UIColor.darkGrayColor;
     self.progressView.accessibilityIdentifier = @"omh.launch.progress";
     self.diagnostics = [UITextView new];
@@ -525,7 +525,7 @@
             UINavigationController *nav = [[UINavigationController alloc]
                 initWithRootViewController:[OMHDashboardViewController new]];
             nav.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-            nav.navigationBar.tintColor = [UIColor colorWithRed:0.17 green:0.87 blue:0.94 alpha:1];
+            nav.navigationBar.tintColor = [UIColor colorWithRed:0.66 green:0.33 blue:0.97 alpha:1];
             nav.navigationBar.prefersLargeTitles = NO;
             self.window.rootViewController = nav;
         };
