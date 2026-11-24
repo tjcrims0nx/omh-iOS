@@ -15,24 +15,24 @@ test('first-run gate does not ask for a provider or create dashboard early', () 
 });
 
 test('dashboard exposes optional universal provider configuration', () => {
-  assert.match(dashboard, /initWithTitle:@"Providers"/);
-  assert.match(dashboard, /omh.native.providers/);
-  assert.match(dashboard, /@selector\(configureProvider\)/);
+  assert.match(dashboard, /omh\.native\.settings/);
+  assert.match(dashboard, /actionWithTitle:@"Providers"/);
+  assert.match(dashboard, /\[weakSelf configureProvider\]/);
   for (const name of ['OpenAI', 'Anthropic', 'Gemini', 'DeepSeek', 'GLM \/ Z.AI', 'Kimi \/ Moonshot', 'Qwen'])
     assert.ok(dashboard.includes(name), name);
   assert.match(dashboard, /OMHProviderCredentials saveToken/);
   assert.match(dashboard, /secureTextEntry = YES/);
 });
 
-test('native brand chooses a compact iPhone title before the navigation bar first measures it', () => {
-  const firstLayout = dashboard.indexOf('self.navigationItem.titleView = identity;');
-  const compactText = dashboard.indexOf('self.traitCollection.horizontalSizeClass == UIUserInterfaceSizeClassCompact ? @"OMH" : @"OpenMind Harness"');
-  assert.ok(compactText >= 0 && compactText < firstLayout,
-    'initial title must be compact before assigning the titleView');
+test('native brand header chooses a compact iPhone title without a navigation titleView', () => {
+  // The brand lives in a dedicated responsive header above the WebView,
+  // not in the navigation bar: the bar collapsed the titleView on a
+  // compact iPhone so the logo never appeared.
+  assert.doesNotMatch(dashboard, /self\.navigationItem\.titleView = identity;/);
+  assert.match(dashboard, /self\.headerView = \[UIView new\]/);
+  assert.match(dashboard, /\[self\.headerView addSubview:identity\]/);
+  assert.match(dashboard, /self\.dashboard\.topAnchor constraintEqualToAnchor:self\.headerView\.bottomAnchor/);
   assert.match(dashboard, /brand\.accessibilityIdentifier = @"omh\.native\.brand\.logo"/);
   assert.match(dashboard, /available < 620 \? @"OMH" : @"OpenMind Harness"/);
   assert.match(dashboard, /if \(!\[self\.nativeTitle\.text isEqualToString:title\]\)/);
-  assert.match(dashboard, /\[self\.nativeTitle invalidateIntrinsicContentSize\]/);
-  assert.match(dashboard, /UIView \*titleView = self\.navigationItem\.titleView;/);
-  assert.match(dashboard, /self\.navigationItem\.titleView = nil;\s*self\.navigationItem\.titleView = titleView;/);
 });
