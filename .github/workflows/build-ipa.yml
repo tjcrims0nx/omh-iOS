@@ -94,7 +94,7 @@ jobs:
           path: |
             ish-arm64/build-arm64-release
             build/root.tar.gz
-          key: omh-v1-${{ hashFiles('ish-arm64/**', 'rootfs/overlay/**', 'scripts/build-rootfs.sh', 'Makefile', 'harness/opencode.json', 'harness/dashboard/**', 'harness/modules/**', 'harness/scripts/omh-*.mjs', 'harness/scripts/connect-vercel-mcp.mjs', 'harness/plugins/**', 'harness/skills/**', 'harness/scripts/delete-env.sh', 'harness/commands/**') }}
+          key: omh-v1-${{ hashFiles('ish-arm64/**', 'rootfs/overlay/**', 'scripts/build-rootfs.sh', 'Makefile', 'harness/opencode.json', 'harness/dashboard/**', 'harness/modules/**', 'harness/scripts/omh-*.mjs', 'harness/plugins/**', 'harness/skills/**', 'harness/scripts/delete-env.sh', 'harness/commands/**') }}
 
       - name: Build emulator
         if: steps.build-cache.outputs.cache-hit != 'true'
@@ -118,11 +118,10 @@ jobs:
           bash -n scripts/sync-omh-branding.sh
           bash -n scripts/verify-omh-ipa.sh
           bash scripts/sync-omh-branding.sh
-          for wrapper in omh-runtime omh-dashboard omh-live omh-vercel-mcp omh-sandbox-check; do
+          for wrapper in omh-runtime omh-dashboard omh-live omh-sandbox-check; do
             test -s "rootfs/overlay/usr/local/bin/$wrapper" || exit 1
           done
           node --check harness/scripts/omh-live.mjs
-          node --check harness/scripts/connect-vercel-mcp.mjs
           node --check harness/scripts/omh-dashboard.mjs
           git -C harness rev-parse HEAD
           node -e "const c=require('./harness/opencode.json');if(c.model!=='google/gemini-3.5-flash-lite')process.exit(1)"
@@ -210,7 +209,7 @@ jobs:
           path: |
             ish-arm64/build-arm64-release
             build/root.tar.gz
-          key: omh-v1-${{ hashFiles('ish-arm64/**', 'rootfs/overlay/**', 'scripts/build-rootfs.sh', 'Makefile', 'harness/opencode.json', 'harness/dashboard/**', 'harness/modules/**', 'harness/scripts/omh-*.mjs', 'harness/scripts/connect-vercel-mcp.mjs', 'harness/plugins/**', 'harness/skills/**', 'harness/scripts/delete-env.sh', 'harness/commands/**') }}
+          key: omh-v1-${{ hashFiles('ish-arm64/**', 'rootfs/overlay/**', 'scripts/build-rootfs.sh', 'Makefile', 'harness/opencode.json', 'harness/dashboard/**', 'harness/modules/**', 'harness/scripts/omh-*.mjs', 'harness/plugins/**', 'harness/skills/**', 'harness/scripts/delete-env.sh', 'harness/commands/**') }}
 
       - name: Build emulator
         if: steps.build-cache.outputs.cache-hit != 'true'
@@ -233,11 +232,10 @@ jobs:
           bash -n scripts/sync-omh-branding.sh
           bash -n scripts/verify-omh-ipa.sh
           bash scripts/sync-omh-branding.sh
-          for wrapper in omh-runtime omh-dashboard omh-live omh-vercel-mcp omh-sandbox-check; do
+          for wrapper in omh-runtime omh-dashboard omh-live omh-sandbox-check; do
             test -s "rootfs/overlay/usr/local/bin/$wrapper" || exit 1
           done
           node --check harness/scripts/omh-live.mjs
-          node --check harness/scripts/connect-vercel-mcp.mjs
           node --check harness/scripts/omh-dashboard.mjs
           git -C harness rev-parse HEAD
           node -e "const c=require('./harness/opencode.json');if(c.model!=='google/gemini-3.5-flash-lite')process.exit(1)"
@@ -327,7 +325,7 @@ jobs:
           path: |
             ish-arm64/build-arm64-release
             build/root.tar.gz
-          key: omh-v1-${{ hashFiles('ish-arm64/**', 'rootfs/overlay/**', 'scripts/build-rootfs.sh', 'Makefile', 'harness/opencode.json', 'harness/dashboard/**', 'harness/modules/**', 'harness/scripts/omh-*.mjs', 'harness/scripts/connect-vercel-mcp.mjs', 'harness/plugins/**', 'harness/skills/**', 'harness/scripts/delete-env.sh', 'harness/commands/**') }}
+          key: omh-v1-${{ hashFiles('ish-arm64/**', 'rootfs/overlay/**', 'scripts/build-rootfs.sh', 'Makefile', 'harness/opencode.json', 'harness/dashboard/**', 'harness/modules/**', 'harness/scripts/omh-*.mjs', 'harness/plugins/**', 'harness/skills/**', 'harness/scripts/delete-env.sh', 'harness/commands/**') }}
 
       - name: Build emulator
         if: steps.build-cache.outputs.cache-hit != 'true'
@@ -350,11 +348,10 @@ jobs:
           bash -n scripts/sync-omh-branding.sh
           bash -n scripts/verify-omh-ipa.sh
           bash scripts/sync-omh-branding.sh
-          for wrapper in omh-runtime omh-dashboard omh-live omh-vercel-mcp omh-sandbox-check; do
+          for wrapper in omh-runtime omh-dashboard omh-live omh-sandbox-check; do
             test -s "rootfs/overlay/usr/local/bin/$wrapper" || exit 1
           done
           node --check harness/scripts/omh-live.mjs
-          node --check harness/scripts/connect-vercel-mcp.mjs
           node --check harness/scripts/omh-dashboard.mjs
           git -C harness rev-parse HEAD
           node -e "const c=require('./harness/opencode.json');if(c.model!=='google/gemini-3.5-flash-lite')process.exit(1)"

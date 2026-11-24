@@ -18,7 +18,9 @@ test('the Alpine iPad rootfs explicitly bundles the latest MCP tools and Bubblew
  const build=await read('scripts/build-rootfs.sh');
  assert.match(build,/apk add[^\n]*bubblewrap/);
  assert.match(build,/omh-\{dashboard,runtime,mcp,daemon,live\}\.mjs/);
- assert.match(build,/connect-vercel-mcp\.mjs/);
+ // Vercel is fully out of the harness (PR #11) and out of this repo:
+ // the Vercel connector and wrapper must not be referenced in the build.
+ assert.doesNotMatch(build,/connect-vercel-mcp|omh-vercel-mcp/);
  assert.match(build,/guest dashboard did not serve a valid/i);
  assert.match(build,/c\.mcp\?\.\["omh-runtime"\]\?\.enabled/);
  assert.match(build,/sandbox\.verified/);
@@ -35,7 +37,7 @@ test('iPad launchers use persistent OMH configuration and the real dashboard API
  assert.doesNotMatch(probe,/ok = code > 0 && code < 500/);
 });
 test('guest wrappers are present and do not silently run unsandboxed commands',async()=>{
- for(const script of ['omh-runtime','omh-dashboard','omh-sandbox-check','omh-vercel-mcp','omh-live']){
+ for(const script of ['omh-runtime','omh-dashboard','omh-sandbox-check','omh-live']){
   const source=await read('rootfs/overlay/usr/local/bin/'+script);
   assert.match(source,/\/usr\/bin\/node/);
   assert.doesNotMatch(source,/danger-full-access/);

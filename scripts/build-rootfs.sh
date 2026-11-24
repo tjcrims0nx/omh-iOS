@@ -97,7 +97,7 @@ mkdir -p payload/ish && printf '%s\n' "$overlay_ver" > payload/ish/overlay-versi
 cp -R "$ROOT/rootfs/overlay/." payload/
 # Git stores generated wrapper scripts as regular text; set executable modes
 # explicitly so the iOS Terminal can run all three guest commands.
-chmod 0755 payload/usr/local/bin/omh-live payload/usr/local/bin/omh-vercel-mcp payload/usr/local/bin/omh-sandbox-check
+chmod 0755 payload/usr/local/bin/omh-live payload/usr/local/bin/omh-sandbox-check
 find payload -name '._*' -delete
 # The harness config is canonical in the openmind-harness repo (the same
 # file the Linux and Termux setups install); place it in the guest image
@@ -125,7 +125,8 @@ runtime=payload/usr/local/share/omh-runtime
 mkdir -p "$runtime/scripts"
 cp -R "$HARNESS_DIR/modules" "$HARNESS_DIR/dashboard" "$runtime/"
 cp "$HARNESS_DIR"/scripts/omh-{dashboard,runtime,mcp,daemon,live}.mjs "$runtime/scripts/"
-cp "$HARNESS_DIR/scripts/connect-vercel-mcp.mjs" "$runtime/scripts/"
+# Vercel is fully out of the harness (removed in PR #11, project deleted),
+# so nothing Vercel is copied here.
 # OpenCode reads OPENCODE_CONFIG as the iPad config path. Bundle the full
 # verified harness provider/agent config together with our local MCP entry:
 # a bare MCP-only override would mask the canonical model on some versions.
@@ -142,8 +143,8 @@ if(config.model!=='google/gemini-3.5-flash-lite'||!config.provider?.google)
 fs.writeFileSync(process.argv[3],JSON.stringify(config,null,2)+'\n');
 NODE
 # The effective user configuration must include the same MCP registration;
-# official Vercel OAuth setup edits this file and must remain effective after
-# app restarts instead of being masked by a separate OPENCODE_CONFIG override.
+# it must remain effective after app restarts instead of being masked by a
+# separate OPENCODE_CONFIG override.
 cp "$runtime/ipad-opencode.json" payload/root/.config/opencode/opencode.json
 # Same for the starter skill (OpenCode's global skills source).
 mkdir -p payload/root/.config/opencode/skills
@@ -181,7 +182,6 @@ opencode --version
 node --version
 bwrap --version
 test -f /usr/local/share/omh-runtime/scripts/omh-live.mjs
-test -f /usr/local/share/omh-runtime/scripts/connect-vercel-mcp.mjs
 node -e 'const c=require("/usr/local/share/omh-runtime/ipad-opencode.json"); if(c.model!=="google/gemini-3.5-flash-lite"||c.mcp?.["omh-runtime"]?.enabled!==true||!c.provider?.google)process.exit(1)'
 # Alpine iSH emulates Linux but cannot be assumed to provide namespace mounts.
 # This check only records support; failed isolation must not break app startup.
