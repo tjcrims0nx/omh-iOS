@@ -123,7 +123,15 @@ test('one native OMH dashboard shell supports both iOS iPhone and iPadOS',async(
  assert.match(scene,/One native UIKit shell on both iPhone/);
  assert.match(scene,/CGRectGetWidth\(self\.view\.bounds\)/);
  assert.match(scene,/available < 620 \? @"OMH"/);
- assert.match(scene,/WKContentModeRecommended/);
+ // No browser engine in the dashboard any more: the WebView and its
+ // content-mode configuration are gone; the container installs native
+ // Chat and Runtime views in a content area under the header instead.
+ assert.doesNotMatch(scene,/WKContentModeRecommended/);
+ assert.doesNotMatch(scene,/\[WKWebView /);
+ assert.match(scene,/installNativeContent/);
+ assert.match(scene,/OMHChatViewController alloc/);
+ assert.match(scene,/OMHRuntimeViewController alloc/);
+ assert.match(scene,/contentView\.accessibilityIdentifier = @"omh\.native\.dashboard"/);
  assert.match(scene,/initWithRootViewController:\[OMHDashboardViewController new\]/);
  const ui=await read('tests/OMHUITests/OMHLaunchUITests.m');
  assert.match(ui,/testIOSPhoneNativeDashboardAndEditor/);

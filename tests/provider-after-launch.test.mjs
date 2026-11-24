@@ -25,13 +25,13 @@ test('dashboard exposes optional universal provider configuration', () => {
 });
 
 test('native brand header chooses a compact iPhone title without a navigation titleView', () => {
-  // The brand lives in a dedicated responsive header above the WebView,
-  // not in the navigation bar: the bar collapsed the titleView on a
-  // compact iPhone so the logo never appeared.
+  // The brand lives in a dedicated responsive header above the native
+  // content area, not in the navigation bar: the bar collapsed the
+  // titleView on a compact iPhone so the logo never appeared.
   assert.doesNotMatch(dashboard, /self\.navigationItem\.titleView = identity;/);
   assert.match(dashboard, /self\.headerView = \[UIView new\]/);
   assert.match(dashboard, /\[self\.headerView addSubview:identity\]/);
-  assert.match(dashboard, /self\.dashboard\.topAnchor constraintEqualToAnchor:self\.headerView\.bottomAnchor/);
+  assert.match(dashboard, /self\.contentView\.topAnchor constraintEqualToAnchor:self\.headerView\.bottomAnchor/);
   assert.match(dashboard, /brand\.accessibilityIdentifier = @"omh\.native\.brand\.logo"/);
   assert.match(dashboard, /available < 620 \? @"OMH" : @"OpenMind Harness"/);
   assert.match(dashboard, /if \(!\[self\.nativeTitle\.text isEqualToString:title\]\)/);
