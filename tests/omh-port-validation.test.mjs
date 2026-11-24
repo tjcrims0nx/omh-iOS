@@ -135,7 +135,7 @@ test('one native OMH dashboard shell supports both iOS iPhone and iPadOS',async(
  assert.match(scene,/initWithRootViewController:\[OMHDashboardViewController new\]/);
  const ui=await read('tests/OMHUITests/OMHLaunchUITests.m');
  assert.match(ui,/testIOSPhoneNativeDashboardAndEditor/);
- assert.match(ui,/testHarnessBootsAndShowsWebUI/);
+ assert.match(ui,/testHarnessBootsAndShowsNativeUI/);
  const ci=await read('.github/workflows/build-ipa.yml');
  assert.match(ci,/^  iphone-simulator-smoke:/m);
  assert.match(ci,/^  simulator-smoke:/m);

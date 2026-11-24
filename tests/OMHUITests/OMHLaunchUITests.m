@@ -3,8 +3,12 @@
 //  OMHUITests
 //
 //  End-to-end checks on a real device/simulator: the app boots the Linux
-//  guest, opencode-serve comes up, the WKWebView shows the OpenMind Harness
-//  web UI, and the native controls (terminal, log, menu) work.
+//  guest, opencode-serve comes up, the native Chat and Runtime views show
+//  the harness state, and the native controls (terminal, log, menu) work.
+//  There is no dashboard web view any more: the dashboard is native
+//  UIKit driven by OMHApiClient. Only the OpenCode editor
+//  (OMHRootViewController) still embeds a web view, and the tests that
+//  touch it say so explicitly.
 //
 
 #import <XCTest/XCTest.h>
@@ -156,15 +160,18 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     // competing with toolbar actions for width.
     XCTAssertTrue([self.app.images[@"omh.native.brand.logo"] waitForExistenceWithTimeout:10], @"Brand logo must appear in the dashboard header on iPhone");
     XCTAssertGreaterThanOrEqual(CGRectGetHeight(settings.frame), 40);
-    // The dashboard web view stays hidden until the guest boots and the
-    // page finishes loading, so wait for it like the iPad test waits for
-    // the dashboard's own controls instead of asserting it immediately.
-    XCTAssertTrue([self.app.webViews.firstMatch waitForExistenceWithTimeout:kBootTimeout], @"iOS includes the embedded dashboard");
+    // The dashboard is native now: the Chat tab is the home view, with a
+    // provider selector and a composer — there is no dashboard web view.
+    XCUIElement *chat = self.app.otherElements[@"omh.native.chat"];
+    XCTAssertTrue([chat waitForExistenceWithTimeout:kBootTimeout], @"iPhone must show the native Chat view");
+    XCTAssertTrue([self.app.buttons[@"omh.native.chat.provider"] waitForExistenceWithTimeout:10], @"Chat must offer a provider selector");
+    XCTAssertTrue(self.app.textFields[@"omh.native.chat.composer"].exists, @"Chat must offer a composer");
     [self attachScreenshot:@"ios-phone-portrait-native-dashboard"];
 
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationLandscapeLeft;
     XCTAssertTrue([settings waitForExistenceWithTimeout:10], @"Native actions survive iPhone rotation");
     XCTAssertTrue([self.app.images[@"omh.native.brand.logo"] waitForExistenceWithTimeout:10], @"Brand logo must survive iPhone rotation");
+    XCTAssertTrue([chat waitForExistenceWithTimeout:10], @"Native Chat view must survive iPhone rotation");
     [self attachScreenshot:@"ios-phone-landscape-native-dashboard"];
 
     // OpenCode, Providers and Refresh live under the Settings gear.
@@ -184,82 +191,48 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     [self dismissSettingsMenu];
 }
 
-- (void)testHarnessBootsAndShowsWebUI {
+- (void)testHarnessBootsAndShowsNativeUI {
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationLandscapeLeft;
-    // Native UIKit shell must remain visible while the guest WebKit app loads.
-    // This is deliberately separate from the embedded dashboard DOM.
+    // Native UIKit shell must remain visible while the guest boots.
     XCUIElement *nativeSettings = self.app.buttons[@"omh.native.settings"];
     XCTAssertTrue([nativeSettings waitForExistenceWithTimeout:15], @"Native dashboard settings belong in the iPad toolbar");
     XCTAssertTrue(self.app.images[@"omh.native.brand.logo"].exists, @"Use the official OMH brand in UIKit");
     XCTAssertGreaterThanOrEqual(CGRectGetHeight(nativeSettings.frame), 40.0, @"Settings gear must have an accessible tap target");
-    XCUIElement *home = self.app.webViews.firstMatch;
-    XCUIElement *refresh = home.buttons[@"Refresh runtime state"];
-    XCTAssertTrue([refresh waitForExistenceWithTimeout:kBootTimeout], @"iPad must open the shared OMH dashboard");
-    XCUIElement *connected = [[home descendantsMatchingType:XCUIElementTypeAny]
-        matchingPredicate:[NSPredicate predicateWithFormat:@"label == 'Connected'"]].firstMatch;
-    XCTAssertTrue([connected waitForExistenceWithTimeout:30], @"Dashboard must read guest runtime state");
-    [refresh tap];
+    // The native Chat view is the dashboard home; it appears once the
+    // guest is ready.
+    XCUIElement *chat = self.app.otherElements[@"omh.native.chat"];
+    XCTAssertTrue([chat waitForExistenceWithTimeout:kBootTimeout], @"iPad must open the native Chat view");
     [self attachScreenshot:@"01-ipad-harness-dashboard"];
-    // WebKit exposes buttons with aria-pressed as switches to iPad accessibility.
-    XCUIElement *rail = home.otherElements[@"Workspace navigation, navigation"];
-    NSArray<NSString *> *views = @[@"Agent teams", @"Workflows", @"Tasks", @"Skills",
-        @"Plugins", @"Trace", @"Sandbox", @"Schedules", @"Workspaces", @"Memory"];
-    for (NSString *name in views) {
-        XCUIElement *item = rail.switches[name];
-        [item tap];
-        XCTAssertEqualObjects(item.value, @"1", @"%@ should be selected", name);
-    }
-    XCUIElement *empty = [[home descendantsMatchingType:XCUIElementTypeAny]
-        matchingPredicate:[NSPredicate predicateWithFormat:@"label == 'No records match this view.'"]].firstMatch;
-    XCTAssertTrue([empty waitForExistenceWithTimeout:8]);
-    [rail.switches[@"Workspace"] tap];
-    XCUIElement *tiles = home.otherElements[@"Explore harness features, navigation"];
-    NSArray<XCUIElement *> *cards = tiles.switches.allElementsBoundByIndex;
-    XCTAssertEqual(cards.count, 8u);
-    for (XCUIElement *card in cards) {
-        [card tap];
-        XCTAssertFalse(tiles.exists);
-        [rail.switches[@"Workspace"] tap];
-        XCTAssertTrue(tiles.exists);
-    }
-    XCUIElement *quick = home.otherElements[@"Quick views, navigation"];
-    for (NSString *name in @[@"Agent team", @"Queue", @"Overview"]) {
-        [quick.switches[name] tap];
-        XCTAssertEqualObjects(quick.switches[name].value, @"1");
-    }
-    for (NSString *name in @[@"Workspaces", @"Schedules", @"Logs", @"Console"]) {
-        [home.buttons[name] tap];
-        XCTAssertTrue(home.otherElements[[name stringByAppendingString:@", tab panel"]].exists);
-    }
-    [home.buttons[@"Run search"] tap];
-    XCTAssertTrue(home.buttons[@"Clear"].exists);
-    [home.buttons[@"Clear"] tap];
-    XCTAssertFalse(home.buttons[@"Clear"].exists);
-    // Tapping Run search focuses the search input and opens the software
-    // keyboard, which scrolls the web view and pushes the topbar (with the
-    // Refresh button) out of the visible viewport. Dismiss the keyboard so
-    // the topbar is back in view before rotating and checking it.
-    XCUIElement *hideKeyboard = self.app.keyboards.buttons[@"Hide keyboard"];
-    if (hideKeyboard.exists) [hideKeyboard tap];
+    // The Runtime view must load live state from GET /api/state: the
+    // Status section's task counts only render once the fetch succeeds.
+    [self openRuntimeView];
+    [self waitForRuntimeState];
+    XCUIElement *list = self.app.tables[@"omh.native.runtime.list"];
+    XCUIElement *counts = [[list.staticTexts matchingPredicate:[NSPredicate predicateWithFormat:@"label CONTAINS 'Queued'"]] firstMatch];
+    XCTAssertTrue([counts waitForExistenceWithTimeout:30], @"Runtime must read guest runtime state");
+    // The Runtime view's own Refresh re-fetches state.
+    XCUIElement *refresh = self.app.buttons[@"omh.native.runtime.refresh"];
+    XCTAssertTrue([refresh waitForExistenceWithTimeout:10], @"Runtime must offer Refresh");
+    [refresh tap];
+    [self waitForRuntimeState];
+    XCTAssertTrue([counts waitForExistenceWithTimeout:30], @"Runtime must still show state after Refresh");
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationPortrait;
     XCTAssertTrue([nativeSettings waitForExistenceWithTimeout:8], @"Native toolbar should survive rotation");
+    XCTAssertTrue([list waitForExistenceWithTimeout:8], @"Native Runtime view should survive rotation");
     // OpenCode lives under the Settings gear; verify it is still reachable after rotation.
     [self openSettingsMenu];
     XCTAssertTrue(self.app.buttons[@"OpenCode"].hittable, @"OpenCode native control should survive rotation");
     [self dismissSettingsMenu];
-    // The web refresh button is disabled while a state load is in flight
-    // (dashboard.js sets disabled=true during /api/state, up to 10s), and
-    // a disabled button is not hittable. Wait for it instead of asserting
-    // immediately after rotation, when a load may still be running.
-    NSPredicate *webRefreshHittable = [NSPredicate predicateWithFormat:@"hittable == YES"];
-    [self waitForExpectations:@[[self expectationForPredicate:webRefreshHittable evaluatedWithObject:refresh handler:nil]] timeout:15];
     [self attachScreenshot:@"02-ipad-dashboard-portrait"];
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationLandscapeLeft;
     [self waitForHarnessReady];
     [self attachScreenshot:@"02-ready"];
 
+    // From here the test is in the OpenCode editor, which still embeds
+    // its own web view (OMHRootViewController) — `web` below is that
+    // editor web view, not a dashboard web view (there is none any more).
     XCUIElement *web = self.app.webViews.firstMatch;
-    XCTAssertTrue([web waitForExistenceWithTimeout:30], @"web view should exist");
+    XCTAssertTrue([web waitForExistenceWithTimeout:30], @"editor web view should exist");
 
     // Wait for the local web client to render an interactive control.
     NSPredicate *uiUp = [NSPredicate predicateWithFormat:@"exists == YES"];
@@ -300,8 +273,9 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCTAssertTrue(title.exists);
     XCTAssertTrue([title.label containsString:@":30"], @"title should show the port, got %@", title.label);
     [self.app.navigationBars.buttons.firstMatch tap];
-    XCTAssertTrue([refresh waitForExistenceWithTimeout:10], @"Back must return to the running dashboard");
-    XCTAssertTrue(connected.exists);
+    // Back returns to the native dashboard, showing the Runtime view
+    // this test left active — not a web page.
+    XCTAssertTrue([self.app.tables[@"omh.native.runtime.list"] waitForExistenceWithTimeout:10], @"Back must return to the running dashboard");
 
 }
 
@@ -417,19 +391,24 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     [self.app.buttons[@"Done"] tap];
 }
 
-- (void)testLandscapeKeepsWebViewAndBar {
-    [self waitForHarnessReady];
+- (void)testLandscapeKeepsNativeDashboardAndBar {
+    // setUp already waited for the native dashboard; check the layout
+    // itself, not the editor: the dashboard container must be wider than
+    // tall in landscape and the Settings gear must stay reachable.
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationLandscapeLeft;
     sleep(2);
-    XCUIElement *web = self.app.webViews.firstMatch;
-    XCTAssertTrue([web waitForExistenceWithTimeout:10]);
-    CGRect frame = web.frame;
-    XCTAssertGreaterThan(frame.size.width, frame.size.height, @"web view should be wider than tall in landscape (%@)", NSStringFromCGRect(frame));
-    XCTAssertTrue(self.app.buttons[@"omh.menu"].isHittable, @"control bar stays reachable in landscape");
+    XCUIElement *dashboard = self.app.otherElements[@"omh.native.dashboard"];
+    XCTAssertTrue([dashboard waitForExistenceWithTimeout:10]);
+    CGRect frame = dashboard.frame;
+    XCTAssertGreaterThan(frame.size.width, frame.size.height, @"native dashboard should be wider than tall in landscape (%@)", NSStringFromCGRect(frame));
+    XCTAssertTrue(self.app.buttons[@"omh.native.settings"].isHittable, @"settings gear stays reachable in landscape");
     [self attachScreenshot:@"06-landscape"];
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationPortrait;
     sleep(1);
-    XCTAssertTrue(self.app.webViews.firstMatch.exists);
+    XCTAssertTrue(self.app.otherElements[@"omh.native.dashboard"].exists);
+    // The editor stays reachable after rotation too.
+    [self openEditorFromSettings];
+    XCTAssertTrue([self.app.buttons[@"omh.menu"] waitForExistenceWithTimeout:10], @"editor menu stays reachable after rotation");
 }
 
 - (void)testTerminalOpensAndDismisses {
@@ -442,7 +421,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCTAssertTrue([termWeb waitForExistenceWithTimeout:20], @"terminal sheet should present a second web view");
     sleep(3);
     [self attachScreenshot:@"05-terminal"];
-    // Swipe the sheet down to dismiss; the main web view is still there.
+    // Swipe the sheet down to dismiss; the editor web view is still there.
     [termWeb swipeDown];
     sleep(1);
     XCTAssertTrue(self.app.webViews.firstMatch.exists);
@@ -460,24 +439,59 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     [menu tap];
 }
 
+/// Shows the native Runtime view: the iPad sidebar row on iPad, the tab
+/// bar button on iPhone. Waits until the runtime list exists.
+- (void)openRuntimeView {
+    XCUIElement *sidebarRuntime = self.app.tables[@"omh.native.sidebar"].cells[@"omh.native.sidebar.runtime"];
+    if (sidebarRuntime.exists) {
+        [sidebarRuntime tap];
+    } else {
+        XCUIElement *tabRuntime = self.app.tabBars.buttons[@"Runtime"];
+        XCTAssertTrue([tabRuntime waitForExistenceWithTimeout:10], @"Runtime must be reachable from the tab bar");
+        [tabRuntime tap];
+    }
+    XCUIElement *list = self.app.tables[@"omh.native.runtime.list"];
+    XCTAssertTrue([list waitForExistenceWithTimeout:kBootTimeout], @"Runtime list must load");
+}
+
+/// Waits until the Runtime view has loaded live state (GET /api/state
+/// answered): the "No data yet" placeholder row only renders while the
+/// state is still nil.
+- (void)waitForRuntimeState {
+    XCUIElement *list = self.app.tables[@"omh.native.runtime.list"];
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:60];
+    while ([deadline timeIntervalSinceNow] > 0) {
+        if (!list.staticTexts[@"No data yet"].exists) {
+            return;
+        }
+        [[NSRunLoop currentRunLoop] runUntilDate:[NSDate dateWithTimeIntervalSinceNow:0.5]];
+    }
+    XCTFail(@"Runtime state did not load");
+}
+
+/// Counts providers the native Runtime view reports as configured: the
+/// provider rows carry "configured" in their detail text, and no other
+/// Runtime row contains that word.
+- (NSUInteger)configuredProviderCount {
+    XCUIElement *list = self.app.tables[@"omh.native.runtime.list"];
+    NSArray<XCUIElement *> *matches = [[list.staticTexts matchingPredicate:[NSPredicate predicateWithFormat:@"label CONTAINS 'configured'"]] allElementsBoundByIndex];
+    return matches.count;
+}
+
 /// A saved provider credential must survive a harness restart: the key
 /// lives in the iOS Keychain, is injected into the guest environment at
-/// launch, and the dashboard must report the provider as configured
-/// (not disconnected) after the restart. Uses a throwaway test key for
-/// DeepSeek; no real credential is involved and the key is removed after.
+/// launch, and the native Runtime view must report the provider as
+/// configured (not disconnected) after the restart. Uses a throwaway
+/// test key for DeepSeek; no real credential is involved and the key is
+/// removed after.
 - (void)testProviderCredentialSurvivesHarnessRestart {
-    XCUIElement *home = self.app.webViews.firstMatch;
-    XCTAssertTrue([home waitForExistenceWithTimeout:kBootTimeout], @"Dashboard must load before credential test");
-    XCUIElement *connected = [[home descendantsMatchingType:XCUIElementTypeAny]
-        matchingPredicate:[NSPredicate predicateWithFormat:@"label == 'Connected'"]].firstMatch;
-    XCTAssertTrue([connected waitForExistenceWithTimeout:60], @"Dashboard must report Connected before credential test");
+    [self openRuntimeView];
+    [self waitForRuntimeState];
 
     // Pre-state: no provider may be configured. If a previous failed run
     // left a key in the simulator Keychain, fail here instead of passing
     // vacuously later.
-    NSArray<XCUIElement *> *preConfigured = [[home descendantsMatchingType:XCUIElementTypeStaticText]
-        matchingPredicate:[NSPredicate predicateWithFormat:@"label == 'configured'"]].allElementsBoundByIndex;
-    XCTAssertEqual(preConfigured.count, 0, @"No provider should be configured before the test saves a key; a previous run may have left a key in the Keychain");
+    XCTAssertEqual([self configuredProviderCount], 0u, @"No provider should be configured before the test saves a key; a previous run may have left a key in the Keychain");
 
     [self openEditorProviderMenu];
     XCUIElement *connectors = self.app.buttons[@"Provider Connections"];
@@ -503,18 +517,11 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     [self.app terminate];
     [self.app launch];
     [self waitForDashboardLaunch];
-    XCTAssertTrue([home waitForExistenceWithTimeout:kBootTimeout],
-                  @"Dashboard must return after a cold app relaunch");
-    XCTAssertTrue([connected waitForExistenceWithTimeout:kBootTimeout],
-                  @"Dashboard must reconnect after guest services restart");
+    [self openRuntimeView];
+    [self waitForRuntimeState];
 
     // Only DeepSeek has a saved key, so exactly one provider must read configured.
-    XCUIElement *configured = [[home descendantsMatchingType:XCUIElementTypeStaticText]
-        matchingPredicate:[NSPredicate predicateWithFormat:@"label == 'configured'"]].firstMatch;
-    XCTAssertTrue([configured waitForExistenceWithTimeout:60], @"Saved provider credential must survive a harness restart");
-    NSArray<XCUIElement *> *allConfigured = [[home descendantsMatchingType:XCUIElementTypeStaticText]
-        matchingPredicate:[NSPredicate predicateWithFormat:@"label == 'configured'"]].allElementsBoundByIndex;
-    XCTAssertEqual(allConfigured.count, 1, @"Exactly one provider (DeepSeek) must read configured after the restart");
+    XCTAssertEqual([self configuredProviderCount], 1u, @"Exactly one provider (DeepSeek) must read configured after the restart");
     [self attachScreenshot:@"07-credential-survives-restart"];
 
     // Clean up: remove the throwaway key so later runs start clean.
@@ -523,10 +530,9 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 }
 
 /// Removes the throwaway DeepSeek key via the provider UI and verifies the
-/// dashboard reports no provider configured afterwards. Used by the
+/// Runtime view reports no provider configured afterwards. Used by the
 /// persistence test and by tearDown (best-effort) if the test fails.
 - (void)removeTestCredential {
-    XCUIElement *home = self.app.webViews.firstMatch;
     [self openEditorProviderMenu];
     XCUIElement *connectors = self.app.buttons[@"Provider Connections"];
     XCTAssertTrue([connectors waitForExistenceWithTimeout:10], @"Provider Connections must exist for cleanup");
@@ -541,15 +547,9 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     [self.app terminate];
     [self.app launch];
     [self waitForDashboardLaunch];
-    XCTAssertTrue([home waitForExistenceWithTimeout:kBootTimeout],
-                  @"Dashboard must return after cleanup relaunch");
-    XCUIElement *connected = [[home descendantsMatchingType:XCUIElementTypeAny]
-        matchingPredicate:[NSPredicate predicateWithFormat:@"label == 'Connected'"]].firstMatch;
-    XCTAssertTrue([connected waitForExistenceWithTimeout:kBootTimeout],
-                  @"Dashboard must reconnect after cleanup restart");
-    NSArray<XCUIElement *> *remaining = [[home descendantsMatchingType:XCUIElementTypeStaticText]
-        matchingPredicate:[NSPredicate predicateWithFormat:@"label == 'configured'"]].allElementsBoundByIndex;
-    XCTAssertEqual(remaining.count, 0, @"No provider should remain configured after cleanup");
+    [self openRuntimeView];
+    [self waitForRuntimeState];
+    XCTAssertEqual([self configuredProviderCount], 0u, @"No provider should remain configured after cleanup");
 }
 
 @end
