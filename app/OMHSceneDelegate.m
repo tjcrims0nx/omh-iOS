@@ -341,6 +341,10 @@
     self.view.backgroundColor = [UIColor colorWithRed:0.035 green:0.027 blue:0.047 alpha:1];
     self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     UIColor *openUIAccent = [UIColor colorWithRed:0.66 green:0.33 blue:0.97 alpha:1];
+    UIImageView *mark = [[UIImageView alloc] initWithImage:[UIImage imageNamed:@"OMHBrandMark"]];
+    mark.contentMode = UIViewContentModeScaleAspectFit;
+    mark.isAccessibilityElement = NO;
+    [mark.heightAnchor constraintEqualToConstant:48].active = YES;
     UILabel *brand = [UILabel new];
     brand.text = @"OpenMind Harness";
     brand.font = [UIFont preferredFontForTextStyle:UIFontTextStyleLargeTitle];
@@ -353,6 +357,9 @@
     sub.text = @"Preparing your local workspace";
     sub.textColor = UIColor.secondaryLabelColor;
     sub.textAlignment = NSTextAlignmentCenter;
+    sub.numberOfLines = 0;
+    sub.font = [UIFont preferredFontForTextStyle:UIFontTextStyleSubheadline];
+    sub.adjustsFontForContentSizeCategory = YES;
     self.stateLabel = [UILabel new];
     self.stateLabel.text = @"Preparing Linux guest…";
     self.stateLabel.textAlignment = NSTextAlignmentCenter;
@@ -364,7 +371,7 @@
     self.progressView.trackTintColor = UIColor.darkGrayColor;
     self.progressView.accessibilityIdentifier = @"omh.launch.progress";
     self.diagnostics = [UITextView new];
-    self.diagnostics.backgroundColor = [UIColor colorWithWhite:0.09 alpha:1];
+    self.diagnostics.backgroundColor = [UIColor colorWithRed:0.025 green:0.04 blue:0.03 alpha:1];
     self.diagnostics.textColor = [UIColor colorWithRed:0.86 green:1.0 blue:0.91 alpha:1];
     self.diagnostics.font = [UIFont monospacedSystemFontOfSize:11 weight:UIFontWeightRegular];
     self.diagnostics.editable = NO;
@@ -393,23 +400,35 @@
     actions.alignment = UIStackViewAlignmentCenter;
     actions.distribution = UIStackViewDistributionEqualSpacing;
     actions.spacing = 15;
-    for (UIButton *button in @[logs,self.retryButton,self.continueButton])
+    for (UIButton *button in @[logs,self.retryButton,self.continueButton]) {
+        UIButtonConfiguration *style = [UIButtonConfiguration tintedButtonConfiguration];
+        style.title = [button titleForState:UIControlStateNormal];
+        style.baseForegroundColor = openUIAccent;
+        style.cornerStyle = UIButtonConfigurationCornerStyleMedium;
+        button.configuration = style;
         [button.heightAnchor constraintGreaterThanOrEqualToConstant:44].active = YES;
+    }
     UIStackView *stack = [[UIStackView alloc] initWithArrangedSubviews:@[
-        brand,sub,self.stateLabel,self.progressView,actions,self.diagnostics]];
+        mark,brand,sub,self.stateLabel,self.progressView,actions,self.diagnostics]];
     stack.axis = UILayoutConstraintAxisVertical;
     stack.alignment = UIStackViewAlignmentFill;
     stack.spacing = 20;
     stack.translatesAutoresizingMaskIntoConstraints = NO;
-    [self.view addSubview:stack];
+    UIScrollView *scroll = [UIScrollView new];
+    scroll.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.view addSubview:scroll];
+    [scroll addSubview:stack];
     UILayoutGuide *safe = self.view.safeAreaLayoutGuide;
     [NSLayoutConstraint activateConstraints:@[
-        [stack.centerXAnchor constraintEqualToAnchor:safe.centerXAnchor],
-        [stack.centerYAnchor constraintEqualToAnchor:safe.centerYAnchor],
-        [stack.leadingAnchor constraintGreaterThanOrEqualToAnchor:safe.leadingAnchor constant:20],
-        [stack.trailingAnchor constraintLessThanOrEqualToAnchor:safe.trailingAnchor constant:-20],
-        [stack.widthAnchor constraintLessThanOrEqualToConstant:850],
-        [self.diagnostics.heightAnchor constraintEqualToConstant:320]
+        [scroll.topAnchor constraintEqualToAnchor:safe.topAnchor],
+        [scroll.bottomAnchor constraintEqualToAnchor:safe.bottomAnchor],
+        [scroll.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor],
+        [scroll.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor],
+        [stack.centerXAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.centerXAnchor],
+        [stack.topAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.topAnchor constant:24],
+        [stack.bottomAnchor constraintEqualToAnchor:scroll.contentLayoutGuide.bottomAnchor constant:-24],
+        [stack.widthAnchor constraintEqualToAnchor:scroll.frameLayoutGuide.widthAnchor multiplier:0.88],
+        [self.diagnostics.heightAnchor constraintEqualToConstant:360]
     ]];
     NSNotificationCenter *nc = NSNotificationCenter.defaultCenter;
     [nc addObserver:self selector:@selector(updateGate)
@@ -437,7 +456,9 @@
 }
 - (void)toggleLog:(UIButton *)sender {
     self.showingFullLog = !self.showingFullLog;
-    [sender setTitle:self.showingFullLog ? @"Recent log" : @"Full log" forState:UIControlStateNormal];
+    UIButtonConfiguration *style = sender.configuration;
+    style.title = self.showingFullLog ? @"Recent log" : @"Full log";
+    sender.configuration = style;
     [self updateGate];
 }
 - (void)retryLaunch {
