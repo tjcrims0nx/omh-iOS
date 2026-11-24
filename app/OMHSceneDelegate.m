@@ -26,7 +26,7 @@
 @property (nonatomic) UIAction *providersAction;
 @property (nonatomic) UIAction *editorAction;
 @property (nonatomic) UIAction *refreshAction;
-@property (nonatomic) UIBarButtonItem *settingsItem;
+@property (nonatomic) UIButton *settingsButton;
 @property (nonatomic) UILabel *nativeTitle;
 @end
 
@@ -79,6 +79,11 @@
     // navigation bar never crowds the brand out on a compact iPhone.
     // OpenCode, provider configuration and refresh all stay reachable
     // from this menu; only their presentation changes.
+    // The gear lives in the header row, not the navigation bar: a bar
+    // button item's custom view is capped at 36pt by the nav bar, below
+    // the 44pt accessible tap target the UI tests assert, and no explicit
+    // size constraint overrides it (CI run 45474077170 measured 36 on
+    // both simulators). The 52pt header gives the 44x44 button room.
     __weak typeof(self) weakSelf = self;
     self.providersAction = [UIAction actionWithTitle:@"Providers" image:nil identifier:nil handler:^(__kindof UIAction *action) {
         [weakSelf configureProvider];
@@ -90,9 +95,6 @@
         [weakSelf retryDashboard];
     }];
     UIMenu *settingsMenu = [UIMenu menuWithTitle:@"" children:@[self.providersAction, self.editorAction, self.refreshAction]];
-    // A system bar button item reports a 36pt frame to XCTest, below the
-    // 44pt accessible tap target the UI tests assert. Use a custom 44x44
-    // button with the gear glyph so the measured target is genuinely 44pt.
     UIButton *settingsButton = [UIButton buttonWithType:UIButtonTypeSystem];
     [settingsButton setImage:[UIImage systemImageNamed:@"gearshape"] forState:UIControlStateNormal];
     settingsButton.translatesAutoresizingMaskIntoConstraints = NO;
@@ -104,8 +106,8 @@
     settingsButton.accessibilityLabel = @"Settings";
     settingsButton.menu = settingsMenu;
     settingsButton.showsMenuAsPrimaryAction = YES;
-    self.settingsItem = [[UIBarButtonItem alloc] initWithCustomView:settingsButton];
-    self.navigationItem.rightBarButtonItem = self.settingsItem;
+    self.settingsButton = settingsButton;
+    [self.headerView addSubview:settingsButton];
 
     self.loadingIndicator = [[UIActivityIndicatorView alloc]
         initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
@@ -156,6 +158,8 @@
         [self.headerView.heightAnchor constraintEqualToConstant:52],
         [identity.centerXAnchor constraintEqualToAnchor:self.headerView.centerXAnchor],
         [identity.centerYAnchor constraintEqualToAnchor:self.headerView.centerYAnchor],
+        [settingsButton.trailingAnchor constraintEqualToAnchor:self.headerView.trailingAnchor constant:-12],
+        [settingsButton.centerYAnchor constraintEqualToAnchor:self.headerView.centerYAnchor],
         [self.dashboard.topAnchor constraintEqualToAnchor:self.headerView.bottomAnchor],
         [self.dashboard.bottomAnchor constraintEqualToAnchor:self.view.keyboardLayoutGuide.topAnchor],
         [self.dashboard.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor],
@@ -245,7 +249,8 @@
             handler:^(UIAlertAction *action) { [weakSelf promptForKey:provider name:name]; }]];
     }
     [sheet addAction:[UIAlertAction actionWithTitle:@"Not now" style:UIAlertActionStyleCancel handler:nil]];
-    sheet.popoverPresentationController.barButtonItem = self.settingsItem;
+    sheet.popoverPresentationController.sourceView = self.settingsButton;
+    sheet.popoverPresentationController.sourceRect = self.settingsButton.bounds;
     [self presentViewController:sheet animated:YES completion:nil];
 }
 - (void)promptForKey:(NSString *)provider name:(NSString *)name {
