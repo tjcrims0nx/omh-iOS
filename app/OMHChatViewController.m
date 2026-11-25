@@ -283,16 +283,15 @@ static const NSUInteger OMHChatMaxStoredMessages = 50;
 }
 
 - (void)restoreSelectedProvider {
-    if (!self.selectedProvider) {
-        return;
-    }
+    NSString *savedID = self.selectedProvider.providerId ?: [[NSUserDefaults standardUserDefaults] stringForKey:@"omh.chat.selectedProvider.v1"];
+    self.selectedProvider = nil;
+    if (!savedID.length) return;
     for (OMHChatProvider *provider in self.providers) {
-        if ([provider.providerId isEqualToString:self.selectedProvider.providerId]) {
+        if ([provider.providerId isEqualToString:savedID] && provider.available) {
             self.selectedProvider = provider;
             return;
         }
     }
-    self.selectedProvider = nil;
 }
 
 - (void)updateProviderButton {
@@ -326,7 +325,12 @@ static const NSUInteger OMHChatMaxStoredMessages = 50;
 }
 
 - (void)selectProvider:(OMHChatProvider *)provider {
+    if (!provider.available) {
+        self.statusLabel.text = @"Configure this provider in Settings first.";
+        return;
+    }
     self.selectedProvider = provider;
+    [[NSUserDefaults standardUserDefaults] setObject:provider.providerId forKey:@"omh.chat.selectedProvider.v1"];
     self.statusLabel.text = @"";
     [self updateProviderButton];
     [self updateSendState];
@@ -335,7 +339,7 @@ static const NSUInteger OMHChatMaxStoredMessages = 50;
 - (void)updateSendState {
     BOOL composerDisabled = self.chatUnavailable;
     self.composerField.enabled = !composerDisabled;
-    self.sendButton.enabled = (self.selectedProvider != nil && !self.sending && !composerDisabled);
+    self.sendButton.enabled = (self.selectedProvider.available && !self.sending && !composerDisabled);
 }
 
 #pragma mark - History persistence
