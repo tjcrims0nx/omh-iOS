@@ -48,7 +48,7 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.title = @"Dashboard";
+    self.title = nil;
     self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     self.view.backgroundColor = [UIColor colorWithRed:0.035 green:0.027 blue:0.047 alpha:1];
 
@@ -102,7 +102,7 @@
     self.providersAction = [UIAction actionWithTitle:@"Providers" image:nil identifier:nil handler:^(__kindof UIAction *action) {
         [weakSelf configureProvider];
     }];
-    self.editorAction = [UIAction actionWithTitle:@"OpenCode" image:nil identifier:nil handler:^(__kindof UIAction *action) {
+    self.editorAction = [UIAction actionWithTitle:@"Workspace" image:nil identifier:nil handler:^(__kindof UIAction *action) {
         [weakSelf openEditor];
     }];
     self.refreshAction = [UIAction actionWithTitle:@"Refresh dashboard" image:nil identifier:nil handler:^(__kindof UIAction *action) {
@@ -111,6 +111,7 @@
     UIMenu *settingsMenu = [UIMenu menuWithTitle:@"" children:@[self.providersAction, self.editorAction, self.refreshAction]];
     UIButton *settingsButton = [UIButton buttonWithType:UIButtonTypeSystem];
     [settingsButton setImage:[UIImage systemImageNamed:@"gearshape"] forState:UIControlStateNormal];
+    settingsButton.tintColor = [OMHTheme accentColor];
     settingsButton.translatesAutoresizingMaskIntoConstraints = NO;
     [NSLayoutConstraint activateConstraints:@[
         [settingsButton.widthAnchor constraintEqualToConstant:44],
@@ -403,16 +404,16 @@
 
 - (void)configureProvider {
     UIAlertController *sheet = [UIAlertController alertControllerWithTitle:@"Provider setup"
-        message:@"Optional: save a provider API key securely on this device. Other sign-in methods remain available in OpenCode."
+        message:@"Optional: save a provider API key securely on this device. Configure credentials here after startup."
         preferredStyle:UIAlertControllerStyleActionSheet];
     NSDictionary<NSString *,NSString *> *providers = @{
         @"OpenAI":@"openai", @"Anthropic":@"anthropic",
         @"Gemini":@"google", @"DeepSeek":@"deepseek",
         @"GLM / Z.AI":@"zai", @"Kimi / Moonshot":@"moonshotai",
-        @"Qwen":@"qwen"
+        @"Qwen":@"qwen", @"Groq":@"groq", @"Together":@"together", @"OpenRouter":@"openrouter"
     };
     __weak typeof(self) weakSelf = self;
-    for (NSString *name in @[@"OpenAI",@"Anthropic",@"Gemini",@"DeepSeek",@"GLM / Z.AI",@"Kimi / Moonshot",@"Qwen"]) {
+    for (NSString *name in @[@"OpenAI",@"Anthropic",@"Gemini",@"DeepSeek",@"GLM / Z.AI",@"Kimi / Moonshot",@"Qwen",@"Groq",@"Together",@"OpenRouter"]) {
         NSString *provider = providers[name];
         [sheet addAction:[UIAlertAction actionWithTitle:name style:UIAlertActionStyleDefault
             handler:^(UIAlertAction *action) { [weakSelf promptForKey:provider name:name]; }]];
