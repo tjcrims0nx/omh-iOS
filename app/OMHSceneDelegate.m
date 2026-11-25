@@ -7,6 +7,7 @@
 #import "OMHRootViewController.h"
 #import "OMHHarness.h"
 #import "OMHBootCoordinator.h"
+#import "OMHRootUpgrader.h"
 #import "OMHProviderCredentials.h"
 #import "OMHApiClient.h"
 #import "OMHChatViewController.h"
@@ -611,6 +612,32 @@
     [self updateGate];
 }
 - (void)retryLaunch {
+    OMHHarness *dashboard = OMHHarness.dashboard;
+    OMHHarness *codingRuntime = OMHHarness.shared;
+    if ([dashboard.lastError containsString:@"(error -2)"] ||
+        [codingRuntime.lastError containsString:@"(error -2)"]) {
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Runtime could not execute"
+            message:@"Retry the current guest, or schedule a repair using the bundled Linux image. Repair migrates the existing workspace and configuration; provider keys remain in Keychain."
+            preferredStyle:UIAlertControllerStyleAlert];
+        __weak typeof(self) weakSelf = self;
+        [alert addAction:[UIAlertAction actionWithTitle:@"Retry" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+            [weakSelf retryCurrentGuest];
+        }]];
+        [alert addAction:[UIAlertAction actionWithTitle:@"Repair on next launch" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+            [OMHRootUpgrader.shared scheduleRepairOnNextLaunch];
+            UIAlertController *notice = [UIAlertController alertControllerWithTitle:@"Repair scheduled"
+                message:@"Close OMH completely and reopen it to import the bundled Linux image and migrate your data."
+                preferredStyle:UIAlertControllerStyleAlert];
+            [notice addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
+            [weakSelf presentViewController:notice animated:YES completion:nil];
+        }]];
+        [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+        [self presentViewController:alert animated:YES completion:nil];
+        return;
+    }
+    [self retryCurrentGuest];
+}
+- (void)retryCurrentGuest {
     OMHHarness *dashboard = OMHHarness.dashboard;
     if (OMHBootCoordinator.shared.phase != OMHBootPhaseReady) return;
     if (dashboard.state == OMHHarnessStateFailed || dashboard.state == OMHHarnessStateStopped)
