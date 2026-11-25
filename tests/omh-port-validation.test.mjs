@@ -131,6 +131,22 @@ test('full-screen startup gate controls dashboard readiness and optional provide
  assert.match(ui,/Startup gate must be removed, not overlaid over the dashboard/);
 });
 
+test('coding runtime starts at boot on both idioms and gates the dashboard',async()=>{
+ const boot=await read('app/OMHBootCoordinator.m');
+ const scene=await read('app/OMHSceneDelegate.m');
+ // The coding runtime (opencode serve, port 3080) must start during
+ // initial boot on iPad as well as iPhone; excluding iPad left the
+ // Workspace editor showing a second startup screen (d9cd1f5).
+ assert.match(boot,/\[OMHHarness\.dashboard start\];/);
+ assert.match(boot,/\[OMHHarness\.shared start\];/);
+ assert.doesNotMatch(boot,/UIUserInterfaceIdiomPad[\s\S]{0,200}\[OMHHarness\.shared start\]/);
+ assert.doesNotMatch(boot,/if \(UIDevice\.currentDevice\.userInterfaceIdiom != UIUserInterfaceIdiomPad\)\s*\n\s*\[OMHHarness\.shared start\];/);
+ // The startup gate must not complete until BOTH the dashboard API and
+ // the coding runtime are ready (3c71ff4).
+ assert.match(scene,/OMHHarness\.dashboard\.state != OMHHarnessStateReady \|\|\s*\n?\s*OMHHarness\.shared\.state != OMHHarnessStateReady/);
+ assert.match(scene,/server\.state == OMHHarnessStateReady && runtime\.state == OMHHarnessStateReady/);
+});
+
 test('dashboard root has no empty left navigation control',async()=>{
  const scene=await read('app/OMHSceneDelegate.m');
  assert.match(scene,/self\.navigationItem\.leftBarButtonItem = nil;/);
