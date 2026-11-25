@@ -147,6 +147,21 @@ test('coding runtime starts at boot on both idioms and gates the dashboard',asyn
  assert.match(scene,/server\.state == OMHHarnessStateReady && runtime\.state == OMHHarnessStateReady/);
 });
 
+test('selected chat provider persists across launches without storing secrets',async()=>{
+ const chat=await read('app/OMHChatViewController.m');
+ // Only the non-secret provider identifier is saved in preferences;
+ // the API key itself stays in the Keychain (757a802).
+ assert.match(chat,/stringForKey:@"omh\.chat\.selectedProvider\.v1"/);
+ assert.match(chat,/setObject:provider\.providerId forKey:@"omh\.chat\.selectedProvider\.v1"/);
+ assert.doesNotMatch(chat,/setObject:.*(?:token|apiKey|API_KEY).*forKey:@"omh\.chat\.selectedProvider\.v1"/);
+ // Restore only matches a provider that is currently configured.
+ assert.match(chat,/\[provider\.providerId isEqualToString:savedID\] && provider\.available/);
+ // Unconfigured providers cannot be selected, and sending requires a
+ // configured provider (nil-safe: messaging nil returns NO).
+ assert.match(chat,/if \(!provider\.available\) \{\s*\n\s*self\.statusLabel\.text = @"Configure this provider in Settings first\.";/);
+ assert.match(chat,/self\.sendButton\.enabled = \(self\.selectedProvider\.available && !self\.sending && !composerDisabled\)/);
+});
+
 test('dashboard root has no empty left navigation control',async()=>{
  const scene=await read('app/OMHSceneDelegate.m');
  assert.match(scene,/self\.navigationItem\.leftBarButtonItem = nil;/);
