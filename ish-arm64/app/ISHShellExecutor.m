@@ -244,6 +244,12 @@ static dispatch_once_t _onceToken;
         current = saved_current;
         [ctx cleanup];
         NSLog(@"ISHShellExecutor: do_execve failed: %d", err);
+        // Surface the actual guest errno in the launch diagnostics. The public
+        // return value is a generic executor error, not the guest errno.
+        if (lineCallback) {
+            NSString *diagnostic = [NSString stringWithFormat:@"Guest exec failed for %@ (guest errno %d)", executable, -err];
+            dispatch_async(dispatch_get_main_queue(), ^{ lineCallback(diagnostic, YES); });
+        }
         return ISHShellExecutorErrorExecFailed;
     }
 
