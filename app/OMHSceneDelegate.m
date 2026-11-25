@@ -583,7 +583,7 @@
     [nc addObserver:self selector:@selector(updateGate)
              name:OMHBootStateDidChangeNotification object:nil];
     [nc addObserver:self selector:@selector(updateGate)
-             name:OMHHarnessStateDidChangeNotification object:OMHHarness.dashboard];
+             name:OMHHarnessStateDidChangeNotification object:nil];
     [nc addObserver:self selector:@selector(updateGate)
              name:OMHLogBufferDidChangeNotification object:nil];
     [self updateGate];
@@ -615,10 +615,14 @@
     if (OMHBootCoordinator.shared.phase != OMHBootPhaseReady) return;
     if (dashboard.state == OMHHarnessStateFailed || dashboard.state == OMHHarnessStateStopped)
         [dashboard restart];
+    OMHHarness *runtime = OMHHarness.shared;
+    if (runtime.state == OMHHarnessStateFailed || runtime.state == OMHHarnessStateStopped)
+        [runtime restart];
 }
 - (void)completeSetup {
     if (self.transitioned || OMHBootCoordinator.shared.phase != OMHBootPhaseReady ||
-        OMHHarness.dashboard.state != OMHHarnessStateReady) return;
+        OMHHarness.dashboard.state != OMHHarnessStateReady ||
+        OMHHarness.shared.state != OMHHarnessStateReady) return;
     [NSUserDefaults.standardUserDefaults setBool:YES forKey:@"omh.launch.setup-completed"];
     [self finishGate];
 }
@@ -637,8 +641,11 @@
     if (!self.isViewLoaded || self.transitioned) return;
     OMHBootCoordinator *boot = OMHBootCoordinator.shared;
     OMHHarness *server = OMHHarness.dashboard;
-    self.diagnostics.text = self.showingFullLog ? server.log.diagnosticReport : [server.log tail:14];
-    BOOL ready = boot.phase == OMHBootPhaseReady && server.state == OMHHarnessStateReady;
+    OMHHarness *runtime = OMHHarness.shared;
+    NSString *runtimeLog = self.showingFullLog ? runtime.log.diagnosticReport : [runtime.log tail:14];
+    NSString *serverLog = self.showingFullLog ? server.log.diagnosticReport : [server.log tail:8];
+    self.diagnostics.text = [NSString stringWithFormat:@"HARNESS RUNTIME\n%@\n\nDASHBOARD API\n%@", runtimeLog, serverLog];
+    BOOL ready = boot.phase == OMHBootPhaseReady && server.state == OMHHarnessStateReady && runtime.state == OMHHarnessStateReady;
     if (ready) {
         self.progressView.progress = 1.0f;
         self.retryButton.hidden = YES;
@@ -654,14 +661,16 @@
     }
     self.continueButton.hidden = YES;
     BOOL failed = boot.phase == OMHBootPhaseFailed ||
-        server.state == OMHHarnessStateFailed || server.state == OMHHarnessStateStopped;
+        server.state == OMHHarnessStateFailed || server.state == OMHHarnessStateStopped ||
+        runtime.state == OMHHarnessStateFailed || runtime.state == OMHHarnessStateStopped;
     self.retryButton.hidden = !failed || boot.phase != OMHBootPhaseReady;
     self.stateLabel.textColor = failed ? [UIColor colorWithRed:1.0 green:0.38 blue:0.43 alpha:1] : UIColor.whiteColor;
     self.stateLabel.text = boot.phase == OMHBootPhaseFailed ?
         (boot.statusMessage ?: @"Guest boot failed.") :
         boot.phase != OMHBootPhaseReady ?
         (boot.statusMessage ?: @"Preparing Linux guest…") :
-        failed ? (server.lastError ?: @"Runtime failed; retry startup.") :
+        failed ? (runtime.lastError ?: server.lastError ?: @"Runtime failed; retry startup.") :
+        runtime.state != OMHHarnessStateReady ? @"Starting OpenMind Harness…" :
         @"Starting local dashboard server…";
     // The rootfs import has measurable progress; do not pretend that
     // process readiness has a known percent or countdown.
