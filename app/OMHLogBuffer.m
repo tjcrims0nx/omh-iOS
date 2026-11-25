@@ -86,7 +86,7 @@ NSNotificationName const OMHLogBufferDidChangeNotification = @"OMHLogBufferDidCh
 
 + (NSString *)redactedLine:(NSString *)line {
     NSMutableString *safe = [line mutableCopy];
-    NSArray<NSString *> *keys = @[@"OPENAI_API_KEY", @"EXPLABS_API_KEY", @"DEEPSEEK_API_KEY", @"GEMINI_API_KEY", @"ORCAROUTER_API_KEY", @"OPENROUTER_API_KEY", @"OMH_HOST_BRIDGE_TOKEN", @"Authorization: Bearer"];
+    NSArray<NSString *> *keys = @[@"OPENAI_API_KEY", @"EXPLABS_API_KEY", @"DEEPSEEK_API_KEY", @"GEMINI_API_KEY", @"ORCAROUTER_API_KEY", @"OPENROUTER_API_KEY", @"GROQ_API_KEY", @"TOGETHER_API_KEY", @"OMH_HOST_BRIDGE_TOKEN", @"Authorization: Bearer"];
     for (NSString *key in keys) {
         NSRange search = NSMakeRange(0, safe.length);
         while (search.length > 0) {

@@ -8,7 +8,9 @@
     return @{@"openai":@"OPENAI_API_KEY", @"anthropic":@"ANTHROPIC_API_KEY",
              @"google":@"GEMINI_API_KEY", @"deepseek":@"DEEPSEEK_API_KEY",
              @"zai":@"ZAI_API_KEY", @"moonshotai":@"MOONSHOT_API_KEY",
-             @"qwen":@"DASHSCOPE_API_KEY", @"custom":@"OPENMIND_CUSTOM_API_KEY"};
+             @"qwen":@"DASHSCOPE_API_KEY", @"custom":@"OPENMIND_CUSTOM_API_KEY",
+             @"groq":@"GROQ_API_KEY", @"together":@"TOGETHER_API_KEY",
+             @"openrouter":@"OPENROUTER_API_KEY"};
 }
 + (NSMutableDictionary *)query:(NSString *)provider {
     return [@{(__bridge id)kSecClass:(__bridge id)kSecClassGenericPassword,

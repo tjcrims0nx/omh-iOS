@@ -73,7 +73,7 @@ test('provider key persistence test navigates through editor and reboots for fre
  const ui=await read('tests/OMHUITests/OMHLaunchUITests.m');
  assert.match(scene,/initWithRootViewController:\[OMHDashboardViewController new\]/);
  assert.match(scene,/omh\.native\.settings/);
- assert.match(scene,/actionWithTitle:@"OpenCode"/);
+ assert.match(scene,/actionWithTitle:@"Workspace"/);
  assert.match(editor,/identifier:@"omh\.menu"/);
  assert.match(editor,/@\"Provider Connections\"/);
  assert.match(editor,/\[OMHHarness\.shared restart\];\s*\[OMHHarness\.dashboard restart\];/);
@@ -82,6 +82,22 @@ test('provider key persistence test navigates through editor and reboots for fre
  assert.match(ui,/\[self\.app terminate\];\s*\[self\.app launch\];/);
  assert.match(ui,/Exactly one provider \(DeepSeek\) must read configured after the restart/);
  assert.match(ui,/No provider should remain configured after cleanup/);
+});
+
+test('every provider offered in the settings sheet has a Keychain mapping',async()=>{
+ const scene=await read('app/OMHSceneDelegate.m');
+ const creds=await read('app/OMHProviderCredentials.m');
+ // The sheet's provider ids (the @"groq" values in the dictionary) must
+ // each have an entry in OMHProviderCredentials.names, or saveToken
+ // refuses to save them and the user gets "Key not saved" (f6224a1 added
+ // Groq/Together/OpenRouter to the sheet without the mapping).
+ const block=scene.match(/NSDictionary<NSString \*,NSString \*> \*providers = @\{([\s\S]*?)\};/);
+ assert.ok(block,'provider sheet dictionary must exist');
+ const ids=[...block[1].matchAll(/@"[^"]*":@"(\w+)"/g)].map(m=>m[1]);
+ assert.ok(ids.length>=10,'provider sheet must list at least ten providers');
+ for (const id of ids) {
+  assert.match(creds,new RegExp(`@"${id}":@"[A-Z_]+_API_KEY"`),`Keychain map must know provider ${id}`);
+ }
 });
 
 test('new IPA identity is OMH.app and the legacy bundle is rejected',async()=>{

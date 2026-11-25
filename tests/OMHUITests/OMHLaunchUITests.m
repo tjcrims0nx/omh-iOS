@@ -58,7 +58,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 }
 
 /// Opens the dashboard Settings gear menu and asserts its three actions
-/// are present: Providers, OpenCode and Refresh. Dismisses the menu by
+/// are present: Providers, Workspace and Refresh. Dismisses the menu by
 /// tapping the gear again when called only to verify the menu contents.
 - (void)openSettingsMenu {
     // If a previous menu is still open, the gear is unhittable while its
@@ -69,7 +69,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCTAssertTrue([settings waitForExistenceWithTimeout:15], @"Dashboard must provide a Settings gear");
     [settings tap];
     XCTAssertTrue([self.app.buttons[@"Providers"] waitForExistenceWithTimeout:5], @"Settings must list Providers");
-    XCTAssertTrue([self.app.buttons[@"OpenCode"] waitForExistenceWithTimeout:5], @"Settings must list OpenCode");
+    XCTAssertTrue([self.app.buttons[@"Workspace"] waitForExistenceWithTimeout:5], @"Settings must list Workspace");
     XCTAssertTrue([self.app.buttons[@"Refresh dashboard"] waitForExistenceWithTimeout:5], @"Settings must list Refresh");
 }
 
@@ -82,11 +82,12 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     [self ensureSettingsMenuClosed];
 }
 
-/// Opens the OpenCode editor from the dashboard Settings menu, waiting
-/// until the runtime is ready and the menu action is enabled.
+/// Opens the Workspace editor (the OpenCode editor, renamed in the menu)
+/// from the dashboard Settings menu, waiting until the runtime is ready
+/// and the menu action is enabled.
 - (void)openEditorFromSettings {
     [self openSettingsMenu];
-    XCUIElement *open = self.app.buttons[@"OpenCode"];
+    XCUIElement *open = self.app.buttons[@"Workspace"];
     NSPredicate *enabled = [NSPredicate predicateWithFormat:@"enabled == YES"];
     [self waitForExpectations:@[[self expectationForPredicate:enabled evaluatedWithObject:open handler:nil]] timeout:kBootTimeout];
     [open tap];
@@ -174,14 +175,14 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCTAssertTrue([chat waitForExistenceWithTimeout:10], @"Native Chat view must survive iPhone rotation");
     [self attachScreenshot:@"ios-phone-landscape-native-dashboard"];
 
-    // OpenCode, Providers and Refresh live under the Settings gear.
+    // Workspace, Providers and Refresh live under the Settings gear.
     [self openEditorFromSettings];
     XCTAssertTrue([self.app.otherElements[@"omh.controlbar"] waitForExistenceWithTimeout:30],
                   @"iOS editor must open inside native OMH navigation");
     [self attachScreenshot:@"ios-phone-open-code-editor"];
 }
 
-/// The secondary dashboard controls (Providers, OpenCode, Refresh) live
+/// The secondary dashboard controls (Providers, Workspace, Refresh) live
 /// under the Settings gear, not as separate navigation-bar buttons, so the
 /// header brand never competes with them for width on a compact iPhone.
 - (void)testDashboardSettingsMenuListsSecondaryControls {
@@ -219,9 +220,9 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationPortrait;
     XCTAssertTrue([nativeSettings waitForExistenceWithTimeout:8], @"Native toolbar should survive rotation");
     XCTAssertTrue([list waitForExistenceWithTimeout:8], @"Native Runtime view should survive rotation");
-    // OpenCode lives under the Settings gear; verify it is still reachable after rotation.
+    // Workspace lives under the Settings gear; verify it is still reachable after rotation.
     [self openSettingsMenu];
-    XCTAssertTrue(self.app.buttons[@"OpenCode"].hittable, @"OpenCode native control should survive rotation");
+    XCTAssertTrue(self.app.buttons[@"Workspace"].hittable, @"Workspace native control should survive rotation");
     [self dismissSettingsMenu];
     [self attachScreenshot:@"02-ipad-dashboard-portrait"];
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationLandscapeLeft;
