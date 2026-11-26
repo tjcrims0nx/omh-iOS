@@ -207,7 +207,7 @@ private struct PurpleWave: View {
                 brand.frame(width: 36, height: 36)
                 Text("OpenMind\nHarness").font(.headline)
                 Spacer(minLength: 0)
-                Button { sidebar = false } label: { Image(systemName: "chevron.left.2") }.accessibilityLabel("Collapse sidebar")
+                Button { sidebar = false } label: { Image(systemName: "chevron.left.2") }.accessibilityLabel("Collapse sidebar").accessibilityIdentifier("omh.sidebar.collapse")
             }.padding(.bottom, 12)
             Button { model.newChat() } label: {
                 Label("New chat", systemImage: "plus").frame(maxWidth: .infinity, alignment: .leading).padding(13)
@@ -256,7 +256,7 @@ private struct PurpleWave: View {
                     Button("Workspace", action: workspace)
                     if wide { Button("Expand sidebar") { sidebar = true } }
                     ForEach(model.conversations.filter { !$0.messages.isEmpty }) { chat in Button(chat.title) { if !model.busy { model.active = chat.id } } }
-                } label: { Image(systemName: "sidebar.left").frame(width: 44, height: 44) }
+                } label: { Image(systemName: "sidebar.left").frame(width: 44, height: 44) }.accessibilityLabel("Sidebar").accessibilityIdentifier("omh.sidebar.expand")
             }
             brand.frame(width: 34, height: 34).accessibilityIdentifier("omh.native.brand.logo")
             Text(wide ? "OpenMind Harness" : "OMH").font(.headline).lineLimit(1)
