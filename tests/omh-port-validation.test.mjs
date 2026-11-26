@@ -187,12 +187,14 @@ test('one native OMH dashboard shell supports both iOS iPhone and iPadOS',async(
  assert.match(swift,/truncatingRemainder\(dividingBy: 12\)/);
  assert.match(swift,/omh\.native\.chat\.composer/);
  assert.match(swift,/omh\.swiftui\.conversations\.v1/);
- // The factory class must not be @MainActor: a main-actor-isolated type
- // is omitted from the generated OMH-Swift.h, so Objective-C cannot see
- // it (CI run 45896757219). The make method stays @MainActor so the
- // hosting controller is created on the main thread.
+ // The factory must carry no actor isolation on its Objective-C surface:
+ // a @MainActor annotation on the class or the method hides it from the
+ // generated OMH-Swift.h (CI runs 45896757219 and 45907478634). The
+ // hosting controller is still built on the main actor, via
+ // MainActor.assumeIsolated inside make.
  assert.doesNotMatch(swift,/@MainActor final class OMHReferenceDashboardFactory/);
- assert.match(swift,/@MainActor\s*\n\s*@objc\(makeWithBaseURL/);
+ assert.doesNotMatch(swift,/@MainActor\s*\n\s*@objc\(makeWithBaseURL/);
+ assert.match(swift,/MainActor\.assumeIsolated/);
  assert.match(scene,/OMHRuntimeViewController alloc/);
  assert.match(scene,/contentView\.accessibilityIdentifier = @"omh\.native\.dashboard"/);
  assert.match(scene,/initWithRootViewController:\[OMHDashboardViewController new\]/);
