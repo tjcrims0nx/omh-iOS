@@ -179,7 +179,14 @@ test('one native OMH dashboard shell supports both iOS iPhone and iPadOS',async(
  assert.doesNotMatch(scene,/WKContentModeRecommended/);
  assert.doesNotMatch(scene,/\[WKWebView /);
  assert.match(scene,/installNativeContent/);
- assert.match(scene,/OMHChatViewController alloc/);
+ assert.match(scene,/OMHReferenceDashboardFactory makeWithBaseURL/);
+ const swift=await read("app/OMHReferenceDashboard.swift");
+ assert.match(swift,/import SwiftUI/);
+ assert.match(swift,/UIHostingController\(rootView:/);
+ assert.match(swift,/minimumInterval: 1\.0 \/ 45\.0/);
+ assert.match(swift,/truncatingRemainder\(dividingBy: 12\)/);
+ assert.match(swift,/omh\.native\.chat\.composer/);
+ assert.match(swift,/omh\.swiftui\.conversations\.v1/);
  assert.match(scene,/OMHRuntimeViewController alloc/);
  assert.match(scene,/contentView\.accessibilityIdentifier = @"omh\.native\.dashboard"/);
  assert.match(scene,/initWithRootViewController:\[OMHDashboardViewController new\]/);
