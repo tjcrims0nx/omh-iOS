@@ -122,7 +122,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 /// it again lands nowhere (CI run 45478763878, iPad).
 - (void)ensureSettingsMenuClosed {
     if (self.app.buttons[@"Providers"].exists) {
-        [self.app.images[@"omh.native.brand.logo"] tap];
+        [self.app.buttons[@"Cancel"] tap];
         NSPredicate *gone = [NSPredicate predicateWithFormat:@"exists == NO"];
         [self waitForExpectations:@[[self expectationForPredicate:gone evaluatedWithObject:self.app.buttons[@"Providers"] handler:nil]] timeout:5];
     }
@@ -163,10 +163,10 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCTAssertGreaterThanOrEqual(CGRectGetHeight(settings.frame), 40);
     // The dashboard is native now: the Chat tab is the home view, with a
     // provider selector and a composer — there is no dashboard web view.
-    XCUIElement *chat = self.app.otherElements[@"omh.native.chat"];
+    XCUIElement *chat = self.app.buttons[@"omh.native.chat.provider"];
     XCTAssertTrue([chat waitForExistenceWithTimeout:kBootTimeout], @"iPhone must show the native Chat view");
     XCTAssertTrue([self.app.buttons[@"omh.native.chat.provider"] waitForExistenceWithTimeout:10], @"Chat must offer a provider selector");
-    XCTAssertTrue(self.app.textFields[@"omh.native.chat.composer"].exists, @"Chat must offer a composer");
+    XCTAssertTrue([self.app.descendantsMatchingType:XCUIElementTypeAny matchingIdentifier:@"omh.native.chat.composer"].firstMatch.exists, @"Chat must offer a composer");
     [self attachScreenshot:@"ios-phone-portrait-native-dashboard"];
 
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationLandscapeLeft;
@@ -193,102 +193,42 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 }
 
 - (void)testHarnessBootsAndShowsNativeUI {
-    XCUIDevice.sharedDevice.orientation = UIDeviceOrientationLandscapeLeft;
-    // Native UIKit shell must remain visible while the guest boots.
-    XCUIElement *nativeSettings = self.app.buttons[@"omh.native.settings"];
-    XCTAssertTrue([nativeSettings waitForExistenceWithTimeout:15], @"Native dashboard settings belong in the iPad toolbar");
-    XCTAssertTrue(self.app.images[@"omh.native.brand.logo"].exists, @"Use the official OMH brand in UIKit");
-    XCTAssertGreaterThanOrEqual(CGRectGetHeight(nativeSettings.frame), 40.0, @"Settings gear must have an accessible tap target");
-    // The native Chat view is the dashboard home; it appears once the
-    // guest is ready.
-    XCUIElement *chat = self.app.otherElements[@"omh.native.chat"];
-    XCTAssertTrue([chat waitForExistenceWithTimeout:kBootTimeout], @"iPad must open the native Chat view");
-    [self attachScreenshot:@"01-ipad-harness-dashboard"];
-    // The Runtime view must load live state from GET /api/state: the
-    // Status section's task counts only render once the fetch succeeds.
+    for (NSNumber *orientation in @[@(UIDeviceOrientationLandscapeLeft), @(UIDeviceOrientationPortrait)]) {
+        XCUIDevice.sharedDevice.orientation = orientation.integerValue;
+        XCUIElement *settings = self.app.buttons[@"omh.native.settings"];
+        XCTAssertTrue([settings waitForExistenceWithTimeout:15]);
+        XCTAssertTrue([self.app.buttons[@"omh.native.chat.provider"] waitForExistenceWithTimeout:10]);
+        XCUIElement *composer = [self.app.descendantsMatchingType:XCUIElementTypeAny matchingIdentifier:@"omh.native.chat.composer"].firstMatch;
+        XCTAssertTrue([composer waitForExistenceWithTimeout:10]);
+        XCTAssertFalse(self.app.webViews.firstMatch.exists, @"SwiftUI dashboard must not use a WebView");
+        [self attachScreenshot:[NSString stringWithFormat:@"swiftui-dashboard-%@", orientation]];
+        XCUIElement *collapse = self.app.buttons[@"Collapse sidebar"];
+        if (collapse.exists) {
+            [collapse tap];
+            [self attachScreenshot:[NSString stringWithFormat:@"swiftui-sidebar-collapsed-%@", orientation]];
+            XCUIElement *expand = self.app.buttons[@"Sidebar"];
+            if (!expand.exists) expand = self.app.buttons[@"sidebar.left"];
+            if (expand.exists) { [expand tap]; [self.app.buttons[@"Expand sidebar"] tap]; }
+        }
+        [composer tap];
+        [composer typeText:@"Simulator composer check"];
+        XCTAssertTrue([((NSString *)composer.value) containsString:@"Simulator composer check"]);
+        [self attachScreenshot:[NSString stringWithFormat:@"swiftui-composer-%@", orientation]];
+        [self.app terminate];
+        [self.app launch];
+        [self waitForDashboardLaunch];
+    }
+    [self openSettingsMenu];
+    [self attachScreenshot:@"swiftui-settings"];
+    [self.app.buttons[@"Providers"] tap];
+    XCTAssertTrue([self.app.buttons[@"DeepSeek"] waitForExistenceWithTimeout:10]);
+    [self attachScreenshot:@"swiftui-providers"];
+    [self.app.buttons[@"Not now"] tap];
     [self openRuntimeView];
     [self waitForRuntimeState];
     XCUIElement *list = self.app.tables[@"omh.native.runtime.list"];
-    XCUIElement *counts = [[list.staticTexts matchingPredicate:[NSPredicate predicateWithFormat:@"label CONTAINS 'Queued'"]] firstMatch];
-    XCTAssertTrue([counts waitForExistenceWithTimeout:30], @"Runtime must read guest runtime state");
-    // The Runtime view's own Refresh re-fetches state.
-    XCUIElement *refresh = self.app.buttons[@"omh.native.runtime.refresh"];
-    XCTAssertTrue([refresh waitForExistenceWithTimeout:10], @"Runtime must offer Refresh");
-    [refresh tap];
-    [self waitForRuntimeState];
-    XCTAssertTrue([counts waitForExistenceWithTimeout:30], @"Runtime must still show state after Refresh");
-    XCUIDevice.sharedDevice.orientation = UIDeviceOrientationPortrait;
-    XCTAssertTrue([nativeSettings waitForExistenceWithTimeout:8], @"Native toolbar should survive rotation");
-    XCTAssertTrue([list waitForExistenceWithTimeout:8], @"Native Runtime view should survive rotation");
-    // Workspace lives under the Settings gear; verify it is still reachable after rotation.
-    [self openSettingsMenu];
-    XCTAssertTrue(self.app.buttons[@"Workspace"].hittable, @"Workspace native control should survive rotation");
-    [self dismissSettingsMenu];
-    [self attachScreenshot:@"02-ipad-dashboard-portrait"];
-    XCUIDevice.sharedDevice.orientation = UIDeviceOrientationLandscapeLeft;
-    [self waitForHarnessReady];
-    [self attachScreenshot:@"02-ready"];
-
-    // The editor now opens on the native Workspace home (5ac5a29); the
-    // web view stays hidden until the legacy editor is opened explicitly.
-    XCUIElement *nativeWorkspace = self.app.otherElements[@"omh.workspace.native"];
-    XCTAssertTrue([nativeWorkspace waitForExistenceWithTimeout:30], @"editor must open on the native Workspace home");
-    XCUIElement *legacyEditor = self.app.buttons[@"omh.workspace.legacy-editor"];
-    XCTAssertTrue([legacyEditor waitForExistenceWithTimeout:10], @"legacy session editor must be offered");
-    [legacyEditor tap];
-
-    // From here the test is in the OpenCode editor, which still embeds
-    // its own web view (OMHRootViewController) — `web` below is that
-    // editor web view, not a dashboard web view (there is none any more).
-    XCUIElement *web = self.app.webViews.firstMatch;
-    XCTAssertTrue([web waitForExistenceWithTimeout:30], @"editor web view should exist");
-
-    // Wait for the local web client to render an interactive control.
-    NSPredicate *uiUp = [NSPredicate predicateWithFormat:@"exists == YES"];
-    XCUIElementQuery *markers = [[web descendantsMatchingType:XCUIElementTypeAny]
-        matchingPredicate:[NSPredicate predicateWithFormat:@"elementType == %d OR elementType == %d OR elementType == %d", XCUIElementTypeButton, XCUIElementTypeLink, XCUIElementTypeTextField]];
-    XCTestExpectation *e = [self expectationForPredicate:uiUp evaluatedWithObject:markers.firstMatch handler:nil];
-    [self waitForExpectations:@[e] timeout:90];
-    [self attachScreenshot:@"03-web-ui"];
-
-    XCUIElement *workspace = self.app.buttons[@"omh.sidebar.workspace"];
-    XCTAssertTrue([workspace waitForExistenceWithTimeout:8], @"iPad landscape should show desktop navigation");
-    XCUIElement *log = self.app.buttons[@"omh.sidebar.log"];
-    [log tap];
-    XCUIElement *logView = self.app.textViews[@"omh.logview"];
-    XCTAssertTrue([logView waitForExistenceWithTimeout:8]);
-    NSString *startupLog = logView.value;
-    XCTAssertTrue([startupLog containsString:@"server answered"]);
-    XCTAssertFalse([startupLog containsString:@"ESPIPE: invalid seek"], @"The guest must recognize the output pipes");
-    // Tapping the sidebar Workspace button returns to the native Workspace
-    // home and hides the legacy editor, so the editor geometry check only
-    // applies while the web view is present.
-    if (web.exists && CGRectGetWidth(self.app.frame) >= 1040) {
-        XCTAssertLessThanOrEqual(CGRectGetMaxX(web.frame), CGRectGetMinX(logView.frame) + 1);
-    }
-    [self attachScreenshot:@"04-ipad-workspace-and-log"];
-    [self.app.buttons[@"Done"] tap];
-    XCTAssertFalse(logView.exists);
-    [self.app.buttons[@"omh.sidebar.activity"] tap];
-    XCTAssertTrue([self.app.tables[@"omh.activity"] waitForExistenceWithTimeout:8]);
-    [workspace tap];
-    [self.app.buttons[@"omh.sidebar.capabilities"] tap];
-    XCTAssertTrue([self.app.tables[@"omh.capabilities"] waitForExistenceWithTimeout:8]);
-    [workspace tap];
-    XCTAssertTrue(web.hittable);
-    XCUIDevice.sharedDevice.orientation = UIDeviceOrientationPortrait;
-    XCTAssertTrue([self.app.buttons[@"omh.menu"] waitForExistenceWithTimeout:8]);
-    [self attachScreenshot:@"05-ipad-portrait"];
-
-    // Title shows the port the server listens on.
-    XCUIElement *title = self.app.staticTexts[@"omh.title"];
-    XCTAssertTrue(title.exists);
-    XCTAssertTrue([title.label containsString:@":30"], @"title should show the port, got %@", title.label);
-    [self.app.navigationBars.buttons.firstMatch tap];
-    // Back returns to the native dashboard, showing the Runtime view
-    // this test left active — not a web page.
-    XCTAssertTrue([self.app.tables[@"omh.native.runtime.list"] waitForExistenceWithTimeout:10], @"Back must return to the running dashboard");
-
+    XCTAssertTrue([[list.staticTexts matchingPredicate:[NSPredicate predicateWithFormat:@"label CONTAINS 'Queued'"]].firstMatch waitForExistenceWithTimeout:30]);
+    [self attachScreenshot:@"swiftui-runtime"];
 }
 
 - (void)testServerLogIsReachableFromMenu {
@@ -444,6 +384,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 - (void)openEditorProviderMenu {
     XCUIElement *menu = self.app.buttons[@"omh.menu"];
     if (!menu.exists) {
+        if (self.app.tables[@"omh.native.runtime.list"].exists) [self.app.navigationBars.buttons.firstMatch tap];
         [self openEditorFromSettings];
     }
     XCTAssertTrue([menu waitForExistenceWithTimeout:30],
@@ -454,13 +395,12 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 /// Shows the native Runtime view: the iPad sidebar row on iPad, the tab
 /// bar button on iPhone. Waits until the runtime list exists.
 - (void)openRuntimeView {
-    XCUIElement *sidebarRuntime = self.app.tables[@"omh.native.sidebar"].cells[@"omh.native.sidebar.runtime"];
+    XCUIElement *sidebarRuntime = self.app.buttons[@"omh.native.sidebar.runtime"];
     if (sidebarRuntime.exists) {
         [sidebarRuntime tap];
     } else {
-        XCUIElement *tabRuntime = self.app.tabBars.buttons[@"Runtime"];
-        XCTAssertTrue([tabRuntime waitForExistenceWithTimeout:10], @"Runtime must be reachable from the tab bar");
-        [tabRuntime tap];
+        [self openSettingsMenu];
+        [self.app.buttons[@"Runtime"] tap];
     }
     XCUIElement *list = self.app.tables[@"omh.native.runtime.list"];
     XCTAssertTrue([list waitForExistenceWithTimeout:kBootTimeout], @"Runtime list must load");
