@@ -229,6 +229,14 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     [self waitForHarnessReady];
     [self attachScreenshot:@"02-ready"];
 
+    // The editor now opens on the native Workspace home (5ac5a29); the
+    // web view stays hidden until the legacy editor is opened explicitly.
+    XCUIElement *nativeWorkspace = self.app.otherElements[@"omh.workspace.native"];
+    XCTAssertTrue([nativeWorkspace waitForExistenceWithTimeout:30], @"editor must open on the native Workspace home");
+    XCUIElement *legacyEditor = self.app.buttons[@"omh.workspace.legacy-editor"];
+    XCTAssertTrue([legacyEditor waitForExistenceWithTimeout:10], @"legacy session editor must be offered");
+    [legacyEditor tap];
+
     // From here the test is in the OpenCode editor, which still embeds
     // its own web view (OMHRootViewController) — `web` below is that
     // editor web view, not a dashboard web view (there is none any more).
@@ -252,7 +260,10 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     NSString *startupLog = logView.value;
     XCTAssertTrue([startupLog containsString:@"server answered"]);
     XCTAssertFalse([startupLog containsString:@"ESPIPE: invalid seek"], @"The guest must recognize the output pipes");
-    if (CGRectGetWidth(self.app.frame) >= 1040) {
+    // Tapping the sidebar Workspace button returns to the native Workspace
+    // home and hides the legacy editor, so the editor geometry check only
+    // applies while the web view is present.
+    if (web.exists && CGRectGetWidth(self.app.frame) >= 1040) {
         XCTAssertLessThanOrEqual(CGRectGetMaxX(web.frame), CGRectGetMinX(logView.frame) + 1);
     }
     [self attachScreenshot:@"04-ipad-workspace-and-log"];
