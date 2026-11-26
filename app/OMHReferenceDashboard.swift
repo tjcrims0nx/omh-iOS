@@ -323,7 +323,13 @@ private struct PurpleWave: View {
     }
 }
 
-@objc(OMHReferenceDashboardFactory) @MainActor final class OMHReferenceDashboardFactory: NSObject {
+// The factory class itself must NOT be @MainActor: a main-actor-isolated
+// type is omitted from the generated OMH-Swift.h, so Objective-C cannot
+// see it (CI run 45896757219). The make method stays @MainActor, so the
+// hosting controller is always created on the main thread; the
+// SceneDelegate calls it from UIKit lifecycle code, which is main-thread.
+@objc(OMHReferenceDashboardFactory) final class OMHReferenceDashboardFactory: NSObject {
+    @MainActor
     @objc(makeWithBaseURL:settings:workspace:runtime:)
     static func make(baseURL: URL, settings: @escaping () -> Void, workspace: @escaping () -> Void, runtime: @escaping () -> Void) -> UIViewController {
         UIHostingController(rootView: ReferenceDashboard(model: DashboardModel(base: baseURL), settings: settings, workspace: workspace, runtime: runtime))
