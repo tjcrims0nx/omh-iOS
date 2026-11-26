@@ -7,19 +7,34 @@
 #import "OMHRootViewController.h"
 #import "OMHHarness.h"
 #import "OMHBootCoordinator.h"
+#import "OMHRootUpgrader.h"
 #import "OMHProviderCredentials.h"
-#import <WebKit/WebKit.h>
+#import "OMHApiClient.h"
+#import "OMHChatViewController.h"
+#import "OMHRuntimeViewController.h"
+#import "OMHTheme.h"
 #import "AppDelegate.h"
 #import "AboutViewController.h"
 
-// The iPad home is the same loopback dashboard that the standalone harness serves.
-@interface OMHDashboardViewController : UIViewController <WKNavigationDelegate>
-@property (nonatomic) WKWebView *dashboard;
+// The iPad home is a fully native UIKit interface that consumes the harness
+// backend API directly (OMHApiClient). There is no browser engine here: the
+// dashboard WKWebView was removed by the native OpenUI migration and the
+// content area under the responsive header now hosts native Chat and
+// Runtime views. The OpenCode editor (OMHRootViewController) keeps its own
+// web view; it is a separate component and is untouched.
+@interface OMHDashboardViewController : UIViewController <UITableViewDelegate, UITableViewDataSource, UITabBarControllerDelegate>
+@property (nonatomic) OMHApiClient *apiClient;
+@property (nonatomic) NSURL *apiBaseURL;
+@property (nonatomic) OMHChatViewController *chatViewController;
+@property (nonatomic) OMHRuntimeViewController *runtimeViewController;
+@property (nonatomic) UIViewController *activeViewController;
+@property (nonatomic) UIView *contentView;
+@property (nonatomic) UITabBarController *tabBarController;
+@property (nonatomic) UITableView *sidebarTableView;
+@property (nonatomic) UIView *detailContainerView;
 @property (nonatomic) UIStackView *notice;
 @property (nonatomic) UILabel *message;
 @property (nonatomic) UIButton *retry;
-@property (nonatomic) WKNavigation *navigation;
-@property (nonatomic) NSURL *requestedURL;
 @property (nonatomic) OMHRootViewController *editor;
 @property (nonatomic) UIActivityIndicatorView *loadingIndicator;
 @property (nonatomic) UIView *headerView;
@@ -34,12 +49,12 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.title = @"Dashboard";
+    self.title = nil;
     self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     self.view.backgroundColor = [UIColor colorWithRed:0.035 green:0.027 blue:0.047 alpha:1];
 
     // Dedicated responsive header: the brand lives in its own row above the
-    // WebView, not in the navigation bar, so it never competes with toolbar
+    // native content area, not in the navigation bar, so it never competes with toolbar
     // actions for width on a compact iPhone. (PR #8 iPhone failure:
     // omh.native.brand.logo never appeared in the navigation titleView in
     // portrait; the hierarchy showed the titleView entirely absent.)
@@ -88,7 +103,7 @@
     self.providersAction = [UIAction actionWithTitle:@"Providers" image:nil identifier:nil handler:^(__kindof UIAction *action) {
         [weakSelf configureProvider];
     }];
-    self.editorAction = [UIAction actionWithTitle:@"OpenCode" image:nil identifier:nil handler:^(__kindof UIAction *action) {
+    self.editorAction = [UIAction actionWithTitle:@"Workspace" image:nil identifier:nil handler:^(__kindof UIAction *action) {
         [weakSelf openEditor];
     }];
     self.refreshAction = [UIAction actionWithTitle:@"Refresh dashboard" image:nil identifier:nil handler:^(__kindof UIAction *action) {
@@ -97,6 +112,7 @@
     UIMenu *settingsMenu = [UIMenu menuWithTitle:@"" children:@[self.providersAction, self.editorAction, self.refreshAction]];
     UIButton *settingsButton = [UIButton buttonWithType:UIButtonTypeSystem];
     [settingsButton setImage:[UIImage systemImageNamed:@"gearshape"] forState:UIControlStateNormal];
+    settingsButton.tintColor = [OMHTheme accentColor];
     settingsButton.translatesAutoresizingMaskIntoConstraints = NO;
     [NSLayoutConstraint activateConstraints:@[
         [settingsButton.widthAnchor constraintEqualToConstant:44],
@@ -117,18 +133,17 @@
     // is already presented by the dedicated full-screen launch gate.
     self.navigationItem.leftBarButtonItem = nil;
 
-    WKWebViewConfiguration *config = [WKWebViewConfiguration new];
-    // WebKit stays embedded, but adapts like an iPad app in Stage Manager:
-    // the actual available width drives the page, not the physical screen.
-    config.defaultWebpagePreferences.preferredContentMode = WKContentModeRecommended;
-    config.defaultWebpagePreferences.allowsContentJavaScript = YES;
-    self.dashboard = [[WKWebView alloc] initWithFrame:CGRectZero configuration:config];
-    self.dashboard.navigationDelegate = self;
-    self.dashboard.accessibilityIdentifier = @"omh.dashboard";
-    self.dashboard.translatesAutoresizingMaskIntoConstraints = NO;
-    self.dashboard.opaque = NO;
-    self.dashboard.scrollView.contentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentNever;
-    [self.view addSubview:self.dashboard];
+    // Native content area: the dashboard WKWebView is gone (native OpenUI
+    // migration). The container below the header hosts the native Chat and
+    // Runtime views. iPhone gets a bottom tab bar; iPad gets a leading
+    // sidebar plus a detail area — distinct arrangements per idiom, not one
+    // responsive layout. The child view controllers are installed lazily by
+    // updateDashboard once the guest server is ready and baseURL is known.
+    self.contentView = [UIView new];
+    self.contentView.translatesAutoresizingMaskIntoConstraints = NO;
+    self.contentView.backgroundColor = [OMHTheme backgroundColor];
+    self.contentView.accessibilityIdentifier = @"omh.native.dashboard";
+    [self.view addSubview:self.contentView];
 
     self.message = [UILabel new];
     self.message.numberOfLines = 0;
@@ -160,10 +175,10 @@
         [identity.centerYAnchor constraintEqualToAnchor:self.headerView.centerYAnchor],
         [settingsButton.trailingAnchor constraintEqualToAnchor:self.headerView.trailingAnchor constant:-12],
         [settingsButton.centerYAnchor constraintEqualToAnchor:self.headerView.centerYAnchor],
-        [self.dashboard.topAnchor constraintEqualToAnchor:self.headerView.bottomAnchor],
-        [self.dashboard.bottomAnchor constraintEqualToAnchor:self.view.keyboardLayoutGuide.topAnchor],
-        [self.dashboard.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor],
-        [self.dashboard.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor],
+        [self.contentView.topAnchor constraintEqualToAnchor:self.headerView.bottomAnchor],
+        [self.contentView.bottomAnchor constraintEqualToAnchor:self.view.keyboardLayoutGuide.topAnchor],
+        [self.contentView.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor],
+        [self.contentView.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor],
         [self.notice.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor constant:20],
         [self.notice.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor constant:-20],
         [self.notice.centerYAnchor constraintEqualToAnchor:safe.centerYAnchor],
@@ -199,12 +214,164 @@
 }
 
 - (void)showMessage:(NSString *)message retry:(BOOL)retry {
-    self.dashboard.hidden = YES;
+    self.contentView.hidden = YES;
     self.notice.hidden = NO;
     [self.loadingIndicator startAnimating];
     self.message.text = message;
     self.retry.hidden = !retry;
     if (retry) [self.loadingIndicator stopAnimating];
+}
+
+- (BOOL)isPadIdiom {
+    return UIDevice.currentDevice.userInterfaceIdiom == UIUserInterfaceIdiomPad;
+}
+
+/// Installs the native Chat and Runtime views for the current baseURL.
+/// iPhone: a bottom tab bar (Chat | Runtime). iPad: a leading sidebar
+/// (280pt) plus a detail area. Rebuilt when the baseURL changes (e.g. the
+/// guest restarted on a different port) so the API client never goes stale.
+- (void)installNativeContent {
+    [self teardownNativeContent];
+    self.apiClient = [[OMHApiClient alloc] initWithBaseURL:OMHHarness.dashboard.baseURL];
+    self.apiBaseURL = OMHHarness.dashboard.baseURL;
+    self.chatViewController = [[OMHChatViewController alloc] initWithApiClient:self.apiClient];
+    self.runtimeViewController = [[OMHRuntimeViewController alloc] initWithApiClient:self.apiClient];
+    if ([self isPadIdiom]) {
+        [self installPadContent];
+    } else {
+        [self installPhoneContent];
+    }
+}
+
+- (void)installPhoneContent {
+    UITabBarController *tabs = [UITabBarController new];
+    self.chatViewController.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Chat" image:[UIImage systemImageNamed:@"message"] tag:0];
+    self.runtimeViewController.tabBarItem = [[UITabBarItem alloc] initWithTitle:@"Runtime" image:[UIImage systemImageNamed:@"gauge.with.dots.needle.33percent"] tag:1];
+    tabs.viewControllers = @[self.chatViewController, self.runtimeViewController];
+    tabs.tabBar.backgroundColor = [OMHTheme surfaceColor];
+    tabs.tabBar.tintColor = [OMHTheme accentColor];
+    tabs.tabBar.unselectedItemTintColor = [OMHTheme mutedTextColor];
+    tabs.delegate = self;
+    [self addChildViewController:tabs];
+    tabs.view.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.contentView addSubview:tabs.view];
+    [NSLayoutConstraint activateConstraints:@[
+        [tabs.view.topAnchor constraintEqualToAnchor:self.contentView.topAnchor],
+        [tabs.view.bottomAnchor constraintEqualToAnchor:self.contentView.bottomAnchor],
+        [tabs.view.leadingAnchor constraintEqualToAnchor:self.contentView.leadingAnchor],
+        [tabs.view.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor],
+    ]];
+    [tabs didMoveToParentViewController:self];
+    self.tabBarController = tabs;
+    self.activeViewController = self.chatViewController;
+}
+
+- (void)installPadContent {
+    self.sidebarTableView = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStylePlain];
+    self.sidebarTableView.translatesAutoresizingMaskIntoConstraints = NO;
+    self.sidebarTableView.backgroundColor = [OMHTheme surfaceColor];
+    self.sidebarTableView.separatorColor = [OMHTheme borderColor];
+    self.sidebarTableView.delegate = self;
+    self.sidebarTableView.dataSource = self;
+    self.sidebarTableView.accessibilityIdentifier = @"omh.native.sidebar";
+    [self.contentView addSubview:self.sidebarTableView];
+    self.detailContainerView = [UIView new];
+    self.detailContainerView.translatesAutoresizingMaskIntoConstraints = NO;
+    self.detailContainerView.backgroundColor = [OMHTheme backgroundColor];
+    [self.contentView addSubview:self.detailContainerView];
+    [NSLayoutConstraint activateConstraints:@[
+        [self.sidebarTableView.topAnchor constraintEqualToAnchor:self.contentView.topAnchor],
+        [self.sidebarTableView.bottomAnchor constraintEqualToAnchor:self.contentView.bottomAnchor],
+        [self.sidebarTableView.leadingAnchor constraintEqualToAnchor:self.contentView.leadingAnchor],
+        [self.sidebarTableView.widthAnchor constraintEqualToConstant:280],
+        [self.detailContainerView.topAnchor constraintEqualToAnchor:self.contentView.topAnchor],
+        [self.detailContainerView.bottomAnchor constraintEqualToAnchor:self.contentView.bottomAnchor],
+        [self.detailContainerView.leadingAnchor constraintEqualToAnchor:self.sidebarTableView.trailingAnchor],
+        [self.detailContainerView.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor],
+    ]];
+    [self.sidebarTableView selectRowAtIndexPath:[NSIndexPath indexPathForRow:0 inSection:0] animated:NO scrollPosition:UITableViewScrollPositionNone];
+    [self showPadDetail:self.chatViewController];
+}
+
+- (void)showPadDetail:(UIViewController *)detail {
+    if (self.activeViewController == detail && detail.parentViewController == self) return;
+    UIViewController *old = self.activeViewController;
+    [old willMoveToParentViewController:nil];
+    [old.view removeFromSuperview];
+    [old removeFromParentViewController];
+    [self addChildViewController:detail];
+    detail.view.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.detailContainerView addSubview:detail.view];
+    [NSLayoutConstraint activateConstraints:@[
+        [detail.view.topAnchor constraintEqualToAnchor:self.detailContainerView.topAnchor],
+        [detail.view.bottomAnchor constraintEqualToAnchor:self.detailContainerView.bottomAnchor],
+        [detail.view.leadingAnchor constraintEqualToAnchor:self.detailContainerView.leadingAnchor],
+        [detail.view.trailingAnchor constraintEqualToAnchor:self.detailContainerView.trailingAnchor],
+    ]];
+    [detail didMoveToParentViewController:self];
+    self.activeViewController = detail;
+}
+
+- (void)teardownNativeContent {
+    if (self.tabBarController) {
+        // iPhone: the Chat/Runtime controllers are children of the tab bar,
+        // so removing the tab bar removes them too.
+        [self.tabBarController willMoveToParentViewController:nil];
+        [self.tabBarController.view removeFromSuperview];
+        [self.tabBarController removeFromParentViewController];
+        self.tabBarController = nil;
+        self.activeViewController = nil;
+    } else if (self.activeViewController) {
+        // iPad: the detail controller is a direct child of this controller.
+        [self.activeViewController willMoveToParentViewController:nil];
+        [self.activeViewController.view removeFromSuperview];
+        [self.activeViewController removeFromParentViewController];
+        self.activeViewController = nil;
+    }
+    [self.sidebarTableView removeFromSuperview];
+    self.sidebarTableView = nil;
+    [self.detailContainerView removeFromSuperview];
+    self.detailContainerView = nil;
+    self.chatViewController = nil;
+    self.runtimeViewController = nil;
+    self.apiClient = nil;
+    self.apiBaseURL = nil;
+}
+
+#pragma mark - UITabBarControllerDelegate (iPhone)
+
+- (void)tabBarController:(UITabBarController *)tabBarController didSelectViewController:(UIViewController *)viewController {
+    self.activeViewController = viewController;
+}
+
+#pragma mark - UITableViewDataSource (iPad sidebar)
+
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
+    return 2;
+}
+
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    static NSString *reuse = @"OMHNativeSidebarCell";
+    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:reuse];
+    if (!cell) {
+        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:reuse];
+        cell.backgroundColor = [OMHTheme surfaceColor];
+        cell.textLabel.textColor = [OMHTheme textColor];
+        cell.selectedBackgroundView = [[UIView alloc] init];
+        cell.selectedBackgroundView.backgroundColor = [OMHTheme surfaceRaisedColor];
+    }
+    BOOL isChat = indexPath.row == 0;
+    cell.textLabel.text = isChat ? @"Chat" : @"Runtime";
+    cell.imageView.image = [UIImage systemImageNamed:isChat ? @"message" : @"gauge.with.dots.needle.33percent"];
+    cell.imageView.tintColor = [OMHTheme accentColor];
+    cell.accessibilityIdentifier = isChat ? @"omh.native.sidebar.chat" : @"omh.native.sidebar.runtime";
+    return cell;
+}
+
+#pragma mark - UITableViewDelegate (iPad sidebar)
+
+- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
+    [self showPadDetail:indexPath.row == 0 ? self.chatViewController : self.runtimeViewController];
 }
 
 - (void)updateDashboard {
@@ -219,14 +386,18 @@
     if (boot.phase != OMHBootPhaseReady) {
         [self showMessage:boot.statusMessage retry:NO];
     } else if (server.state == OMHHarnessStateReady) {
-        if (![server.baseURL isEqual:self.requestedURL]) {
-            self.requestedURL = server.baseURL;
-            [self showMessage:@"Opening dashboard…" retry:NO];
-            self.navigation = [self.dashboard loadRequest:[NSURLRequest requestWithURL:server.baseURL]];
+        if (server.baseURL == nil) {
+            [self showMessage:@"Waiting for the dashboard address…" retry:NO];
+        } else {
+            if (self.apiClient == nil || ![self.apiBaseURL isEqual:server.baseURL]) {
+                [self installNativeContent];
+            }
+            self.contentView.hidden = NO;
+            self.notice.hidden = YES;
+            [self.loadingIndicator stopAnimating];
         }
     } else {
-        self.requestedURL = nil;
-        self.navigation = nil;
+        [self teardownNativeContent];
         BOOL failed = server.state == OMHHarnessStateFailed || server.state == OMHHarnessStateStopped;
         [self showMessage:failed ? (server.lastError ?: @"Dashboard stopped.") : @"Starting dashboard…" retry:failed];
     }
@@ -234,16 +405,16 @@
 
 - (void)configureProvider {
     UIAlertController *sheet = [UIAlertController alertControllerWithTitle:@"Provider setup"
-        message:@"Optional: save a provider API key securely on this device. Other sign-in methods remain available in OpenCode."
+        message:@"Optional: save a provider API key securely on this device. Configure credentials here after startup."
         preferredStyle:UIAlertControllerStyleActionSheet];
     NSDictionary<NSString *,NSString *> *providers = @{
         @"OpenAI":@"openai", @"Anthropic":@"anthropic",
         @"Gemini":@"google", @"DeepSeek":@"deepseek",
         @"GLM / Z.AI":@"zai", @"Kimi / Moonshot":@"moonshotai",
-        @"Qwen":@"qwen"
+        @"Qwen":@"qwen", @"Groq":@"groq", @"Together":@"together", @"OpenRouter":@"openrouter"
     };
     __weak typeof(self) weakSelf = self;
-    for (NSString *name in @[@"OpenAI",@"Anthropic",@"Gemini",@"DeepSeek",@"GLM / Z.AI",@"Kimi / Moonshot",@"Qwen"]) {
+    for (NSString *name in @[@"OpenAI",@"Anthropic",@"Gemini",@"DeepSeek",@"GLM / Z.AI",@"Kimi / Moonshot",@"Qwen",@"Groq",@"Together",@"OpenRouter"]) {
         NSString *provider = providers[name];
         [sheet addAction:[UIAlertAction actionWithTitle:name style:UIAlertActionStyleDefault
             handler:^(UIAlertAction *action) { [weakSelf promptForKey:provider name:name]; }]];
@@ -286,40 +457,17 @@
 }
 - (void)retryDashboard {
     if (OMHHarness.dashboard.state == OMHHarnessStateReady) {
-        self.requestedURL = nil;
-        [self updateDashboard];
+        // Refresh the native view the user is looking at; the Settings
+        // menu's Refresh action and the notice retry button share this path.
+        UIViewController *active = self.activeViewController;
+        if ([active isKindOfClass:[OMHChatViewController class]]) {
+            [(OMHChatViewController *)active reload];
+        } else if ([active isKindOfClass:[OMHRuntimeViewController class]]) {
+            [(OMHRuntimeViewController *)active reload];
+        }
     } else {
         [OMHHarness.dashboard restart];
     }
-}
-
-- (void)webView:(WKWebView *)webView decidePolicyForNavigationAction:(WKNavigationAction *)action
-    decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler {
-    NSURL *url = action.request.URL;
-    NSURL *base = OMHHarness.dashboard.baseURL;
-    BOOL local = [url.scheme isEqualToString:@"http"] && [url.host isEqualToString:base.host] && [url.port isEqual:base.port];
-    decisionHandler(local ? WKNavigationActionPolicyAllow : WKNavigationActionPolicyCancel);
-}
-
-- (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation {
-    if (navigation != self.navigation) return;
-    self.notice.hidden = YES;
-    self.dashboard.hidden = NO;
-    [self.loadingIndicator stopAnimating];
-}
-
-- (void)webView:(WKWebView *)webView didFailNavigation:(WKNavigation *)navigation withError:(NSError *)error {
-    if (navigation == self.navigation && error.code != NSURLErrorCancelled)
-        [self showMessage:@"Could not load the dashboard." retry:YES];
-}
-
-- (void)webView:(WKWebView *)webView didFailProvisionalNavigation:(WKNavigation *)navigation withError:(NSError *)error {
-    [self webView:webView didFailNavigation:navigation withError:error];
-}
-
-- (void)webViewWebContentProcessDidTerminate:(WKWebView *)webView {
-    self.requestedURL = nil;
-    [self updateDashboard];
 }
 @end
 
@@ -436,7 +584,7 @@
     [nc addObserver:self selector:@selector(updateGate)
              name:OMHBootStateDidChangeNotification object:nil];
     [nc addObserver:self selector:@selector(updateGate)
-             name:OMHHarnessStateDidChangeNotification object:OMHHarness.dashboard];
+             name:OMHHarnessStateDidChangeNotification object:nil];
     [nc addObserver:self selector:@selector(updateGate)
              name:OMHLogBufferDidChangeNotification object:nil];
     [self updateGate];
@@ -465,13 +613,43 @@
 }
 - (void)retryLaunch {
     OMHHarness *dashboard = OMHHarness.dashboard;
+    OMHHarness *codingRuntime = OMHHarness.shared;
+    if ([dashboard.lastError containsString:@"(error -2)"] ||
+        [codingRuntime.lastError containsString:@"(error -2)"]) {
+        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Runtime could not execute"
+            message:@"Retry the current guest, or schedule a repair using the bundled Linux image. Repair migrates the existing workspace and configuration; provider keys remain in Keychain."
+            preferredStyle:UIAlertControllerStyleAlert];
+        __weak typeof(self) weakSelf = self;
+        [alert addAction:[UIAlertAction actionWithTitle:@"Retry" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+            [weakSelf retryCurrentGuest];
+        }]];
+        [alert addAction:[UIAlertAction actionWithTitle:@"Repair on next launch" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+            [OMHRootUpgrader.shared scheduleRepairOnNextLaunch];
+            UIAlertController *notice = [UIAlertController alertControllerWithTitle:@"Repair scheduled"
+                message:@"Close OMH completely and reopen it to import the bundled Linux image and migrate your data."
+                preferredStyle:UIAlertControllerStyleAlert];
+            [notice addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
+            [weakSelf presentViewController:notice animated:YES completion:nil];
+        }]];
+        [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+        [self presentViewController:alert animated:YES completion:nil];
+        return;
+    }
+    [self retryCurrentGuest];
+}
+- (void)retryCurrentGuest {
+    OMHHarness *dashboard = OMHHarness.dashboard;
     if (OMHBootCoordinator.shared.phase != OMHBootPhaseReady) return;
     if (dashboard.state == OMHHarnessStateFailed || dashboard.state == OMHHarnessStateStopped)
         [dashboard restart];
+    OMHHarness *runtime = OMHHarness.shared;
+    if (runtime.state == OMHHarnessStateFailed || runtime.state == OMHHarnessStateStopped)
+        [runtime restart];
 }
 - (void)completeSetup {
     if (self.transitioned || OMHBootCoordinator.shared.phase != OMHBootPhaseReady ||
-        OMHHarness.dashboard.state != OMHHarnessStateReady) return;
+        OMHHarness.dashboard.state != OMHHarnessStateReady ||
+        OMHHarness.shared.state != OMHHarnessStateReady) return;
     [NSUserDefaults.standardUserDefaults setBool:YES forKey:@"omh.launch.setup-completed"];
     [self finishGate];
 }
@@ -490,8 +668,11 @@
     if (!self.isViewLoaded || self.transitioned) return;
     OMHBootCoordinator *boot = OMHBootCoordinator.shared;
     OMHHarness *server = OMHHarness.dashboard;
-    self.diagnostics.text = self.showingFullLog ? server.log.diagnosticReport : [server.log tail:14];
-    BOOL ready = boot.phase == OMHBootPhaseReady && server.state == OMHHarnessStateReady;
+    OMHHarness *runtime = OMHHarness.shared;
+    NSString *runtimeLog = self.showingFullLog ? runtime.log.diagnosticReport : [runtime.log tail:14];
+    NSString *serverLog = self.showingFullLog ? server.log.diagnosticReport : [server.log tail:8];
+    self.diagnostics.text = [NSString stringWithFormat:@"HARNESS RUNTIME\n%@\n\nDASHBOARD API\n%@", runtimeLog, serverLog];
+    BOOL ready = boot.phase == OMHBootPhaseReady && server.state == OMHHarnessStateReady && runtime.state == OMHHarnessStateReady;
     if (ready) {
         self.progressView.progress = 1.0f;
         self.retryButton.hidden = YES;
@@ -507,14 +688,16 @@
     }
     self.continueButton.hidden = YES;
     BOOL failed = boot.phase == OMHBootPhaseFailed ||
-        server.state == OMHHarnessStateFailed || server.state == OMHHarnessStateStopped;
+        server.state == OMHHarnessStateFailed || server.state == OMHHarnessStateStopped ||
+        runtime.state == OMHHarnessStateFailed || runtime.state == OMHHarnessStateStopped;
     self.retryButton.hidden = !failed || boot.phase != OMHBootPhaseReady;
     self.stateLabel.textColor = failed ? [UIColor colorWithRed:1.0 green:0.38 blue:0.43 alpha:1] : UIColor.whiteColor;
     self.stateLabel.text = boot.phase == OMHBootPhaseFailed ?
         (boot.statusMessage ?: @"Guest boot failed.") :
         boot.phase != OMHBootPhaseReady ?
         (boot.statusMessage ?: @"Preparing Linux guest…") :
-        failed ? (server.lastError ?: @"Runtime failed; retry startup.") :
+        failed ? (runtime.lastError ?: server.lastError ?: @"Runtime failed; retry startup.") :
+        runtime.state != OMHHarnessStateReady ? @"Starting OpenMind Harness…" :
         @"Starting local dashboard server…";
     // The rootfs import has measurable progress; do not pretend that
     // process readiness has a known percent or countdown.

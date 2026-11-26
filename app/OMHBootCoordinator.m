@@ -156,8 +156,8 @@ NSNotificationName const OMHBootStateDidChangeNotification = @"OMHBootStateDidCh
     // and only the shared harness started here; the dashboard harness
     // staying Idle left the iPhone web view hidden forever.)
     [OMHHarness.dashboard start];
-    if (UIDevice.currentDevice.userInterfaceIdiom != UIUserInterfaceIdiomPad)
-        [OMHHarness.shared start];
+    // Initialize the coding runtime on both iPad and iPhone at app launch.
+    [OMHHarness.shared start];
 }
 
 @end

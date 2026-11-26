@@ -18,7 +18,10 @@ test('the Alpine iPad rootfs explicitly bundles the latest MCP tools and Bubblew
  const build=await read('scripts/build-rootfs.sh');
  assert.match(build,/apk add[^\n]*bubblewrap/);
  assert.match(build,/omh-\{dashboard,runtime,mcp,daemon,live\}\.mjs/);
- assert.match(build,/connect-vercel-mcp\.mjs/);
+ assert.match(build,/cp -R "\$HARNESS_DIR\/lib" "\$runtime\/"/);
+ // Vercel is fully out of the harness (PR #11) and out of this repo:
+ // the Vercel connector and wrapper must not be referenced in the build.
+ assert.doesNotMatch(build,/connect-vercel-mcp|omh-vercel-mcp/);
  assert.match(build,/guest dashboard did not serve a valid/i);
  assert.match(build,/c\.mcp\?\.\["omh-runtime"\]\?\.enabled/);
  assert.match(build,/sandbox\.verified/);
@@ -35,7 +38,7 @@ test('iPad launchers use persistent OMH configuration and the real dashboard API
  assert.doesNotMatch(probe,/ok = code > 0 && code < 500/);
 });
 test('guest wrappers are present and do not silently run unsandboxed commands',async()=>{
- for(const script of ['omh-runtime','omh-dashboard','omh-sandbox-check','omh-vercel-mcp','omh-live']){
+ for(const script of ['omh-runtime','omh-dashboard','omh-sandbox-check','omh-live']){
   const source=await read('rootfs/overlay/usr/local/bin/'+script);
   assert.match(source,/\/usr\/bin\/node/);
   assert.doesNotMatch(source,/danger-full-access/);
@@ -70,7 +73,7 @@ test('provider key persistence test navigates through editor and reboots for fre
  const ui=await read('tests/OMHUITests/OMHLaunchUITests.m');
  assert.match(scene,/initWithRootViewController:\[OMHDashboardViewController new\]/);
  assert.match(scene,/omh\.native\.settings/);
- assert.match(scene,/actionWithTitle:@"OpenCode"/);
+ assert.match(scene,/actionWithTitle:@"Workspace"/);
  assert.match(editor,/identifier:@"omh\.menu"/);
  assert.match(editor,/@\"Provider Connections\"/);
  assert.match(editor,/\[OMHHarness\.shared restart\];\s*\[OMHHarness\.dashboard restart\];/);
@@ -79,6 +82,22 @@ test('provider key persistence test navigates through editor and reboots for fre
  assert.match(ui,/\[self\.app terminate\];\s*\[self\.app launch\];/);
  assert.match(ui,/Exactly one provider \(DeepSeek\) must read configured after the restart/);
  assert.match(ui,/No provider should remain configured after cleanup/);
+});
+
+test('every provider offered in the settings sheet has a Keychain mapping',async()=>{
+ const scene=await read('app/OMHSceneDelegate.m');
+ const creds=await read('app/OMHProviderCredentials.m');
+ // The sheet's provider ids (the @"groq" values in the dictionary) must
+ // each have an entry in OMHProviderCredentials.names, or saveToken
+ // refuses to save them and the user gets "Key not saved" (f6224a1 added
+ // Groq/Together/OpenRouter to the sheet without the mapping).
+ const block=scene.match(/NSDictionary<NSString \*,NSString \*> \*providers = @\{([\s\S]*?)\};/);
+ assert.ok(block,'provider sheet dictionary must exist');
+ const ids=[...block[1].matchAll(/@"[^"]*":@"(\w+)"/g)].map(m=>m[1]);
+ assert.ok(ids.length>=10,'provider sheet must list at least ten providers');
+ for (const id of ids) {
+  assert.match(creds,new RegExp(`@"${id}":@"[A-Z_]+_API_KEY"`),`Keychain map must know provider ${id}`);
+ }
 });
 
 test('new IPA identity is OMH.app and the legacy bundle is rejected',async()=>{
@@ -112,6 +131,37 @@ test('full-screen startup gate controls dashboard readiness and optional provide
  assert.match(ui,/Startup gate must be removed, not overlaid over the dashboard/);
 });
 
+test('coding runtime starts at boot on both idioms and gates the dashboard',async()=>{
+ const boot=await read('app/OMHBootCoordinator.m');
+ const scene=await read('app/OMHSceneDelegate.m');
+ // The coding runtime (opencode serve, port 3080) must start during
+ // initial boot on iPad as well as iPhone; excluding iPad left the
+ // Workspace editor showing a second startup screen (d9cd1f5).
+ assert.match(boot,/\[OMHHarness\.dashboard start\];/);
+ assert.match(boot,/\[OMHHarness\.shared start\];/);
+ assert.doesNotMatch(boot,/UIUserInterfaceIdiomPad[\s\S]{0,200}\[OMHHarness\.shared start\]/);
+ assert.doesNotMatch(boot,/if \(UIDevice\.currentDevice\.userInterfaceIdiom != UIUserInterfaceIdiomPad\)\s*\n\s*\[OMHHarness\.shared start\];/);
+ // The startup gate must not complete until BOTH the dashboard API and
+ // the coding runtime are ready (3c71ff4).
+ assert.match(scene,/OMHHarness\.dashboard\.state != OMHHarnessStateReady \|\|\s*\n?\s*OMHHarness\.shared\.state != OMHHarnessStateReady/);
+ assert.match(scene,/server\.state == OMHHarnessStateReady && runtime\.state == OMHHarnessStateReady/);
+});
+
+test('selected chat provider persists across launches without storing secrets',async()=>{
+ const chat=await read('app/OMHChatViewController.m');
+ // Only the non-secret provider identifier is saved in preferences;
+ // the API key itself stays in the Keychain (757a802).
+ assert.match(chat,/stringForKey:@"omh\.chat\.selectedProvider\.v1"/);
+ assert.match(chat,/setObject:provider\.providerId forKey:@"omh\.chat\.selectedProvider\.v1"/);
+ assert.doesNotMatch(chat,/setObject:.*(?:token|apiKey|API_KEY).*forKey:@"omh\.chat\.selectedProvider\.v1"/);
+ // Restore only matches a provider that is currently configured.
+ assert.match(chat,/\[provider\.providerId isEqualToString:savedID\] && provider\.available/);
+ // Unconfigured providers cannot be selected, and sending requires a
+ // configured provider (nil-safe: messaging nil returns NO).
+ assert.match(chat,/if \(!provider\.available\) \{\s*\n\s*self\.statusLabel\.text = @"Configure this provider in Settings first\.";/);
+ assert.match(chat,/self\.sendButton\.enabled = \(self\.selectedProvider\.available && !self\.sending && !composerDisabled\)/);
+});
+
 test('dashboard root has no empty left navigation control',async()=>{
  const scene=await read('app/OMHSceneDelegate.m');
  assert.match(scene,/self\.navigationItem\.leftBarButtonItem = nil;/);
@@ -123,14 +173,57 @@ test('one native OMH dashboard shell supports both iOS iPhone and iPadOS',async(
  assert.match(scene,/One native UIKit shell on both iPhone/);
  assert.match(scene,/CGRectGetWidth\(self\.view\.bounds\)/);
  assert.match(scene,/available < 620 \? @"OMH"/);
- assert.match(scene,/WKContentModeRecommended/);
+ // No browser engine in the dashboard any more: the WebView and its
+ // content-mode configuration are gone; the container installs native
+ // Chat and Runtime views in a content area under the header instead.
+ assert.doesNotMatch(scene,/WKContentModeRecommended/);
+ assert.doesNotMatch(scene,/\[WKWebView /);
+ assert.match(scene,/installNativeContent/);
+ assert.match(scene,/OMHChatViewController alloc/);
+ assert.match(scene,/OMHRuntimeViewController alloc/);
+ assert.match(scene,/contentView\.accessibilityIdentifier = @"omh\.native\.dashboard"/);
  assert.match(scene,/initWithRootViewController:\[OMHDashboardViewController new\]/);
  const ui=await read('tests/OMHUITests/OMHLaunchUITests.m');
  assert.match(ui,/testIOSPhoneNativeDashboardAndEditor/);
- assert.match(ui,/testHarnessBootsAndShowsWebUI/);
+ assert.match(ui,/testHarnessBootsAndShowsNativeUI/);
  const ci=await read('.github/workflows/build-ipa.yml');
  assert.match(ci,/^  iphone-simulator-smoke:/m);
  assert.match(ci,/^  simulator-smoke:/m);
  assert.match(ci,/pick-iphone-simulator\.sh/);
  assert.match(ci,/testIOSPhoneNativeDashboardAndEditor/);
+});
+
+test('native Workspace home lists projects and sessions, WebView only as labelled legacy fallback',async()=>{
+ const root=await read('app/OMHRootViewController.m');
+ // The Workspace home is native UIKit, not the WebView: the WebView starts
+ // hidden and the native workspace is built in its place (5ac5a29).
+ assert.match(root,/self\.webView\.hidden = YES;/);
+ assert.match(root,/\[self buildNativeWorkspace\];/);
+ assert.match(root,/self\.nativeWorkspaceTable = table;/);
+ assert.match(root,/table\.accessibilityIdentifier = @"omh\.workspace\.native\.list";/);
+ // Projects and sessions come from the local runtime API, with a
+ // generation guard so a stale response cannot overwrite a newer one.
+ assert.match(root,/for \(NSString \*path in @\[@\"\/project\", @\"\/session\"\]\)/);
+ assert.match(root,/NSURL \*url = \[NSURL URLWithString:path relativeToURL:base\];/);
+ assert.match(root,/NSUInteger generation = \+\+self\.workspaceRequestGeneration;/);
+ assert.match(root,/if \(!self \|\| generation != self\.workspaceRequestGeneration\) return;/);
+ // Native search filters both sections by label.
+ assert.match(root,/self\.workspaceSearch\.delegate = self;/);
+ assert.match(root,/localizedCaseInsensitiveContainsString:query/);
+ // Real loading, empty and error states, not a spinner that never resolves.
+ assert.match(root,/self\.workspaceStatus\.text = @"Loading projects and sessions…";/);
+ assert.match(root,/@"No projects or sessions found\."/);
+ assert.match(root,/@"Some workspace data could not be loaded\. Tap Refresh to retry\."/);
+ assert.match(root,/self\.workspaceStatus\.text = @"Local runtime unavailable\.";/);
+ // The old editor survives only as an explicitly labelled legacy fallback;
+ // opening it hides the native workspace, closing it restores it.
+ assert.match(root,/editorStyle\.title = @"Open session editor \(legacy\)";/);
+ assert.match(root,/editor\.accessibilityIdentifier = @"omh\.workspace\.legacy-editor";/);
+ assert.match(root,/- \(void\)openLegacyWorkspaceEditor \{/);
+ assert.match(root,/self\.nativeWorkspace\.hidden = YES;/);
+ assert.match(root,/self\.webView\.hidden = NO;/);
+ // Loading the harness must not load the WebView when the native
+ // Workspace is home: it hides the overlay and refreshes the list.
+ assert.match(root,/if \(!self\.legacyEditorVisible\) \{\s*\n\s*self\.loadedPort = OMHHarness\.shared\.port;/);
+ assert.match(root,/\[self refreshNativeWorkspace\];/);
 });

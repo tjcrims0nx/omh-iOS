@@ -25,13 +25,12 @@ required=(
   usr/local/bin/omh-dashboard
   usr/local/bin/omh-runtime
   usr/local/bin/omh-live
-  usr/local/bin/omh-vercel-mcp
   usr/local/bin/omh-sandbox-check
   usr/local/share/omh-runtime/scripts/omh-dashboard.mjs
   usr/local/share/omh-runtime/scripts/omh-runtime.mjs
   usr/local/share/omh-runtime/scripts/omh-mcp.mjs
   usr/local/share/omh-runtime/scripts/omh-live.mjs
-  usr/local/share/omh-runtime/scripts/connect-vercel-mcp.mjs
+  usr/local/share/omh-runtime/lib/omh-chat.mjs
   usr/local/share/omh-runtime/modules/sandbox.mjs
   usr/local/share/omh-runtime/dashboard/index.html
   root/.config/opencode/opencode.json
