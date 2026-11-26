@@ -202,13 +202,15 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
         XCTAssertTrue([composer waitForExistenceWithTimeout:10]);
         XCTAssertFalse(self.app.webViews.firstMatch.exists, @"SwiftUI dashboard must not use a WebView");
         [self attachScreenshot:[NSString stringWithFormat:@"swiftui-dashboard-%@", orientation]];
-        XCUIElement *collapse = self.app.buttons[@"Collapse sidebar"];
+        XCUIElement *collapse = self.app.buttons[@"omh.sidebar.collapse"];
         if (collapse.exists) {
             [collapse tap];
             [self attachScreenshot:[NSString stringWithFormat:@"swiftui-sidebar-collapsed-%@", orientation]];
-            XCUIElement *expand = self.app.buttons[@"Sidebar"];
-            if (!expand.exists) expand = self.app.buttons[@"sidebar.left"];
-            if (expand.exists) { [expand tap]; [self.app.buttons[@"Expand sidebar"] tap]; }
+            XCUIElement *expand = self.app.buttons[@"omh.sidebar.expand"];
+            XCTAssertTrue([expand waitForExistenceWithTimeout:10]);
+            [expand tap];
+            [self.app.buttons[@"Expand sidebar"] tap];
+            XCTAssertTrue([collapse waitForExistenceWithTimeout:10]);
         }
         [composer tap];
         [composer typeText:@"Simulator composer check"];
