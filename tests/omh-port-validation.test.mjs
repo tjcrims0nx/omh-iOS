@@ -192,3 +192,38 @@ test('one native OMH dashboard shell supports both iOS iPhone and iPadOS',async(
  assert.match(ci,/pick-iphone-simulator\.sh/);
  assert.match(ci,/testIOSPhoneNativeDashboardAndEditor/);
 });
+
+test('native Workspace home lists projects and sessions, WebView only as labelled legacy fallback',async()=>{
+ const root=await read('app/OMHRootViewController.m');
+ // The Workspace home is native UIKit, not the WebView: the WebView starts
+ // hidden and the native workspace is built in its place (5ac5a29).
+ assert.match(root,/self\.webView\.hidden = YES;/);
+ assert.match(root,/\[self buildNativeWorkspace\];/);
+ assert.match(root,/self\.nativeWorkspaceTable = table;/);
+ assert.match(root,/table\.accessibilityIdentifier = @"omh\.workspace\.native\.list";/);
+ // Projects and sessions come from the local runtime API, with a
+ // generation guard so a stale response cannot overwrite a newer one.
+ assert.match(root,/for \(NSString \*path in @\[@\"\/project\", @\"\/session\"\]\)/);
+ assert.match(root,/NSURL \*url = \[NSURL URLWithString:path relativeToURL:base\];/);
+ assert.match(root,/NSUInteger generation = \+\+self\.workspaceRequestGeneration;/);
+ assert.match(root,/if \(!self \|\| generation != self\.workspaceRequestGeneration\) return;/);
+ // Native search filters both sections by label.
+ assert.match(root,/self\.workspaceSearch\.delegate = self;/);
+ assert.match(root,/localizedCaseInsensitiveContainsString:query/);
+ // Real loading, empty and error states, not a spinner that never resolves.
+ assert.match(root,/self\.workspaceStatus\.text = @"Loading projects and sessions…";/);
+ assert.match(root,/@"No projects or sessions found\."/);
+ assert.match(root,/@"Some workspace data could not be loaded\. Tap Refresh to retry\."/);
+ assert.match(root,/self\.workspaceStatus\.text = @"Local runtime unavailable\.";/);
+ // The old editor survives only as an explicitly labelled legacy fallback;
+ // opening it hides the native workspace, closing it restores it.
+ assert.match(root,/editorStyle\.title = @"Open session editor \(legacy\)";/);
+ assert.match(root,/editor\.accessibilityIdentifier = @"omh\.workspace\.legacy-editor";/);
+ assert.match(root,/- \(void\)openLegacyWorkspaceEditor \{/);
+ assert.match(root,/self\.nativeWorkspace\.hidden = YES;/);
+ assert.match(root,/self\.webView\.hidden = NO;/);
+ // Loading the harness must not load the WebView when the native
+ // Workspace is home: it hides the overlay and refreshes the list.
+ assert.match(root,/if \(!self\.legacyEditorVisible\) \{\s*\n\s*self\.loadedPort = OMHHarness\.shared\.port;/);
+ assert.match(root,/\[self refreshNativeWorkspace\];/);
+});
