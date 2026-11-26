@@ -15,6 +15,7 @@
 #import "OMHTheme.h"
 #import "AppDelegate.h"
 #import "AboutViewController.h"
+#import "OMH-Swift.h"
 
 // The iPad home is a fully native UIKit interface that consumes the harness
 // backend API directly (OMHApiClient). There is no browser engine here: the
@@ -24,6 +25,7 @@
 // web view; it is a separate component and is untouched.
 @interface OMHDashboardViewController : UIViewController <UITableViewDelegate, UITableViewDataSource, UITabBarControllerDelegate>
 @property (nonatomic) OMHApiClient *apiClient;
+@property (nonatomic) UIViewController *swiftDashboard;
 @property (nonatomic) NSURL *apiBaseURL;
 @property (nonatomic) OMHChatViewController *chatViewController;
 @property (nonatomic) OMHRuntimeViewController *runtimeViewController;
@@ -89,6 +91,7 @@
     identity.translatesAutoresizingMaskIntoConstraints = NO;
     [self.headerView addSubview:identity];
     [self.view addSubview:self.headerView];
+    self.headerView.hidden = YES;
 
     // Secondary controls live under a single Settings gear, so the
     // navigation bar never crowds the brand out on a compact iPhone.
@@ -175,7 +178,7 @@
         [identity.centerYAnchor constraintEqualToAnchor:self.headerView.centerYAnchor],
         [settingsButton.trailingAnchor constraintEqualToAnchor:self.headerView.trailingAnchor constant:-12],
         [settingsButton.centerYAnchor constraintEqualToAnchor:self.headerView.centerYAnchor],
-        [self.contentView.topAnchor constraintEqualToAnchor:self.headerView.bottomAnchor],
+        [self.contentView.topAnchor constraintEqualToAnchor:safe.topAnchor],
         [self.contentView.bottomAnchor constraintEqualToAnchor:self.view.keyboardLayoutGuide.topAnchor],
         [self.contentView.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor],
         [self.contentView.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor],
@@ -234,13 +237,25 @@
     [self teardownNativeContent];
     self.apiClient = [[OMHApiClient alloc] initWithBaseURL:OMHHarness.dashboard.baseURL];
     self.apiBaseURL = OMHHarness.dashboard.baseURL;
-    self.chatViewController = [[OMHChatViewController alloc] initWithApiClient:self.apiClient];
-    self.runtimeViewController = [[OMHRuntimeViewController alloc] initWithApiClient:self.apiClient];
-    if ([self isPadIdiom]) {
-        [self installPadContent];
-    } else {
-        [self installPhoneContent];
-    }
+    __weak typeof(self) weakSelf = self;
+    self.swiftDashboard = [OMHReferenceDashboardFactory makeWithBaseURL:self.apiBaseURL settings:^{
+        [weakSelf showSwiftSettings];
+    } workspace:^{
+        [weakSelf openEditor];
+    } runtime:^{
+        [weakSelf openSwiftRuntime];
+    }];
+    [self addChildViewController:self.swiftDashboard];
+    UIView *dashboard = self.swiftDashboard.view;
+    dashboard.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.contentView addSubview:dashboard];
+    [NSLayoutConstraint activateConstraints:@[
+        [dashboard.topAnchor constraintEqualToAnchor:self.contentView.topAnchor],
+        [dashboard.bottomAnchor constraintEqualToAnchor:self.contentView.bottomAnchor],
+        [dashboard.leadingAnchor constraintEqualToAnchor:self.contentView.leadingAnchor],
+        [dashboard.trailingAnchor constraintEqualToAnchor:self.contentView.trailingAnchor]
+    ]];
+    [self.swiftDashboard didMoveToParentViewController:self];
 }
 
 - (void)installPhoneContent {
@@ -313,6 +328,10 @@
 }
 
 - (void)teardownNativeContent {
+    [self.swiftDashboard willMoveToParentViewController:nil];
+    [self.swiftDashboard.view removeFromSuperview];
+    [self.swiftDashboard removeFromParentViewController];
+    self.swiftDashboard = nil;
     if (self.tabBarController) {
         // iPhone: the Chat/Runtime controllers are children of the tab bar,
         // so removing the tab bar removes them too.
@@ -403,10 +422,25 @@
     }
 }
 
+- (void)showSwiftSettings {
+    UIAlertController *menu = [UIAlertController alertControllerWithTitle:@"Settings" message:nil preferredStyle:UIAlertControllerStyleAlert];
+    __weak typeof(self) weakSelf = self;
+    [menu addAction:[UIAlertAction actionWithTitle:@"Providers" style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) { [weakSelf configureProvider]; }]];
+    [menu addAction:[UIAlertAction actionWithTitle:@"Workspace" style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) { [weakSelf openEditor]; }]];
+    [menu addAction:[UIAlertAction actionWithTitle:@"Runtime" style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) { [weakSelf openSwiftRuntime]; }]];
+    [menu addAction:[UIAlertAction actionWithTitle:@"Refresh dashboard" style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) { [weakSelf retryDashboard]; }]];
+    [menu addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    [self presentViewController:menu animated:YES completion:nil];
+}
+- (void)openSwiftRuntime {
+    if (!self.apiClient) return;
+    OMHRuntimeViewController *runtime = [[OMHRuntimeViewController alloc] initWithApiClient:self.apiClient];
+    [self.navigationController pushViewController:runtime animated:YES];
+}
 - (void)configureProvider {
     UIAlertController *sheet = [UIAlertController alertControllerWithTitle:@"Provider setup"
         message:@"Optional: save a provider API key securely on this device. Configure credentials here after startup."
-        preferredStyle:UIAlertControllerStyleActionSheet];
+        preferredStyle:UIAlertControllerStyleAlert];
     NSDictionary<NSString *,NSString *> *providers = @{
         @"OpenAI":@"openai", @"Anthropic":@"anthropic",
         @"Gemini":@"google", @"DeepSeek":@"deepseek",
@@ -420,8 +454,6 @@
             handler:^(UIAlertAction *action) { [weakSelf promptForKey:provider name:name]; }]];
     }
     [sheet addAction:[UIAlertAction actionWithTitle:@"Not now" style:UIAlertActionStyleCancel handler:nil]];
-    sheet.popoverPresentationController.sourceView = self.settingsButton;
-    sheet.popoverPresentationController.sourceRect = self.settingsButton.bounds;
     [self presentViewController:sheet animated:YES completion:nil];
 }
 - (void)promptForKey:(NSString *)provider name:(NSString *)name {
@@ -459,6 +491,7 @@
     if (OMHHarness.dashboard.state == OMHHarnessStateReady) {
         // Refresh the native view the user is looking at; the Settings
         // menu's Refresh action and the notice retry button share this path.
+        if (self.swiftDashboard) { [self installNativeContent]; return; }
         UIViewController *active = self.activeViewController;
         if ([active isKindOfClass:[OMHChatViewController class]]) {
             [(OMHChatViewController *)active reload];
