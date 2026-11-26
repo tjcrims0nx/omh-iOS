@@ -45,3 +45,7 @@ EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64 i386
 
 // Keep ObjC classes visible so OMHTests can link against the app (bundle loader).
 GCC_SYMBOLS_PRIVATE_EXTERN = NO
+
+// Native SwiftUI dashboard and generated Objective-C interoperability header.
+SWIFT_VERSION = 5.0
+SWIFT_OBJC_INTERFACE_HEADER_NAME = OMH-Swift.h
