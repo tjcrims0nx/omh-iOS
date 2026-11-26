@@ -166,7 +166,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCUIElement *chat = self.app.buttons[@"omh.native.chat.provider"];
     XCTAssertTrue([chat waitForExistenceWithTimeout:kBootTimeout], @"iPhone must show the native Chat view");
     XCTAssertTrue([self.app.buttons[@"omh.native.chat.provider"] waitForExistenceWithTimeout:10], @"Chat must offer a provider selector");
-    XCTAssertTrue([self.app.descendantsMatchingType:XCUIElementTypeAny matchingIdentifier:@"omh.native.chat.composer"].firstMatch.exists, @"Chat must offer a composer");
+    XCTAssertTrue([[self.app descendantsMatchingType:XCUIElementTypeAny] matchingIdentifier:@"omh.native.chat.composer"].firstMatch.exists, @"Chat must offer a composer");
     [self attachScreenshot:@"ios-phone-portrait-native-dashboard"];
 
     XCUIDevice.sharedDevice.orientation = UIDeviceOrientationLandscapeLeft;
@@ -198,7 +198,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
         XCUIElement *settings = self.app.buttons[@"omh.native.settings"];
         XCTAssertTrue([settings waitForExistenceWithTimeout:15]);
         XCTAssertTrue([self.app.buttons[@"omh.native.chat.provider"] waitForExistenceWithTimeout:10]);
-        XCUIElement *composer = [self.app.descendantsMatchingType:XCUIElementTypeAny matchingIdentifier:@"omh.native.chat.composer"].firstMatch;
+        XCUIElement *composer = [[self.app descendantsMatchingType:XCUIElementTypeAny] matchingIdentifier:@"omh.native.chat.composer"].firstMatch;
         XCTAssertTrue([composer waitForExistenceWithTimeout:10]);
         XCTAssertFalse(self.app.webViews.firstMatch.exists, @"SwiftUI dashboard must not use a WebView");
         [self attachScreenshot:[NSString stringWithFormat:@"swiftui-dashboard-%@", orientation]];
