@@ -23,8 +23,17 @@
 
 static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
 
-@interface OMHRootViewController () <WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate>
+@interface OMHRootViewController () <WKNavigationDelegate, WKUIDelegate, WKDownloadDelegate, UITableViewDataSource, UISearchBarDelegate>
 @property (nonatomic) WKWebView *webView;
+@property (nonatomic) UIView *workspaceContainer;
+@property (nonatomic) UIStackView *nativeWorkspace;
+@property (nonatomic) UITableView *nativeWorkspaceTable;
+@property (nonatomic) UISearchBar *workspaceSearch;
+@property (nonatomic) UILabel *workspaceStatus;
+@property (nonatomic) NSArray<NSDictionary *> *workspaceProjects;
+@property (nonatomic) NSArray<NSDictionary *> *workspaceSessions;
+@property (nonatomic) BOOL legacyEditorVisible;
+@property (nonatomic) NSUInteger workspaceRequestGeneration;
 @property (nonatomic) OMHStatusOverlayView *overlay;
 @property (nonatomic) UIView *controlBar;
 @property (nonatomic) NSLayoutConstraint *controlBarHeight;
@@ -103,7 +112,183 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     if (@available(iOS 16.4, *))
         self.webView.inspectable = YES;
 #endif
-    [self.view addSubview:self.webView];
+    self.workspaceContainer = [UIView new];
+    self.workspaceContainer.translatesAutoresizingMaskIntoConstraints = NO;
+    self.workspaceContainer.backgroundColor = [OMHTheme backgroundColor];
+    [self.view addSubview:self.workspaceContainer];
+    [self.workspaceContainer addSubview:self.webView];
+    [NSLayoutConstraint activateConstraints:@[
+        [self.webView.topAnchor constraintEqualToAnchor:self.workspaceContainer.topAnchor],
+        [self.webView.bottomAnchor constraintEqualToAnchor:self.workspaceContainer.bottomAnchor],
+        [self.webView.leadingAnchor constraintEqualToAnchor:self.workspaceContainer.leadingAnchor],
+        [self.webView.trailingAnchor constraintEqualToAnchor:self.workspaceContainer.trailingAnchor],
+    ]];
+    self.webView.hidden = YES;
+    [self buildNativeWorkspace];
+}
+
+- (void)buildNativeWorkspace {
+    UILabel *heading = [UILabel new];
+    heading.text = @"Workspace";
+    heading.font = [UIFont preferredFontForTextStyle:UIFontTextStyleTitle1];
+    heading.adjustsFontForContentSizeCategory = YES;
+    heading.textColor = [OMHTheme textColor];
+
+    UIButton *refresh = [UIButton buttonWithType:UIButtonTypeSystem];
+    UIButtonConfiguration *refreshStyle = [UIButtonConfiguration tintedButtonConfiguration];
+    refreshStyle.title = @"Refresh";
+    refreshStyle.image = [UIImage systemImageNamed:@"arrow.clockwise"];
+    refreshStyle.imagePadding = 6;
+    refreshStyle.baseForegroundColor = [OMHTheme accentLightColor];
+    refresh.configuration = refreshStyle;
+    [refresh addTarget:self action:@selector(refreshNativeWorkspace) forControlEvents:UIControlEventTouchUpInside];
+    refresh.accessibilityIdentifier = @"omh.workspace.refresh";
+    [refresh.heightAnchor constraintGreaterThanOrEqualToConstant:44].active = YES;
+
+    self.workspaceSearch = [UISearchBar new];
+    self.workspaceSearch.searchBarStyle = UISearchBarStyleMinimal;
+    self.workspaceSearch.placeholder = @"Search projects and sessions";
+    self.workspaceSearch.delegate = self;
+    self.workspaceSearch.tintColor = [OMHTheme accentColor];
+    self.workspaceSearch.searchTextField.backgroundColor = [OMHTheme surfaceRaisedColor];
+    self.workspaceSearch.searchTextField.textColor = [OMHTheme textColor];
+    self.workspaceSearch.accessibilityIdentifier = @"omh.workspace.search";
+
+    self.workspaceStatus = [UILabel new];
+    self.workspaceStatus.numberOfLines = 0;
+    self.workspaceStatus.font = [UIFont preferredFontForTextStyle:UIFontTextStyleFootnote];
+    self.workspaceStatus.textColor = [OMHTheme mutedTextColor];
+    self.workspaceStatus.text = @"Waiting for the local runtime…";
+    self.workspaceStatus.accessibilityIdentifier = @"omh.workspace.status";
+
+    UITableView *table = [[UITableView alloc] initWithFrame:CGRectZero style:UITableViewStyleInsetGrouped];
+    table.backgroundColor = [OMHTheme backgroundColor];
+    table.separatorColor = [OMHTheme borderColor];
+    table.dataSource = self;
+    table.rowHeight = UITableViewAutomaticDimension;
+    table.estimatedRowHeight = 60;
+    table.accessibilityIdentifier = @"omh.workspace.native.list";
+    self.nativeWorkspaceTable = table;
+
+    // Retain the existing editor explicitly until the native editor is complete.
+    UIButton *editor = [UIButton buttonWithType:UIButtonTypeSystem];
+    UIButtonConfiguration *editorStyle = [UIButtonConfiguration tintedButtonConfiguration];
+    editorStyle.title = @"Open session editor (legacy)";
+    editorStyle.baseForegroundColor = [OMHTheme accentLightColor];
+    editorStyle.cornerStyle = UIButtonConfigurationCornerStyleLarge;
+    editor.configuration = editorStyle;
+    editor.accessibilityIdentifier = @"omh.workspace.legacy-editor";
+    [editor.heightAnchor constraintGreaterThanOrEqualToConstant:44].active = YES;
+    [editor addTarget:self action:@selector(openLegacyWorkspaceEditor) forControlEvents:UIControlEventTouchUpInside];
+
+    self.nativeWorkspace = [[UIStackView alloc] initWithArrangedSubviews:@[heading, refresh, self.workspaceSearch, self.workspaceStatus, table, editor]];
+    self.nativeWorkspace.axis = UILayoutConstraintAxisVertical;
+    self.nativeWorkspace.spacing = 10;
+    self.nativeWorkspace.translatesAutoresizingMaskIntoConstraints = NO;
+    self.nativeWorkspace.accessibilityIdentifier = @"omh.workspace.native";
+    [self.workspaceContainer addSubview:self.nativeWorkspace];
+    [NSLayoutConstraint activateConstraints:@[
+        [self.nativeWorkspace.topAnchor constraintEqualToAnchor:self.workspaceContainer.topAnchor constant:16],
+        [self.nativeWorkspace.bottomAnchor constraintEqualToAnchor:self.workspaceContainer.bottomAnchor constant:-12],
+        [self.nativeWorkspace.leadingAnchor constraintEqualToAnchor:self.workspaceContainer.leadingAnchor constant:16],
+        [self.nativeWorkspace.trailingAnchor constraintEqualToAnchor:self.workspaceContainer.trailingAnchor constant:-16],
+    ]];
+}
+
+- (NSString *)workspaceLabelForItem:(NSDictionary *)item section:(NSInteger)section {
+    NSArray *keys = section == 0 ? @[@"name", @"worktree", @"id"] : @[@"title", @"id"];
+    for (NSString *key in keys) {
+        id value = item[key];
+        if ([value isKindOfClass:NSString.class] && [value length]) return value;
+    }
+    return section == 0 ? @"Untitled project" : @"Untitled session";
+}
+
+- (NSArray<NSDictionary *> *)workspaceRowsForSection:(NSInteger)section {
+    NSArray *rows = (section == 0 ? self.workspaceProjects : self.workspaceSessions) ?: @[];
+    NSString *query = [self.workspaceSearch.text stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceAndNewlineCharacterSet];
+    if (!query.length) return rows;
+    return [rows filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(NSDictionary *item, NSDictionary *bindings) {
+        return [[self workspaceLabelForItem:item section:section] localizedCaseInsensitiveContainsString:query];
+    }]];
+}
+
+- (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView { return 2; }
+- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section {
+    return [self workspaceRowsForSection:section].count;
+}
+- (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section {
+    return section == 0 ? @"Projects" : @"Sessions";
+}
+- (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath {
+    static NSString *identifier = @"OMHWorkspaceRow";
+    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:identifier];
+    if (!cell) cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:identifier];
+    NSDictionary *item = [self workspaceRowsForSection:indexPath.section][indexPath.row];
+    cell.backgroundColor = [OMHTheme surfaceColor];
+    cell.textLabel.textColor = [OMHTheme textColor];
+    cell.textLabel.numberOfLines = 2;
+    cell.textLabel.text = [self workspaceLabelForItem:item section:indexPath.section];
+    id location = item[indexPath.section == 0 ? @"worktree" : @"directory"];
+    cell.detailTextLabel.text = [location isKindOfClass:NSString.class] ? location : nil;
+    cell.detailTextLabel.textColor = [OMHTheme mutedTextColor];
+    cell.imageView.image = [UIImage systemImageNamed:indexPath.section == 0 ? @"folder" : @"bubble.left"];
+    cell.imageView.tintColor = [OMHTheme accentLightColor];
+    cell.selectionStyle = UITableViewCellSelectionStyleNone;
+    return cell;
+}
+- (void)searchBar:(UISearchBar *)searchBar textDidChange:(NSString *)searchText {
+    [self.nativeWorkspaceTable reloadData];
+}
+
+- (void)refreshNativeWorkspace {
+    NSURL *base = OMHHarness.shared.baseURL;
+    if (OMHHarness.shared.state != OMHHarnessStateReady || !base) {
+        self.workspaceStatus.text = @"Local runtime unavailable.";
+        return;
+    }
+    NSUInteger generation = ++self.workspaceRequestGeneration;
+    self.workspaceStatus.text = @"Loading projects and sessions…";
+    self.workspaceProjects = @[];
+    self.workspaceSessions = @[];
+    [self.nativeWorkspaceTable reloadData];
+    __block NSUInteger completed = 0;
+    __block NSUInteger failures = 0;
+    __weak typeof(self) weakSelf = self;
+    for (NSString *path in @[@"/project", @"/session"]) {
+        NSURL *url = [NSURL URLWithString:path relativeToURL:base];
+        NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
+        request.timeoutInterval = 15;
+        request.cachePolicy = NSURLRequestReloadIgnoringLocalCacheData;
+        request.HTTPMethod = @"GET";
+        [[NSURLSession.sharedSession dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+            NSInteger status = [response isKindOfClass:NSHTTPURLResponse.class] ? ((NSHTTPURLResponse *)response).statusCode : 0;
+            id json = (!error && status >= 200 && status < 300 && data) ? [NSJSONSerialization JSONObjectWithData:data options:0 error:nil] : nil;
+            NSArray *rows = [json isKindOfClass:NSArray.class] ? [json filteredArrayUsingPredicate:[NSPredicate predicateWithBlock:^BOOL(id item, NSDictionary *bindings) {
+                return [item isKindOfClass:NSDictionary.class];
+            }]] : nil;
+            dispatch_async(dispatch_get_main_queue(), ^{
+                typeof(self) self = weakSelf;
+                if (!self || generation != self.workspaceRequestGeneration) return;
+                if (!rows) failures++;
+                else if ([path isEqualToString:@"/project"]) self.workspaceProjects = rows;
+                else self.workspaceSessions = rows;
+                completed++;
+                [self.nativeWorkspaceTable reloadData];
+                if (completed == 2) {
+                    self.workspaceStatus.text = failures ? @"Some workspace data could not be loaded. Tap Refresh to retry." :
+                        (self.workspaceProjects.count || self.workspaceSessions.count ? @"Projects and sessions from the local runtime." : @"No projects or sessions found.");
+                }
+            });
+        }] resume];
+    }
+}
+
+- (void)openLegacyWorkspaceEditor {
+    self.legacyEditorVisible = YES;
+    self.nativeWorkspace.hidden = YES;
+    self.webView.hidden = NO;
+    [self loadHarness];
 }
 
 - (void)buildControlBar {
@@ -186,13 +371,13 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
         [dot.widthAnchor constraintEqualToConstant:8],
         [dot.heightAnchor constraintEqualToConstant:8],
 
-        [self.webView.topAnchor constraintEqualToAnchor:bar.bottomAnchor],
+        [self.workspaceContainer.topAnchor constraintEqualToAnchor:bar.bottomAnchor],
         // Keep the harness composer above the software keyboard. WKWebView's
         // own viewport updates are not reliable across iOS releases when its
         // scroll view uses contentInsetAdjustmentNever; the keyboard layout
         // guide makes the native contract explicit and is a no-op for a
         // hardware keyboard.
-        [self.webView.bottomAnchor constraintEqualToAnchor:self.view.keyboardLayoutGuide.topAnchor],
+        [self.workspaceContainer.bottomAnchor constraintEqualToAnchor:self.view.keyboardLayoutGuide.topAnchor],
     ]];
 }
 
@@ -229,7 +414,7 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     self.inspector = inspector;
     self.sidebarWidth = [rail.widthAnchor constraintEqualToConstant:0];
     self.inspectorWidth = [inspector.widthAnchor constraintEqualToConstant:0];
-    self.workspaceInset = [self.webView.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor];
+    self.workspaceInset = [self.workspaceContainer.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor];
     [NSLayoutConstraint activateConstraints:@[
         [rail.topAnchor constraintEqualToAnchor:self.controlBar.bottomAnchor],
         [rail.leadingAnchor constraintEqualToAnchor:safe.leadingAnchor],
@@ -240,7 +425,7 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
         [items.topAnchor constraintEqualToAnchor:rail.contentLayoutGuide.topAnchor constant:16],
         [items.bottomAnchor constraintEqualToAnchor:rail.contentLayoutGuide.bottomAnchor constant:-16],
         [items.widthAnchor constraintEqualToConstant:164],
-        [self.webView.leadingAnchor constraintEqualToAnchor:rail.trailingAnchor],
+        [self.workspaceContainer.leadingAnchor constraintEqualToAnchor:rail.trailingAnchor],
         self.workspaceInset,
         [inspector.topAnchor constraintEqualToAnchor:self.controlBar.bottomAnchor],
         [inspector.trailingAnchor constraintEqualToAnchor:safe.trailingAnchor],
@@ -289,6 +474,7 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     self.workspaceInset.constant = besideWorkspace ? -inspector : 0;
     BOOL covered = self.inspectorController && !besideWorkspace;
     self.webView.accessibilityElementsHidden = covered;
+    self.nativeWorkspace.accessibilityElementsHidden = covered;
     self.overlay.accessibilityElementsHidden = covered;
 }
 
@@ -302,6 +488,14 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     }
     self.inspector.hidden = YES;
     for (UIButton *button in self.sidebarButtons) button.selected = button == self.sidebarButtons.firstObject;
+    if (self.legacyEditorVisible) {
+        self.legacyEditorVisible = NO;
+        self.webView.hidden = YES;
+        self.nativeWorkspace.hidden = NO;
+        self.pageLoadGeneration++;
+        [self.webView stopLoading];
+        [self loadHarness];
+    }
     [self.view setNeedsLayout];
 }
 
@@ -459,8 +653,8 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     [self.view addSubview:self.overlay];
     [NSLayoutConstraint activateConstraints:@[
         [self.overlay.topAnchor constraintEqualToAnchor:self.controlBar.bottomAnchor],
-        [self.overlay.leadingAnchor constraintEqualToAnchor:self.webView.leadingAnchor],
-        [self.overlay.trailingAnchor constraintEqualToAnchor:self.webView.trailingAnchor],
+        [self.overlay.leadingAnchor constraintEqualToAnchor:self.workspaceContainer.leadingAnchor],
+        [self.overlay.trailingAnchor constraintEqualToAnchor:self.workspaceContainer.trailingAnchor],
         [self.overlay.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
     ]];
 }
@@ -539,6 +733,13 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     NSURL *url = OMHHarness.shared.baseURL;
     if (url == nil)
         return;
+    if (!self.legacyEditorVisible) {
+        self.loadedPort = OMHHarness.shared.port;
+        self.pageLoaded = YES;
+        [self.overlay hide];
+        [self refreshNativeWorkspace];
+        return;
+    }
     [self.overlay showStarting:@"Loading the interface…"];
     [self.overlay setProgressStartedAt:nil expected:0];
     self.loadedPort = OMHHarness.shared.port;
@@ -756,6 +957,7 @@ static const NSTimeInterval kActivityIndicatorVisible = 6;
 }
 
 - (void)webView:(WKWebView *)webView didFinishNavigation:(WKNavigation *)navigation {
+    if (!self.legacyEditorVisible) return;
     self.pageLoaded = YES;
     [OMHHarness.shared.log append:[NSString stringWithFormat:@"[perf] web interface loaded (harness %.3fs)", OMHHarness.shared.lastStartupDuration]];
     [OMHStartupMetrics.shared mark:@"web_ready"];
