@@ -18,6 +18,7 @@
 #import "AppDelegate.h"
 #import "OMHProviderCredentials.h"
 #import "OMHProviderVerifier.h"
+#import "OMHTheme.h"
 #import <WebKit/WebKit.h>
 
 static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
@@ -51,7 +52,9 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-    self.view.backgroundColor = [UIColor colorWithRed:0.018 green:0.031 blue:0.071 alpha:1.0];
+    self.view.backgroundColor = [OMHTheme backgroundColor];
+    self.view.tintColor = [OMHTheme accentColor];
+    self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
     self.downloadDestinations = [NSMutableDictionary dictionary];
 
     [self buildWebView];
@@ -107,8 +110,8 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     UIView *bar = [UIView new];
     bar.translatesAutoresizingMaskIntoConstraints = NO;
     bar.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
-    bar.backgroundColor = [UIColor colorWithRed:0.025 green:0.055 blue:0.11 alpha:1.0];
-    bar.layer.borderColor = [UIColor colorWithRed:0.0 green:0.75 blue:0.95 alpha:0.45].CGColor;
+    bar.backgroundColor = [OMHTheme surfaceColor];
+    bar.layer.borderColor = [OMHTheme borderColor].CGColor;
     bar.layer.borderWidth = 0.5;
     bar.accessibilityIdentifier = @"omh.controlbar";
     self.controlBar = bar;
@@ -127,7 +130,7 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     title.translatesAutoresizingMaskIntoConstraints = NO;
     title.text = @"OpenMind Harness";
     title.font = [UIFont monospacedSystemFontOfSize:12 weight:UIFontWeightSemibold];
-    title.textColor = [UIColor colorWithRed:0.0 green:0.89 blue:1.0 alpha:1.0];
+    title.textColor = [OMHTheme accentLightColor];
     title.accessibilityIdentifier = @"omh.title";
     self.titleLabel = title;
 
@@ -197,7 +200,7 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     UILayoutGuide *safe = self.view.safeAreaLayoutGuide;
     UIScrollView *rail = [UIScrollView new];
     rail.translatesAutoresizingMaskIntoConstraints = NO;
-    rail.backgroundColor = [UIColor colorWithRed:0.025 green:0.047 blue:0.075 alpha:1];
+    rail.backgroundColor = [OMHTheme surfaceColor];
     rail.accessibilityIdentifier = @"omh.sidebar";
     rail.clipsToBounds = YES;
     [self.view addSubview:rail];
@@ -251,6 +254,7 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     config.title = title;
     config.image = [UIImage systemImageNamed:symbol];
     config.imagePadding = 9;
+    config.cornerStyle = UIButtonConfigurationCornerStyleLarge;
     config.contentInsets = NSDirectionalEdgeInsetsMake(12, 10, 12, 8);
     UIButton *button = [UIButton buttonWithConfiguration:config primaryAction:nil];
     // Touch targets meet the native iPad minimum, including Pointer/VoiceOver.
@@ -259,8 +263,8 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     button.accessibilityIdentifier = [@"omh.sidebar." stringByAppendingString:key];
     button.configurationUpdateHandler = ^(UIButton *item) {
         UIButtonConfiguration *style = item.configuration;
-        style.baseForegroundColor = item.selected ? UIColor.cyanColor : UIColor.lightTextColor;
-        style.background.backgroundColor = item.selected ? [UIColor colorWithRed:0.04 green:0.15 blue:0.20 alpha:1] : UIColor.clearColor;
+        style.baseForegroundColor = item.selected ? [OMHTheme accentLightColor] : [OMHTheme mutedTextColor];
+        style.background.backgroundColor = item.selected ? [OMHTheme surfaceRaisedColor] : UIColor.clearColor;
         item.configuration = style;
     };
     [button addTarget:self action:action forControlEvents:UIControlEventTouchUpInside];
@@ -271,7 +275,7 @@ static NSString *const kOMHUserAgentSuffix = @" OpenMind-Harness-iOS/1.0";
     [super viewWillLayoutSubviews];
     CGFloat width = CGRectGetWidth(self.view.bounds) - self.view.safeAreaInsets.left - self.view.safeAreaInsets.right;
     BOOL desktop = self.traitCollection.userInterfaceIdiom == UIUserInterfaceIdiomPad && width >= 740;
-    // Keep the OMH dark/cyan identity in compact iPad windows and portrait.
+    // Keep the OMH black and purple identity in compact iPad windows and portrait.
     // Size-class changes alter navigation geometry, not the color scheme.
     if (self.overrideUserInterfaceStyle != UIUserInterfaceStyleDark)
         self.overrideUserInterfaceStyle = UIUserInterfaceStyleDark;
