@@ -615,8 +615,11 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCUIElement *send = self.app.buttons[@"omh.native.chat.send"];
     XCTAssertTrue(send.enabled, @"Send must be enabled once a configured custom provider is selected and there is draft text");
     [send tap];
-    XCTAssertTrue([[self.app.staticTexts matchingPredicate:[NSPredicate predicateWithFormat:@"label CONTAINS %@", expectedReply]].firstMatch waitForExistenceWithTimeout:30],
-                  @"Assistant reply '%@' must appear", expectedReply);
+    // Hoist the boolean out of the XCTAssert macro: the comma inside
+    // predicateWithFormat:@"label CONTAINS %@", expectedReply would split
+    // the macro's arguments and break compilation.
+    BOOL replyAppeared = [[self.app.staticTexts matchingPredicate:[NSPredicate predicateWithFormat:@"label CONTAINS %@", expectedReply]].firstMatch waitForExistenceWithTimeout:30];
+    XCTAssertTrue(replyAppeared, @"Assistant reply '%@' must appear", expectedReply);
 }
 
 - (void)testCustomProviderPersistenceAcrossRestart {
