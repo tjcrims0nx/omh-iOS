@@ -40,7 +40,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           repository: tjcrims0nx/openmind-harness
-          ref: e754cec06286531283bbdae62e52b7059857340b
+          ref: 96673eafac347891e743e938a1286702803f1a58
           path: harness
       - name: Static OMH iPadOS port tests
         run: |
@@ -66,7 +66,7 @@ jobs:
           repository: tjcrims0nx/openmind-harness
           # Pin the verified OMH Linux release so both Xcode jobs package
           # identical models, assets, MCP modules, and sandbox policy.
-          ref: e754cec06286531283bbdae62e52b7059857340b
+          ref: 96673eafac347891e743e938a1286702803f1a58
           path: harness
 
       - name: Select Xcode 27
@@ -94,7 +94,7 @@ jobs:
           path: |
             ish-arm64/build-arm64-release
             build/root.tar.gz
-          key: omh-v1-${{ hashFiles('ish-arm64/**', 'rootfs/overlay/**', 'scripts/build-rootfs.sh', 'Makefile', 'harness/opencode.json', 'harness/dashboard/**', 'harness/modules/**', 'harness/scripts/omh-*.mjs', 'harness/scripts/connect-vercel-mcp.mjs', 'harness/plugins/**', 'harness/skills/**', 'harness/scripts/delete-env.sh', 'harness/commands/**') }}
+          key: omh-v1-${{ hashFiles('ish-arm64/**', 'rootfs/overlay/**', 'scripts/build-rootfs.sh', 'Makefile', 'harness/opencode.json', 'harness/dashboard/**', 'harness/modules/**', 'harness/lib/**', 'harness/scripts/omh-*.mjs', 'harness/plugins/**', 'harness/skills/**', 'harness/scripts/delete-env.sh', 'harness/commands/**') }}
 
       - name: Build emulator
         if: steps.build-cache.outputs.cache-hit != 'true'
@@ -118,11 +118,10 @@ jobs:
           bash -n scripts/sync-omh-branding.sh
           bash -n scripts/verify-omh-ipa.sh
           bash scripts/sync-omh-branding.sh
-          for wrapper in omh-runtime omh-dashboard omh-live omh-vercel-mcp omh-sandbox-check; do
+          for wrapper in omh-runtime omh-dashboard omh-live omh-sandbox-check; do
             test -s "rootfs/overlay/usr/local/bin/$wrapper" || exit 1
           done
           node --check harness/scripts/omh-live.mjs
-          node --check harness/scripts/connect-vercel-mcp.mjs
           node --check harness/scripts/omh-dashboard.mjs
           git -C harness rev-parse HEAD
           node -e "const c=require('./harness/opencode.json');if(c.model!=='google/gemini-3.5-flash-lite')process.exit(1)"
@@ -186,7 +185,7 @@ jobs:
           repository: tjcrims0nx/openmind-harness
           # Pin the verified OMH Linux release so both Xcode jobs package
           # identical models, assets, MCP modules, and sandbox policy.
-          ref: e754cec06286531283bbdae62e52b7059857340b
+          ref: 96673eafac347891e743e938a1286702803f1a58
           path: harness
 
       - name: Select Xcode 27
@@ -210,7 +209,7 @@ jobs:
           path: |
             ish-arm64/build-arm64-release
             build/root.tar.gz
-          key: omh-v1-${{ hashFiles('ish-arm64/**', 'rootfs/overlay/**', 'scripts/build-rootfs.sh', 'Makefile', 'harness/opencode.json', 'harness/dashboard/**', 'harness/modules/**', 'harness/scripts/omh-*.mjs', 'harness/scripts/connect-vercel-mcp.mjs', 'harness/plugins/**', 'harness/skills/**', 'harness/scripts/delete-env.sh', 'harness/commands/**') }}
+          key: omh-v1-${{ hashFiles('ish-arm64/**', 'rootfs/overlay/**', 'scripts/build-rootfs.sh', 'Makefile', 'harness/opencode.json', 'harness/dashboard/**', 'harness/modules/**', 'harness/lib/**', 'harness/scripts/omh-*.mjs', 'harness/plugins/**', 'harness/skills/**', 'harness/scripts/delete-env.sh', 'harness/commands/**') }}
 
       - name: Build emulator
         if: steps.build-cache.outputs.cache-hit != 'true'
@@ -233,11 +232,10 @@ jobs:
           bash -n scripts/sync-omh-branding.sh
           bash -n scripts/verify-omh-ipa.sh
           bash scripts/sync-omh-branding.sh
-          for wrapper in omh-runtime omh-dashboard omh-live omh-vercel-mcp omh-sandbox-check; do
+          for wrapper in omh-runtime omh-dashboard omh-live omh-sandbox-check; do
             test -s "rootfs/overlay/usr/local/bin/$wrapper" || exit 1
           done
           node --check harness/scripts/omh-live.mjs
-          node --check harness/scripts/connect-vercel-mcp.mjs
           node --check harness/scripts/omh-dashboard.mjs
           git -C harness rev-parse HEAD
           node -e "const c=require('./harness/opencode.json');if(c.model!=='google/gemini-3.5-flash-lite')process.exit(1)"
@@ -247,6 +245,21 @@ jobs:
           make project
           grep -q 'OMH.app/OMH' OMH.xcodeproj/project.pbxproj
           grep -q 'PRODUCT_NAME = OMH' app/AppOMH.xcconfig
+
+      - name: Start mock custom-provider server
+        run: |
+          python3 tests/mock-custom-provider-server.py > "$RUNNER_TEMP/mock-server.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/mock-server.pid"
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            if curl -fsS http://127.0.0.1:18080/v1/models > /dev/null 2>&1; then
+              echo "Mock custom-provider server is up"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Mock custom-provider server did not start" >&2
+          cat "$RUNNER_TEMP/mock-server.log" || true
+          exit 1
 
       - name: Simulator smoke test (iPad)
         run: |
@@ -258,9 +271,19 @@ jobs:
           xcodebuild -project OMH.xcodeproj -scheme OMH -configuration Release \
             -destination "platform=iOS Simulator,name=$SIM" \
             -parallel-testing-enabled NO -resultBundlePath "$RUNNER_TEMP/ipad.xcresult" \
-            -only-testing:OMHUITests/OMHLaunchUITests/testHarnessBootsAndShowsWebUI \
+            -only-testing:OMHUITests/OMHLaunchUITests/testHarnessBootsAndShowsNativeUI \
             -only-testing:OMHUITests/OMHLaunchUITests/testProviderCredentialSurvivesHarnessRestart \
+            -only-testing:OMHUITests/OMHLaunchUITests/testCustomProviderConfigurationAppearsInSelector \
+            -only-testing:OMHUITests/OMHLaunchUITests/testCustomProviderPersistenceAcrossRestart \
             test
+
+      - name: Stop mock custom-provider server
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/mock-server.pid" ]; then
+            kill "$(cat "$RUNNER_TEMP/mock-server.pid")" 2>/dev/null || true
+          fi
+          pkill -f mock-custom-provider-server.py 2>/dev/null || true
 
       - name: Export iPad screenshots and test diagnostics
         if: always()
@@ -303,7 +326,7 @@ jobs:
           repository: tjcrims0nx/openmind-harness
           # Pin the verified OMH Linux release so both Xcode jobs package
           # identical models, assets, MCP modules, and sandbox policy.
-          ref: e754cec06286531283bbdae62e52b7059857340b
+          ref: 96673eafac347891e743e938a1286702803f1a58
           path: harness
 
       - name: Select Xcode 27
@@ -327,7 +350,7 @@ jobs:
           path: |
             ish-arm64/build-arm64-release
             build/root.tar.gz
-          key: omh-v1-${{ hashFiles('ish-arm64/**', 'rootfs/overlay/**', 'scripts/build-rootfs.sh', 'Makefile', 'harness/opencode.json', 'harness/dashboard/**', 'harness/modules/**', 'harness/scripts/omh-*.mjs', 'harness/scripts/connect-vercel-mcp.mjs', 'harness/plugins/**', 'harness/skills/**', 'harness/scripts/delete-env.sh', 'harness/commands/**') }}
+          key: omh-v1-${{ hashFiles('ish-arm64/**', 'rootfs/overlay/**', 'scripts/build-rootfs.sh', 'Makefile', 'harness/opencode.json', 'harness/dashboard/**', 'harness/modules/**', 'harness/lib/**', 'harness/scripts/omh-*.mjs', 'harness/plugins/**', 'harness/skills/**', 'harness/scripts/delete-env.sh', 'harness/commands/**') }}
 
       - name: Build emulator
         if: steps.build-cache.outputs.cache-hit != 'true'
@@ -350,11 +373,10 @@ jobs:
           bash -n scripts/sync-omh-branding.sh
           bash -n scripts/verify-omh-ipa.sh
           bash scripts/sync-omh-branding.sh
-          for wrapper in omh-runtime omh-dashboard omh-live omh-vercel-mcp omh-sandbox-check; do
+          for wrapper in omh-runtime omh-dashboard omh-live omh-sandbox-check; do
             test -s "rootfs/overlay/usr/local/bin/$wrapper" || exit 1
           done
           node --check harness/scripts/omh-live.mjs
-          node --check harness/scripts/connect-vercel-mcp.mjs
           node --check harness/scripts/omh-dashboard.mjs
           git -C harness rev-parse HEAD
           node -e "const c=require('./harness/opencode.json');if(c.model!=='google/gemini-3.5-flash-lite')process.exit(1)"

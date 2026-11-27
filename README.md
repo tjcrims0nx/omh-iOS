@@ -90,6 +90,22 @@ If a step fails, note the exact step and what you saw (a screenshot of the
 overlay or the Terminal output helps); the app's Log screen (`≡` menu)
 holds the guest and server logs.
 
+## Physical iPad verification (beta.2, November 25, 2026)
+
+Beta.2 was installed over beta.1 on a physical iPad (no data loss) and verified working:
+
+- **Startup** — the launch gate starts the coding runtime and the dashboard API together; both report ready (harness runtime on port 3080, dashboard API on port 4177).
+- **Guest terminal** — the iSH Alpine guest shell is reachable and usable.
+- **Native chat** — the OpenUI chat view opens with the provider selector and composer.
+
+![Startup diagnostics — both services ready](docs/images/beta2-startup.jpg)
+
+![Guest terminal — Alpine shell](docs/images/beta2-terminal.jpg)
+
+![Native chat — OpenUI](docs/images/beta2-chat.jpg)
+
+The release stays a beta until reopening works reliably across repeated force-close and relaunch cycles on a physical iPad; simulator success alone is not sufficient.
+
 ## Split history
 
 Split out of [tjcrims0nx/openmind-harness](https://github.com/tjcrims0nx/openmind-harness) on 2026-11-21: the iOS app moved here, the harness stayed there. The harness repo's Linux (`linux-setup.sh`) and Termux (`termux-setup.sh`) setups are unchanged.

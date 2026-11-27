@@ -1,5 +1,0 @@
-#!/bin/sh
-# Register Vercel's official remote OAuth MCP with OpenCode on the guest.
-set -eu
-export HOME=/root
-exec /usr/bin/node /usr/local/share/omh-runtime/scripts/connect-vercel-mcp.mjs "$@"

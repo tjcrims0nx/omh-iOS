@@ -45,3 +45,17 @@ EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64 i386
 
 // Keep ObjC classes visible so OMHTests can link against the app (bundle loader).
 GCC_SYMBOLS_PRIVATE_EXTERN = NO
+
+// Native SwiftUI dashboard and generated Objective-C interoperability header.
+SWIFT_VERSION = 5.0
+SWIFT_OBJC_INTERFACE_HEADER_NAME = OMH-Swift.h
+// The Swift module must be defined for the generated OMH-Swift.h to carry
+// @objc declarations into Objective-C.
+DEFINES_MODULE = YES
+// Disable Xcode 26 explicit module builds: with SWIFT_ENABLE_EXPLICIT_MODULES
+// = YES the generated OMH-Swift.h came out preamble-only (no factory, no
+// @interface at all -- not even a trivial probe class) and the build failed
+// on the undeclared factory (CI runs 45927071760, 45930444132, 45935007311).
+// Falling back to the traditional Swift build pipeline so the header is
+// emitted with the @objc declarations.
+SWIFT_ENABLE_EXPLICIT_MODULES = NO
