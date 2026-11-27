@@ -576,9 +576,15 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 - (void)openCustomProviderSheet {
     XCUIElement *providerMenu = self.app.buttons[@"omh.native.chat.provider"];
     XCTAssertTrue([providerMenu waitForExistenceWithTimeout:10], @"Provider menu must exist");
-    [providerMenu tap];
+    // The SwiftUI Menu sometimes does not open on the first tap in the
+    // simulator; retry until the Configure item appears.
     XCUIElement *configure = self.app.buttons[@"omh.custom.configure"];
-    XCTAssertTrue([configure waitForExistenceWithTimeout:10], @"Configure custom providers must exist in the provider menu");
+    BOOL opened = NO;
+    for (int attempt = 0; attempt < 3 && !opened; attempt++) {
+        [providerMenu tap];
+        opened = [configure waitForExistenceWithTimeout:5];
+    }
+    XCTAssertTrue(opened, @"Configure custom providers must exist in the provider menu");
     [configure tap];
     XCUIElement *sheet = [[self.app descendantsMatchingType:XCUIElementTypeAny] matchingIdentifier:@"omh.custom.providers"].firstMatch;
     XCTAssertTrue([sheet waitForExistenceWithTimeout:10], @"Custom provider config sheet must open");
@@ -600,7 +606,18 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     [modelField tap];
     [modelField typeText:model];
     XCUIElement *save = self.app.buttons[[NSString stringWithFormat:@"omh.custom.%@.save", suffix]];
-    XCTAssertTrue([save waitForExistenceWithTimeout:10], @"Save Custom %@ must exist", suffix);
+    // The sheet holds both providers' sections, so the lower Save button
+    // can sit below the fold and not exist in the accessibility hierarchy
+    // until the sheet is scrolled. Swipe up to reveal it, then retry.
+    BOOL saveFound = [save waitForExistenceWithTimeout:5];
+    if (!saveFound) {
+        XCUIElement *sheet = [[self.app descendantsMatchingType:XCUIElementTypeAny] matchingIdentifier:@"omh.custom.providers"].firstMatch;
+        if (sheet.exists) {
+            [sheet swipeUp];
+        }
+        saveFound = [save waitForExistenceWithTimeout:10];
+    }
+    XCTAssertTrue(saveFound, @"Save Custom %@ must exist", suffix);
     [save tap];
     XCTAssertTrue([self.app.staticTexts[@"Saved."] waitForExistenceWithTimeout:10], @"Save must report Saved.");
 }
