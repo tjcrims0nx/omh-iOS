@@ -49,3 +49,8 @@ GCC_SYMBOLS_PRIVATE_EXTERN = NO
 // Native SwiftUI dashboard and generated Objective-C interoperability header.
 SWIFT_VERSION = 5.0
 SWIFT_OBJC_INTERFACE_HEADER_NAME = OMH-Swift.h
+// The Swift module must be defined for the generated OMH-Swift.h to carry
+// @objc declarations into Objective-C. With DEFINES_MODULE = NO the header
+// came out preamble-only (no factory, no @interface at all) and the build
+// failed on the undeclared factory (CI run 45927071760).
+DEFINES_MODULE = YES
