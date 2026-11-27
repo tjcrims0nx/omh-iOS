@@ -338,3 +338,11 @@ private struct PurpleWave: View {
         }
     }
 }
+
+// TEMPORARY DIAGNOSTIC: minimal @objc probe class. If this appears in the
+// generated OMH-Swift.h but the factory does not, the problem is specific
+// to the factory. If neither appears, the Swift compiler is not emitting
+// ANY @objc declarations for this target. Remove once the cause is found.
+@objc(OMHTestFactory) final class OMHTestFactory: NSObject {
+    @objc static func ping() -> String { "pong" }
+}
