@@ -146,6 +146,65 @@ jobs:
           test "$(defaults read "$APP/Info.plist" CFBundleIdentifier)" = "app.jackfruit686.openmind-harness"
           echo "Validated new OMH.app bundle: $APP"
 
+      # TEMPORARY DIAGNOSTIC (SwiftUI factory build failure): dumps the
+      # generated OMH-Swift.h and the evidence around it so the root cause
+      # of 'use of undeclared identifier OMHReferenceDashboardFactory' can
+      # be identified. Also checks a minimal OMHTestFactory probe class.
+      # Remove once the cause is found and fixed.
+      - name: Diagnose generated Swift header (temporary)
+        if: always()
+        run: |
+          set +e
+          DIAG=swift-header-diagnostics
+          mkdir -p "$DIAG"
+          echo "=== 1. Locate every OMH-Swift.h (including arch-specific copies) ==="
+          find ~/Library/Developer/Xcode/DerivedData build -name "OMH-Swift.h" -print 2>/dev/null | tee "$DIAG/header-locations.txt"
+          echo "count: $(wc -l < "$DIAG/header-locations.txt")"
+          echo "=== 2. Header contents ==="
+          n=0
+          while IFS= read -r H; do
+            [ -z "$H" ] && continue
+            n=$((n+1))
+            echo "--- [$n] $H ---"
+            wc -c "$H"
+            grep -n "OMHReferenceDashboardFactory" "$H" || echo "FACTORY NOT FOUND in $H"
+            grep -n "OMHTestFactory" "$H" || echo "TEST FACTORY NOT FOUND in $H"
+            echo "interfaces in $H:"
+            grep -n "@interface" "$H" || echo "(no @interface lines)"
+            cp "$H" "$DIAG/OMH-Swift-$n.h" 2>/dev/null || true
+          done < "$DIAG/header-locations.txt"
+          echo "=== 3. Build settings (header search paths, module settings) ==="
+          xcodebuild -project OMH.xcodeproj -scheme OMH -configuration Release -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO -showBuildSettings > "$DIAG/build-settings.txt" 2>&1
+          grep -E "SWIFT_OBJC_INTERFACE_HEADER_NAME|SWIFT_VERSION|DEFINES_MODULE|SWIFT_INSTALL_OBJC_HEADER|HEADER_SEARCH_PATHS|PRODUCT_MODULE_NAME|PRODUCT_NAME|TARGET_NAME|CLANG_ENABLE_MODULES|SWIFT_COMPILATION_MODE" "$DIAG/build-settings.txt" || echo "(no matching settings)"
+          echo "=== 4. Target membership ==="
+          echo "pbxproj references to OMHReferenceDashboard.swift:"
+          grep -n "OMHReferenceDashboard.swift" OMH.xcodeproj/project.pbxproj || echo "(not in pbxproj)"
+          echo "Swift files in the OMH module (OMH.SwiftFileList):"
+          find ~/Library/Developer/Xcode/DerivedData -name "OMH.SwiftFileList" -print -exec cat {} \; 2>/dev/null | tee "$DIAG/swift-file-list.txt" || echo "(no SwiftFileList found)"
+          echo "=== 5. Build ordering (timestamps) ==="
+          echo "generated headers:"
+          find ~/Library/Developer/Xcode/DerivedData -name "OMH-Swift.h" -exec stat -f "%Sm %N" -t "%Y-%m-%d %H:%M:%S" {} \; 2>/dev/null
+          echo "OMHSceneDelegate build products:"
+          find ~/Library/Developer/Xcode/DerivedData \( -name "OMHSceneDelegate.d" -o -name "OMHSceneDelegate.dia" -o -name "OMHSceneDelegate.o" \) -exec stat -f "%Sm %N" -t "%Y-%m-%d %H:%M:%S" {} \; 2>/dev/null
+          echo "=== 6. Header resolution (OMHSceneDelegate.d) ==="
+          find ~/Library/Developer/Xcode/DerivedData -name "OMHSceneDelegate.d" -print 2>/dev/null | tee "$DIAG/scene-delegate-d-paths.txt"
+          while IFS= read -r D; do
+            [ -z "$D" ] && continue
+            echo "--- $D ---"
+            tr ' ' '\n' < "$D" | grep -i "swift" | sort -u || echo "(no Swift headers in .d)"
+            cp "$D" "$DIAG/OMHSceneDelegate.d" 2>/dev/null || true
+          done < "$DIAG/scene-delegate-d-paths.txt"
+          echo "=== diagnostics complete ==="
+          ls -l "$DIAG"
+
+      - name: Upload Swift header diagnostics (temporary)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: swift-header-diagnostics
+          path: swift-header-diagnostics/
+          if-no-files-found: warn
+
       - name: Package IPA
         run: |
           APP=$(find build ~/Library/Developer/Xcode/DerivedData -path '*/Release-iphoneos/OMH.app' -type d -print -quit 2>/dev/null)
