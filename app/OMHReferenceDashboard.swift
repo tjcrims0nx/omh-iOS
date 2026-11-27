@@ -328,17 +328,33 @@ private struct CustomProviderSettingsView: View {
     @State private var anthropicStatus = ""
     @State private var verifyingOpenAI = false
     @State private var verifyingAnthropic = false
+    // Focus ownership: the sheet's fields are bound to this state so that
+    // dismissing the sheet can explicitly resign the first responder. Without
+    // it, a field that has keyboard focus keeps it after the sheet is gone
+    // (the keyboard stays up, focused on a field that no longer exists) and
+    // a later tap on the composer does not transfer focus (CI: the config
+    // test's "no keyboard focus" failure and the dashboard test's silent
+    // composer failure). Clearing focus before dismiss() leaves the app in a
+    // clean state; onDisappear is a safety net for any other dismissal path.
+    @FocusState private var focusedField: Field?
+    private enum Field: Hashable {
+        case openAIURL, openAIKey, openAIModel
+        case anthropicURL, anthropicKey, anthropicModel
+    }
     var body: some View {
         NavigationView {
             Form {
                 Section {
                     TextField("Base URL", text: $openAIURL)
+                        .focused($focusedField, equals: .openAIURL)
                         .autocapitalization(.none).autocorrectionDisabled().keyboardType(.URL)
                         .accessibilityIdentifier("omh.custom.openai.url")
                     SecureField(CustomProviderStore.apiKey(for: "custom-openai") == nil ? "API key" : "API key (saved)", text: $openAIKey)
+                        .focused($focusedField, equals: .openAIKey)
                         .autocapitalization(.none).autocorrectionDisabled()
                         .accessibilityIdentifier("omh.custom.openai.key")
                     TextField("Model ID", text: $openAIModel)
+                        .focused($focusedField, equals: .openAIModel)
                         .autocapitalization(.none).autocorrectionDisabled()
                         .accessibilityIdentifier("omh.custom.openai.model")
                     HStack {
@@ -373,12 +389,15 @@ private struct CustomProviderSettingsView: View {
                 }
                 Section {
                     TextField("Base URL", text: $anthropicURL)
+                        .focused($focusedField, equals: .anthropicURL)
                         .autocapitalization(.none).autocorrectionDisabled().keyboardType(.URL)
                         .accessibilityIdentifier("omh.custom.anthropic.url")
                     SecureField(CustomProviderStore.apiKey(for: "custom-anthropic") == nil ? "API key" : "API key (saved)", text: $anthropicKey)
+                        .focused($focusedField, equals: .anthropicKey)
                         .autocapitalization(.none).autocorrectionDisabled()
                         .accessibilityIdentifier("omh.custom.anthropic.key")
                     TextField("Model ID", text: $anthropicModel)
+                        .focused($focusedField, equals: .anthropicModel)
                         .autocapitalization(.none).autocorrectionDisabled()
                         .accessibilityIdentifier("omh.custom.anthropic.model")
                     HStack {
@@ -416,12 +435,19 @@ private struct CustomProviderSettingsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Done") { dismiss() }.accessibilityIdentifier("omh.custom.done")
+                    Button("Done") {
+                        // Resign the first responder before the sheet goes
+                        // away, so no field keeps keyboard focus after
+                        // dismissal and a later composer tap can take focus.
+                        focusedField = nil
+                        dismiss()
+                    }.accessibilityIdentifier("omh.custom.done")
                 }
             }
         }
         .preferredColorScheme(.dark)
         .accessibilityIdentifier("omh.custom.providers")
+        .onDisappear { focusedField = nil }
     }
 }
 

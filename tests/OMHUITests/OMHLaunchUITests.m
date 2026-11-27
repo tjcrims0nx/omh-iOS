@@ -212,6 +212,11 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
             [self.app.buttons[@"Expand sidebar"] tap];
             XCTAssertTrue([collapse waitForExistenceWithTimeout:10]);
         }
+        // The sidebar collapse/expand changes the layout, so re-resolve the
+        // composer after it: the reference taken before the cycle can point
+        // at the pre-layout frame and the tap can miss the field.
+        composer = [[self.app descendantsMatchingType:XCUIElementTypeAny] matchingIdentifier:@"omh.native.chat.composer"].firstMatch;
+        XCTAssertTrue([composer waitForExistenceWithTimeout:10], @"Composer must exist after sidebar cycle");
         [composer tap];
         [composer typeText:@"Simulator composer check"];
         XCTAssertTrue([((NSString *)composer.value) containsString:@"Simulator composer check"]);
@@ -540,9 +545,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
 
     // Dismiss the sheet, reopen the provider menu, and confirm the custom
     // provider is listed and selectable.
-    XCUIElement *done = self.app.buttons[@"omh.custom.done"];
-    XCTAssertTrue([done waitForExistenceWithTimeout:10], @"Done must exist to dismiss the config sheet");
-    [done tap];
+    [self dismissCustomProviderSheet];
     [providerMenu tap];
     XCUIElement *customOpenAI = [self.app.buttons matchingPredicate:[NSPredicate predicateWithFormat:@"label CONTAINS 'Custom OpenAI'"]].firstMatch;
     XCTAssertTrue([customOpenAI waitForExistenceWithTimeout:10], @"Custom OpenAI must appear in the provider menu after configuration");
@@ -568,8 +571,23 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCTAssertTrue([remove waitForExistenceWithTimeout:10], @"Remove Custom OpenAI must exist for cleanup");
     [remove tap];
     XCTAssertTrue([self.app.staticTexts[@"Removed."] waitForExistenceWithTimeout:10], @"Remove must report Removed.");
-    XCUIElement *doneAgain = self.app.buttons[@"omh.custom.done"];
-    [doneAgain tap];
+    [self dismissCustomProviderSheet];
+}
+
+/// Dismisses the custom provider config sheet via Done and waits until the
+/// sheet is fully gone before returning. A sheet field can retain keyboard
+/// focus after dismissal (the keyboard stays up, focused on a field that no
+/// longer exists), and interacting with the composer while the sheet is
+/// still dismissing does not transfer focus. Waiting for the sheet element
+/// to disappear is a deterministic precondition, not a delay: it asserts the
+/// dismissal completed.
+- (void)dismissCustomProviderSheet {
+    XCUIElement *done = self.app.buttons[@"omh.custom.done"];
+    XCTAssertTrue([done waitForExistenceWithTimeout:10], @"Done must exist to dismiss the config sheet");
+    [done tap];
+    NSPredicate *gone = [NSPredicate predicateWithFormat:@"exists == NO"];
+    XCUIElement *sheet = [[self.app descendantsMatchingType:XCUIElementTypeAny] matchingIdentifier:@"omh.custom.providers"].firstMatch;
+    [self waitForExpectations:@[[self expectationForPredicate:gone evaluatedWithObject:sheet handler:nil]] timeout:10];
 }
 
 /// Opens the custom provider config sheet from the provider menu.
@@ -671,9 +689,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     [self configureCustomProviderSuffix:@"openai" baseURL:mockOpenAIURL key:mockKey model:mockOpenAIModel];
     [self configureCustomProviderSuffix:@"anthropic" baseURL:mockAnthropicURL key:mockKey model:mockAnthropicModel];
     [self attachScreenshot:@"custom-providers-configured"];
-    XCUIElement *done = self.app.buttons[@"omh.custom.done"];
-    XCTAssertTrue([done waitForExistenceWithTimeout:10], @"Done must exist to dismiss the config sheet");
-    [done tap];
+    [self dismissCustomProviderSheet];
 
     // Both providers must appear in the menu. Select Custom OpenAI so the
     // selected provider can be checked after the restart.
@@ -718,8 +734,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCTAssertEqualObjects((NSString *)anthropicModelField.value, mockAnthropicModel, @"Custom Anthropic model must survive relaunch");
     XCUIElement *anthropicKeyField = self.app.secureTextFields[@"omh.custom.anthropic.key"];
     XCTAssertEqualObjects(anthropicKeyField.placeholderValue, @"API key (saved)", @"Custom Anthropic key must be recovered from the Keychain after relaunch");
-    XCUIElement *doneAgain2 = self.app.buttons[@"omh.custom.done"];
-    [doneAgain2 tap];
+    [self dismissCustomProviderSheet];
 
     // The selected provider (Custom OpenAI) must have survived the
     // relaunch, and its protocol must route after restarting: sending
@@ -742,8 +757,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCTAssertTrue([removeOpenAIAgain waitForExistenceWithTimeout:10], @"Remove Custom OpenAI must exist");
     [removeOpenAIAgain tap];
     XCTAssertTrue([self.app.staticTexts[@"Removed."] waitForExistenceWithTimeout:10], @"Remove must report Removed.");
-    XCUIElement *doneAfterRemove = self.app.buttons[@"omh.custom.done"];
-    [doneAfterRemove tap];
+    [self dismissCustomProviderSheet];
     [providerMenu tap];
     XCUIElement *anthropicStillThere = [self.app.buttons matchingPredicate:[NSPredicate predicateWithFormat:@"label CONTAINS 'Custom Anthropic'"]].firstMatch;
     XCTAssertTrue([anthropicStillThere waitForExistenceWithTimeout:10], @"Custom Anthropic must remain after Custom OpenAI is removed");
@@ -793,8 +807,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCUIElement *anthropicKeyAfterRemove = self.app.secureTextFields[@"omh.custom.anthropic.key"];
     XCTAssertTrue([anthropicKeyAfterRemove waitForExistenceWithTimeout:10], @"Custom Anthropic key field must exist after removing Custom OpenAI");
     XCTAssertTrue([anthropicKeyAfterRemove.placeholderValue isEqualToString:@"API key (saved)"], @"Removing Custom OpenAI must not clear Custom Anthropic's saved key");
-    XCUIElement *doneAfterVerify = self.app.buttons[@"omh.custom.done"];
-    [doneAfterVerify tap];
+    [self dismissCustomProviderSheet];
 
     // Clean up: remove the remaining custom provider so later runs start clean.
     [self openCustomProviderSheet];
@@ -802,8 +815,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCTAssertTrue([removeAnthropic waitForExistenceWithTimeout:10], @"Remove Custom Anthropic must exist for cleanup");
     [removeAnthropic tap];
     XCTAssertTrue([self.app.staticTexts[@"Removed."] waitForExistenceWithTimeout:10], @"Remove must report Removed.");
-    XCUIElement *doneCleanup = self.app.buttons[@"omh.custom.done"];
-    [doneCleanup tap];
+    [self dismissCustomProviderSheet];
 }
 
 @end
