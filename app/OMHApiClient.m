@@ -51,6 +51,16 @@ static void OMHApiClientCallOnMain(void (^block)(void)) {
 @property (nonatomic, copy, nullable) NSString *csrfToken;
 @end
 
+// Blocks redirects so a custom provider key is never carried to another host.
+@interface OMHApiClientCustomNoRedirectDelegate : NSObject <NSURLSessionTaskDelegate>
+@end
+
+@implementation OMHApiClientCustomNoRedirectDelegate
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task willPerformHTTPRedirection:(NSHTTPURLResponse *)response newRequest:(NSURLRequest *)request completionHandler:(void (^)(NSURLRequest *))completionHandler {
+    completionHandler(nil);
+}
+@end
+
 @implementation OMHApiClient
 
 - (instancetype)initWithBaseURL:(NSURL *)baseURL {
@@ -293,15 +303,6 @@ static void OMHApiClientCallOnMain(void (^block)(void)) {
 }
 
 #pragma mark - Chat
-
-@interface OMHApiClientCustomNoRedirectDelegate : NSObject <NSURLSessionTaskDelegate>
-@end
-
-@implementation OMHApiClientCustomNoRedirectDelegate
-- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task willPerformHTTPRedirection:(NSHTTPURLResponse *)response newRequest:(NSURLRequest *)request completionHandler:(void (^)(NSURLRequest *))completionHandler {
-    completionHandler(nil);
-}
-@end
 
 #pragma mark - Custom providers (native direct call)
 
