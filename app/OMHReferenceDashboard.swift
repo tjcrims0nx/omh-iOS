@@ -183,7 +183,6 @@ private struct PurpleWave: View {
             }
         }
         .background(ink).preferredColorScheme(.dark).tint(purple)
-        .accessibilityIdentifier("omh.native.dashboard")
         .task { await model.refresh() }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.plainText], allowsMultipleSelection: false) { result in
             do {
@@ -238,7 +237,6 @@ private struct PurpleWave: View {
             Spacer(minLength: 0)
         }.buttonStyle(.plain).padding(16).frame(maxHeight: .infinity, alignment: .top)
             .background(LinearGradient(colors: [ink, panel.opacity(0.5)], startPoint: .top, endPoint: .bottom))
-            .accessibilityIdentifier("omh.native.sidebar")
     }
     private func nav(_ title: String, _ icon: String, selected: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
@@ -339,10 +337,3 @@ private struct PurpleWave: View {
     }
 }
 
-// TEMPORARY DIAGNOSTIC: minimal @objc probe class. If this appears in the
-// generated OMH-Swift.h but the factory does not, the problem is specific
-// to the factory. If neither appears, the Swift compiler is not emitting
-// ANY @objc declarations for this target. Remove once the cause is found.
-@objc(OMHTestFactory) public final class OMHTestFactory: NSObject {
-    @objc public static func ping() -> String { "pong" }
-}
