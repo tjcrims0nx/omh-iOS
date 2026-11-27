@@ -764,10 +764,17 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     [self openCustomProviderSheet];
     XCUIElement *openAIURLAfterRemove = self.app.textFields[@"omh.custom.openai.url"];
     XCTAssertTrue([openAIURLAfterRemove waitForExistenceWithTimeout:10], @"OpenAI URL field must exist after removal");
-    XCTAssertTrue([((NSString *)openAIURLAfterRemove.value) length] == 0, @"Removed provider URL must be cleared");
+    // XCTest .value on an empty SwiftUI TextField returns its placeholder,
+    // not an empty string (verified from the 48308dc hierarchy artifact:
+    // the empty composer's value reads "Message OpenMind H..."). Accept
+    // empty or the placeholder "Base URL"; the mock URL must be gone.
+    NSString *openAIURLValue = (NSString *)openAIURLAfterRemove.value;
+    XCTAssertTrue(openAIURLValue.length == 0 || [openAIURLValue isEqualToString:@"Base URL"], @"Removed provider URL must be cleared");
+    XCTAssertFalse([openAIURLValue containsString:@"127.0.0.1"], @"Removed provider URL must not still be the mock URL");
     XCUIElement *openAIModelAfterRemove = self.app.textFields[@"omh.custom.openai.model"];
     XCTAssertTrue([openAIModelAfterRemove waitForExistenceWithTimeout:10], @"OpenAI model field must exist after removal");
-    XCTAssertTrue([((NSString *)openAIModelAfterRemove.value) length] == 0, @"Removed provider model must be cleared");
+    NSString *openAIModelValue = (NSString *)openAIModelAfterRemove.value;
+    XCTAssertTrue(openAIModelValue.length == 0 || [openAIModelValue isEqualToString:@"Model ID"], @"Removed provider model must be cleared");
     XCUIElement *openAIKeyAfterRemove = self.app.secureTextFields[@"omh.custom.openai.key"];
     XCTAssertTrue([openAIKeyAfterRemove waitForExistenceWithTimeout:10], @"OpenAI key field must exist after removal");
     XCTAssertTrue([openAIKeyAfterRemove.placeholderValue isEqualToString:@"API key"], @"Removed provider key must be cleared from Keychain (placeholder must be 'API key', not 'API key (saved)')");
