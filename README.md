@@ -2,6 +2,14 @@
 
 The iOS / iPad app that runs the [OpenMind Harness](https://github.com/tjcrims0nx/openmind-harness) (OpenCode) inside an iSH Linux guest on your iPhone or iPad. The guest image packages the pinned, tested OMH runtime, providers, MCP adapters, dashboard, and Linux-only Bubblewrap diagnostic. It is packaged as an unsigned IPA you sign yourself. Linux isolation is available only if the emulated kernel actually supports Bubblewrap namespace mounts; unsupported iSH kernels fail closed.
 
+## Beta release — v0.1.0-beta.3
+
+**[v0.1.0-beta.3](https://github.com/tjcrims0nx/omh-iOS/releases/tag/v0.1.0-beta.3)** — unsigned IPA, built from `7a5ad32` (PR #9). Native SwiftUI dashboard (black/neon-purple) with custom providers (custom-openai, custom-anthropic), Keychain credential storage, and provider configuration that persists across restarts. CI 8/8 green on this commit.
+
+SHA-256: `6bb85438fd4471c882877f98ea5f1a5437c9d1cd41b28026e30079d60197c508`
+
+Sideload with your own signing (AltStore, TrollStore, or Xcode). The bundle id is `app.jackfruit686.openmind-harness`.
+
 ## What lives here
 
 - `app/` — the iOS app (WKWebView + guest launcher + host bridge)
@@ -20,9 +28,9 @@ This repo is the iOS app **only**. The harness itself — `opencode.json`, skill
 
 So a fresh clone of this repo builds straight away — it just needs git and network for the one harness fetch.
 
-## Current iOS + iPadOS port (November 22, 2026)
+## Current iOS + iPadOS port (November 27, 2026)
 
-**Native iOS and iPadOS UI:** Both iPhone and iPad now open the same OMH-branded UIKit dashboard shell. iPad uses the larger workspace layout; iPhone and compact Stage Manager windows shorten the native title and adapt the WebKit viewport while preserving cyan/dark styling and labeled OpenCode/Refresh buttons. The OpenCode editor remains a native navigation destination on both devices. GitHub CI runs independent **iPadOS** and **iOS iPhone** simulator UI smoke jobs; results must pass separately before the app's native UI is considered verified.
+**Native iOS and iPadOS UI:** Both iPhone and iPad now open the same OMH-branded native SwiftUI dashboard. iPad uses the larger workspace layout; iPhone adapts to the compact width. The dashboard is black/neon-purple with the ambient wave, provider selector, conversation history, and a floating composer. The OpenCode editor remains a native navigation destination on both devices. GitHub CI runs independent **iPadOS** and **iOS iPhone** simulator UI smoke jobs; results must pass separately before the app's native UI is considered verified.
 
 The iOS/iPadOS rootfs now packages the harness at verified commit `55f62a9`, including the updated dashboard, agent/workflow/task runtime, built-in MCP bridge, opt-in live HTTPS connector and official Vercel OAuth MCP registration helper. The effective guest OpenCode config contains `google/gemini-3.5-flash-lite` and preserves the local OMH MCP registration. User-authorized changes to the persistent config remain visible to OpenCode.
 
