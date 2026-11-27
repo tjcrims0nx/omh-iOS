@@ -23,6 +23,7 @@
 //
 
 #import "OMHApiClient.h"
+#import "OMHProviderCredentials.h"
 
 NSString * const OMHApiClientErrorDomain = @"OMHApiClientErrorDomain";
 NSString * const OMHApiHTTPStatusCodeKey = @"OMHApiHTTPStatusCodeKey";
@@ -293,6 +294,149 @@ static void OMHApiClientCallOnMain(void (^block)(void)) {
 
 #pragma mark - Chat
 
+@interface OMHApiClientCustomNoRedirectDelegate : NSObject <NSURLSessionTaskDelegate>
+@end
+
+@implementation OMHApiClientCustomNoRedirectDelegate
+- (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task willPerformHTTPRedirection:(NSHTTPURLResponse *)response newRequest:(NSURLRequest *)request completionHandler:(void (^)(NSURLRequest *))completionHandler {
+    completionHandler(nil);
+}
+@end
+
+#pragma mark - Custom providers (native direct call)
+
+// Custom providers (custom-openai, custom-anthropic) are configured natively
+// in the app and called directly at the user-configured endpoint, bypassing
+// the harness backend (which only knows the 10 built-in providers). The API
+// key is sent only to the configured base URL, on an ephemeral session whose
+// delegate blocks redirects, so the key can never follow a redirect elsewhere.
++ (NSString *)customChatEndpointForProvider:(NSString *)providerId {
+    NSString *base = [OMHProviderCredentials customProviderBaseURL:providerId];
+    if (!base.length) return nil;
+    while (base.length > 0 && [base hasSuffix:@"/"]) base = [base substringToIndex:base.length - 1];
+    if (!base.length) return nil;
+    if ([providerId isEqualToString:@"custom-openai"]) return [base stringByAppendingString:@"/chat/completions"];
+    if ([providerId isEqualToString:@"custom-anthropic"]) return [base stringByAppendingString:@"/v1/messages"];
+    return nil;
+}
++ (NSString *)customProviderAPIKey:(NSString *)providerId {
+    NSDictionary *env = [OMHProviderCredentials environment];
+    if ([providerId isEqualToString:@"custom-openai"]) return env[@"OPENMIND_CUSTOM_OPENAI_API_KEY"];
+    if ([providerId isEqualToString:@"custom-anthropic"]) return env[@"OPENMIND_CUSTOM_ANTHROPIC_API_KEY"];
+    return nil;
+}
++ (BOOL)customProviderIsConfigured:(NSString *)providerId {
+    return [OMHProviderCredentials customProviderBaseURL:providerId].length > 0
+        && [OMHProviderCredentials customProviderModel:providerId].length > 0
+        && [self customProviderAPIKey:providerId].length > 0;
+}
++ (NSArray<OMHChatProvider *> *)customProviders {
+    NSMutableArray<OMHChatProvider *> *out = [NSMutableArray array];
+    for (NSString *providerId in @[@"custom-openai", @"custom-anthropic"]) {
+        OMHChatProvider *provider = [[OMHChatProvider alloc] init];
+        provider.providerId = providerId;
+        provider.label = [providerId isEqualToString:@"custom-openai"] ? @"Custom OpenAI" : @"Custom Anthropic";
+        NSString *model = [OMHProviderCredentials customProviderModel:providerId];
+        provider.model = model.length ? model : @"Not configured";
+        provider.available = [self customProviderIsConfigured:providerId];
+        [out addObject:provider];
+    }
+    return [out copy];
+}
+// Direct call to a custom provider endpoint. `trimmed` is the validated
+// message list (last 16, last is user). Completion delivers the assistant
+// text and the configured model, or an error.
+- (void)sendCustomChatWithProvider:(NSString *)providerId
+                          messages:(NSArray<NSDictionary<NSString *, NSString *> *> *)trimmed
+                        completion:(void (^)(NSString * _Nullable text, NSString * _Nullable model, NSError * _Nullable error))completion {
+    NSString *endpoint = [OMHApiClient customChatEndpointForProvider:providerId];
+    NSString *model = [OMHProviderCredentials customProviderModel:providerId];
+    NSString *key = [OMHApiClient customProviderAPIKey:providerId];
+    NSError *invalidError = [OMHApiClient errorWithCode:OMHApiErrorCodeInvalidResponse status:0];
+    if (!endpoint.length || !model.length || !key.length) {
+        OMHApiClientCallOnMain(^{ completion(nil, nil, [OMHApiClient errorWithCode:OMHApiErrorCodeNotConfigured status:0]); });
+        return;
+    }
+    NSURL *url = [NSURL URLWithString:endpoint];
+    if (!url) {
+        OMHApiClientCallOnMain(^{ completion(nil, nil, invalidError); });
+        return;
+    }
+    NSDictionary *body = nil;
+    if ([providerId isEqualToString:@"custom-openai"]) {
+        body = @{@"model": model, @"messages": trimmed};
+    } else {
+        // Anthropic requires messages to alternate and start with a user
+        // turn. The conversation alternates by construction, but trimming
+        // to the last 16 can leave a leading assistant turn; drop it.
+        NSMutableArray *anthropicMessages = [NSMutableArray array];
+        for (NSDictionary *entry in trimmed) {
+            if (anthropicMessages.count == 0 && [entry[@"role"] isEqualToString:@"assistant"]) continue;
+            [anthropicMessages addObject:entry];
+        }
+        if (anthropicMessages.count == 0) {
+            OMHApiClientCallOnMain(^{ completion(nil, nil, invalidError); });
+            return;
+        }
+        body = @{@"model": model, @"max_tokens": @1024, @"messages": anthropicMessages};
+    }
+    NSError *bodyError = nil;
+    NSData *bodyData = [NSJSONSerialization dataWithJSONObject:body options:0 error:&bodyError];
+    if (bodyData == nil || bodyData.length > OMHApiClientMaxChatBodyBytes) {
+        OMHApiClientCallOnMain(^{ completion(nil, nil, invalidError); });
+        return;
+    }
+    NSMutableURLRequest *request = [NSMutableURLRequest requestWithURL:url];
+    request.HTTPMethod = @"POST";
+    request.HTTPBody = bodyData;
+    request.timeoutInterval = OMHApiClientChatTimeout;
+    [request setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
+    if ([providerId isEqualToString:@"custom-anthropic"]) {
+        [request setValue:key forHTTPHeaderField:@"x-api-key"];
+        [request setValue:@"2023-06-01" forHTTPHeaderField:@"anthropic-version"];
+    } else {
+        [request setValue:[@"Bearer " stringByAppendingString:key] forHTTPHeaderField:@"Authorization"];
+    }
+    // Ephemeral session with a delegate that blocks redirects, so the
+    // provider key is never carried to another host.
+    NSURLSessionConfiguration *config = [NSURLSessionConfiguration ephemeralSessionConfiguration];
+    config.URLCache = nil;
+    NSURLSession *customSession = [NSURLSession sessionWithConfiguration:config delegate:[OMHApiClientCustomNoRedirectDelegate new] delegateQueue:nil];
+    [[customSession dataTaskWithRequest:request completionHandler:^(NSData *data, NSURLResponse *response, NSError *error) {
+        NSString *text = nil;
+        NSError *resultError = error;
+        if (resultError == nil) {
+            NSInteger status = [(NSHTTPURLResponse *)response statusCode];
+            if (status < 200 || status >= 300) {
+                resultError = [OMHApiClient errorWithCode:OMHApiErrorCodeHTTP status:status];
+            } else if (data) {
+                NSDictionary *json = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
+                if ([providerId isEqualToString:@"custom-openai"]) {
+                    NSArray *choices = [json isKindOfClass:[NSDictionary class]] ? json[@"choices"] : nil;
+                    NSDictionary *first = [choices isKindOfClass:[NSArray class]] && choices.count > 0 ? choices[0] : nil;
+                    NSDictionary *message = [first isKindOfClass:[NSDictionary class]] ? first[@"message"] : nil;
+                    id content = [message isKindOfClass:[NSDictionary class]] ? message[@"content"] : nil;
+                    if ([content isKindOfClass:[NSString class]] && ((NSString *)content).length > 0) text = (NSString *)content;
+                } else {
+                    NSArray *content = [json isKindOfClass:[NSDictionary class]] ? json[@"content"] : nil;
+                    for (id block in [content isKindOfClass:[NSArray class]] ? content : @[]) {
+                        if ([block isKindOfClass:[NSDictionary class]] && [block[@"type"] isEqualToString:@"text"]) {
+                            id blockText = block[@"text"];
+                            if ([blockText isKindOfClass:[NSString class]] && ((NSString *)blockText).length > 0) { text = (NSString *)blockText; break; }
+                        }
+                    }
+                }
+                if (text == nil) resultError = [OMHApiClient errorWithCode:OMHApiErrorCodeInvalidResponse status:0];
+            } else {
+                resultError = [OMHApiClient errorWithCode:OMHApiErrorCodeInvalidResponse status:0];
+            }
+        }
+        NSString *modelCopy = model;
+        OMHApiClientCallOnMain(^{ completion(text, modelCopy, resultError); });
+        [customSession finishTasksAndInvalidate];
+    }] resume];
+}
+
 - (void)fetchChatProvidersWithCompletion:(void (^)(NSArray<OMHChatProvider *> * _Nullable providers, NSError * _Nullable error))completion {
     [self performGET:@"/api/chat" timeout:OMHApiClientDefaultTimeout completion:^(id _Nullable json, NSError * _Nullable error) {
         NSArray<OMHChatProvider *> *providers = nil;
@@ -335,7 +479,12 @@ static void OMHApiClientCallOnMain(void (^block)(void)) {
                     [parsed addObject:provider];
                 }
                 if (valid) {
-                    providers = [parsed copy];
+                    // The harness backend lists only the 10 built-in
+                    // providers. Custom providers are configured natively
+                    // in the app, so they are appended here.
+                    NSMutableArray<OMHChatProvider *> *all = [parsed mutableCopy];
+                    [all addObjectsFromArray:[OMHApiClient customProviders]];
+                    providers = [all copy];
                 } else {
                     resultError = [OMHApiClient errorWithCode:OMHApiErrorCodeInvalidResponse status:0];
                 }
@@ -410,6 +559,13 @@ static void OMHApiClientCallOnMain(void (^block)(void)) {
         OMHApiClientCallOnMain(^{
             completion(nil, nil, invalidError);
         });
+        return;
+    }
+    // Custom providers are called directly at the user-configured
+    // endpoint (OpenAI-compatible or Anthropic protocol), not via
+    // the harness backend, which does not know them.
+    if ([OMHProviderCredentials isCustomProvider:providerId]) {
+        [self sendCustomChatWithProvider:providerId messages:trimmed completion:completion];
         return;
     }
     NSDictionary *body = @{@"provider": providerId, @"messages": trimmed};

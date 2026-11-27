@@ -3,6 +3,9 @@
 #import <Security/Security.h>
 
 // Credentials remain in the iOS Keychain at rest. Never use UserDefaults for keys.
+// Custom providers (custom-openai, custom-anthropic) keep only their base URL
+// and model ID in UserDefaults; the API key is in the Keychain like every
+// other provider. The base URL and model ID are not secrets.
 @implementation OMHProviderCredentials
 + (NSDictionary<NSString *, NSString *> *)names {
     return @{@"openai":@"OPENAI_API_KEY", @"anthropic":@"ANTHROPIC_API_KEY",
@@ -10,7 +13,9 @@
              @"zai":@"ZAI_API_KEY", @"moonshotai":@"MOONSHOT_API_KEY",
              @"qwen":@"DASHSCOPE_API_KEY", @"custom":@"OPENMIND_CUSTOM_API_KEY",
              @"groq":@"GROQ_API_KEY", @"together":@"TOGETHER_API_KEY",
-             @"openrouter":@"OPENROUTER_API_KEY"};
+             @"openrouter":@"OPENROUTER_API_KEY",
+             @"custom-openai":@"OPENMIND_CUSTOM_OPENAI_API_KEY",
+             @"custom-anthropic":@"OPENMIND_CUSTOM_ANTHROPIC_API_KEY"};
 }
 + (NSMutableDictionary *)query:(NSString *)provider {
     return [@{(__bridge id)kSecClass:(__bridge id)kSecClassGenericPassword,
@@ -46,5 +51,46 @@
         }
     }];
     return env;
+}
+
+#pragma mark - Custom providers
+
++ (BOOL)isCustomProvider:(NSString *)provider {
+    return [provider isEqualToString:@"custom-openai"] || [provider isEqualToString:@"custom-anthropic"];
+}
++ (NSString *)customURLKeyForProvider:(NSString *)provider {
+    return [NSString stringWithFormat:@"omh.custom.%@.url", provider];
+}
++ (NSString *)customModelKeyForProvider:(NSString *)provider {
+    return [NSString stringWithFormat:@"omh.custom.%@.model", provider];
+}
++ (NSString *)customProviderBaseURL:(NSString *)provider {
+    if (![self isCustomProvider:provider]) return nil;
+    NSString *url = [[NSUserDefaults standardUserDefaults] stringForKey:[self customURLKeyForProvider:provider]];
+    url = [url stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    return url.length ? url : nil;
+}
++ (NSString *)customProviderModel:(NSString *)provider {
+    if (![self isCustomProvider:provider]) return nil;
+    NSString *model = [[NSUserDefaults standardUserDefaults] stringForKey:[self customModelKeyForProvider:provider]];
+    model = [model stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    return model.length ? model : nil;
+}
++ (void)saveCustomProvider:(NSString *)provider baseURL:(NSString *)baseURL model:(NSString *)model {
+    if (![self isCustomProvider:provider]) return;
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    NSString *url = [baseURL stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    NSString *modelID = [model stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if (url.length) [defaults setObject:url forKey:[self customURLKeyForProvider:provider]];
+    else [defaults removeObjectForKey:[self customURLKeyForProvider:provider]];
+    if (modelID.length) [defaults setObject:modelID forKey:[self customModelKeyForProvider:provider]];
+    else [defaults removeObjectForKey:[self customModelKeyForProvider:provider]];
+}
++ (void)removeCustomProvider:(NSString *)provider {
+    if (![self isCustomProvider:provider]) return;
+    NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
+    [defaults removeObjectForKey:[self customURLKeyForProvider:provider]];
+    [defaults removeObjectForKey:[self customModelKeyForProvider:provider]];
+    [self removeProvider:provider];
 }
 @end

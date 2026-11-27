@@ -242,3 +242,64 @@ test('native Workspace home lists projects and sessions, WebView only as labelle
  assert.match(root,/if \(!self\.legacyEditorVisible\) \{\s*\n\s*self\.loadedPort = OMHHarness\.shared\.port;/);
  assert.match(root,/\[self refreshNativeWorkspace\];/);
 });
+
+test('custom providers are registered, configurable and routed natively',async()=>{
+ const creds=await read('app/OMHProviderCredentials.m');
+ const credsHeader=await read('app/OMHProviderCredentials.h');
+ const verifier=await read('app/OMHProviderVerifier.m');
+ const api=await read('app/OMHApiClient.m');
+ const scene=await read('app/OMHSceneDelegate.m');
+ const swift=await read('app/OMHReferenceDashboard.swift');
+ const ui=await read('tests/OMHUITests/OMHLaunchUITests.m');
+ // Keychain credential manager knows both custom providers.
+ assert.match(creds,/@\"custom-openai\":@\"OPENMIND_CUSTOM_OPENAI_API_KEY\"/);
+ assert.match(creds,/@\"custom-anthropic\":@\"OPENMIND_CUSTOM_ANTHROPIC_API_KEY\"/);
+ assert.match(credsHeader,/isCustomProvider/);
+ assert.match(creds,/customProviderBaseURL/);
+ assert.match(creds,/customProviderModel/);
+ assert.match(creds,/saveCustomProvider:[^\n]*baseURL:[^\n]*model:/);
+ assert.match(creds,/removeCustomProvider:/);
+ // The base URL and model ID are not secrets (UserDefaults); only the
+ // API key is in the Keychain. No token is ever written to UserDefaults.
+ assert.doesNotMatch(creds,/setObject:.*(?:token|apiKey).*forKey:.*custom/);
+ // Connection verifier handles both custom protocols against the
+ // user-configured URL, with per-protocol auth and redirects blocked.
+ assert.match(verifier,/customVerifyEndpointForProvider/);
+ assert.match(verifier,/isCustomProvider/);
+ assert.match(verifier,/custom-anthropic/);
+ assert.match(verifier,/x-api-key/);
+ assert.match(verifier,/anthropic-version/);
+ assert.match(verifier,/OMHNoRedirectDelegate/);
+ // The provider setup sheet offers both custom providers.
+ assert.match(scene,/@\"Custom OpenAI\":@\"custom-openai\"/);
+ assert.match(scene,/@\"Custom Anthropic\":@\"custom-anthropic\"/);
+ assert.match(scene,/promptForCustomProvider:/);
+ assert.match(scene,/\[OMHProviderVerifier verifyProvider:provider completion:/);
+ // The API client merges custom providers into the list and routes their
+ // chat directly to the configured endpoint (OpenAI-compatible or
+ // Anthropic), not via the harness backend.
+ assert.match(api,/customProviders/);
+ assert.match(api,/sendCustomChatWithProvider/);
+ assert.match(api,/customChatEndpointForProvider/);
+ assert.match(api,/chat\/completions/);
+ assert.match(api,/v1\/messages/);
+ assert.match(api,/OMHApiClientCustomNoRedirectDelegate/);
+ assert.match(api,/isCustomProvider:providerId/);
+ // The SwiftUI dashboard merges custom providers, routes their chat
+ // directly, and provides a native config screen.
+ assert.match(swift,/CustomProviderStore/);
+ assert.match(swift,/custom-openai/);
+ assert.match(swift,/custom-anthropic/);
+ assert.match(swift,/sendCustom/);
+ assert.match(swift,/verifyCustom/);
+ assert.match(swift,/CustomProviderSettingsView/);
+ assert.match(swift,/omh\.custom\.configure/);
+ assert.match(swift,/NoRedirectDelegate/);
+ assert.match(swift,/import Security/);
+ // Regression test: configuring a custom provider makes it appear in
+ // the selector and selectable, then removes it.
+ assert.match(ui,/testCustomProviderConfigurationAppearsInSelector/);
+ assert.match(ui,/omh\.custom\.openai\.url/);
+ assert.match(ui,/omh\.custom\.openai\.save/);
+ assert.match(ui,/omh\.custom\.openai\.remove/);
+});

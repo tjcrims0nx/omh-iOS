@@ -9,6 +9,7 @@
 #import "OMHBootCoordinator.h"
 #import "OMHRootUpgrader.h"
 #import "OMHProviderCredentials.h"
+#import "OMHProviderVerifier.h"
 #import "OMHApiClient.h"
 #import "OMHChatViewController.h"
 #import "OMHRuntimeViewController.h"
@@ -445,13 +446,19 @@
         @"OpenAI":@"openai", @"Anthropic":@"anthropic",
         @"Gemini":@"google", @"DeepSeek":@"deepseek",
         @"GLM / Z.AI":@"zai", @"Kimi / Moonshot":@"moonshotai",
-        @"Qwen":@"qwen", @"Groq":@"groq", @"Together":@"together", @"OpenRouter":@"openrouter"
+        @"Qwen":@"qwen", @"Groq":@"groq", @"Together":@"together", @"OpenRouter":@"openrouter",
+        @"Custom OpenAI":@"custom-openai", @"Custom Anthropic":@"custom-anthropic"
     };
     __weak typeof(self) weakSelf = self;
-    for (NSString *name in @[@"OpenAI",@"Anthropic",@"Gemini",@"DeepSeek",@"GLM / Z.AI",@"Kimi / Moonshot",@"Qwen",@"Groq",@"Together",@"OpenRouter"]) {
+    for (NSString *name in @[@"OpenAI",@"Anthropic",@"Gemini",@"DeepSeek",@"GLM / Z.AI",@"Kimi / Moonshot",@"Qwen",@"Groq",@"Together",@"OpenRouter",@"Custom OpenAI",@"Custom Anthropic"]) {
         NSString *provider = providers[name];
-        [sheet addAction:[UIAlertAction actionWithTitle:name style:UIAlertActionStyleDefault
-            handler:^(UIAlertAction *action) { [weakSelf promptForKey:provider name:name]; }]];
+        if ([OMHProviderCredentials isCustomProvider:provider]) {
+            [sheet addAction:[UIAlertAction actionWithTitle:name style:UIAlertActionStyleDefault
+                handler:^(UIAlertAction *action) { [weakSelf promptForCustomProvider:provider name:name]; }]];
+        } else {
+            [sheet addAction:[UIAlertAction actionWithTitle:name style:UIAlertActionStyleDefault
+                handler:^(UIAlertAction *action) { [weakSelf promptForKey:provider name:name]; }]];
+        }
     }
     [sheet addAction:[UIAlertAction actionWithTitle:@"Not now" style:UIAlertActionStyleCancel handler:nil]];
     [self presentViewController:sheet animated:YES completion:nil];
@@ -482,6 +489,71 @@
         // environment. Restart active services to apply the new credentials.
         if (OMHHarness.dashboard.state == OMHHarnessStateReady) [OMHHarness.dashboard restart];
         if (OMHHarness.shared.state == OMHHarnessStateReady) [OMHHarness.shared restart];
+        [weakSelf updateDashboard];
+    }]];
+    [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+    [self presentViewController:alert animated:YES completion:nil];
+}
+// Custom providers (custom-openai, custom-anthropic) need a base URL and a
+// model ID as well as an API key. The key goes to the Keychain; the URL and
+// model ID are not secrets and live in UserDefaults. Custom providers are
+// called directly by the app, not by the guest, so no service restart is
+// needed after saving.
+- (void)promptForCustomProvider:(NSString *)provider name:(NSString *)name {
+    BOOL isOpenAI = [provider isEqualToString:@"custom-openai"];
+    NSString *urlPlaceholder = isOpenAI ? @"Base URL, e.g. https://api.example.com/v1" : @"Base URL, e.g. https://api.example.com";
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:name
+        message:@"Configure an OpenAI-compatible or Anthropic-compatible endpoint. The API key is stored in the iOS Keychain, never in the dashboard or startup logs. The key is sent only to this base URL."
+        preferredStyle:UIAlertControllerStyleAlert];
+    NSString *savedURL = [OMHProviderCredentials customProviderBaseURL:provider];
+    NSString *savedModel = [OMHProviderCredentials customProviderModel:provider];
+    [alert addTextFieldWithConfigurationHandler:^(UITextField *field) {
+        field.placeholder = urlPlaceholder;
+        field.text = savedURL;
+        field.autocorrectionType = UITextAutocorrectionTypeNo;
+        field.autocapitalizationType = UITextAutocapitalizationTypeNone;
+        field.keyboardType = UIKeyboardTypeURL;
+    }];
+    [alert addTextFieldWithConfigurationHandler:^(UITextField *field) {
+        field.placeholder = @"Provider API key";
+        field.secureTextEntry = YES;
+        field.autocorrectionType = UITextAutocorrectionTypeNo;
+        field.autocapitalizationType = UITextAutocapitalizationTypeNone;
+    }];
+    [alert addTextFieldWithConfigurationHandler:^(UITextField *field) {
+        field.placeholder = @"Model ID, e.g. gpt-4o-mini";
+        field.text = savedModel;
+        field.autocorrectionType = UITextAutocorrectionTypeNo;
+        field.autocapitalizationType = UITextAutocapitalizationTypeNone;
+    }];
+    __weak typeof(self) weakSelf = self;
+    [alert addAction:[UIAlertAction actionWithTitle:@"Save" style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+        NSString *url = [alert.textFields[0].text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        NSString *value = [alert.textFields[1].text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        NSString *model = [alert.textFields[2].text stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+        if (!url.length || !value.length || !model.length || ![NSURL URLWithString:url] || ![[NSURL URLWithString:url] scheme]) {
+            UIAlertController *error = [UIAlertController alertControllerWithTitle:@"Not saved"
+                message:@"Enter a valid base URL, API key and model ID."
+                preferredStyle:UIAlertControllerStyleAlert];
+            [error addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
+            [weakSelf presentViewController:error animated:YES completion:nil];
+            return;
+        }
+        [OMHProviderCredentials saveCustomProvider:provider baseURL:url model:model];
+        if (![OMHProviderCredentials saveToken:value provider:provider]) {
+            UIAlertController *error = [UIAlertController alertControllerWithTitle:@"Key not saved"
+                message:@"Enter a valid nonempty key and verify Keychain access."
+                preferredStyle:UIAlertControllerStyleAlert];
+            [error addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
+            [weakSelf presentViewController:error animated:YES completion:nil];
+            return;
+        }
+        [OMHProviderVerifier verifyProvider:provider completion:^(NSString *status) {
+            UIAlertController *result = [UIAlertController alertControllerWithTitle:name
+                message:status preferredStyle:UIAlertControllerStyleAlert];
+            [result addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
+            [weakSelf presentViewController:result animated:YES completion:nil];
+        }];
         [weakSelf updateDashboard];
     }]];
     [alert addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];

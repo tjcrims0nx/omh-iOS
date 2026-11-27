@@ -506,4 +506,70 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCTAssertEqual([self configuredProviderCount], 0u, @"No provider should remain configured after cleanup");
 }
 
+- (void)testCustomProviderConfigurationAppearsInSelector {
+    // Open the provider menu and the custom provider config sheet.
+    XCUIElement *providerMenu = self.app.buttons[@"omh.native.chat.provider"];
+    XCTAssertTrue([providerMenu waitForExistenceWithTimeout:10], @"Provider menu must exist");
+    [providerMenu tap];
+    XCUIElement *configure = self.app.buttons[@"omh.custom.configure"];
+    XCTAssertTrue([configure waitForExistenceWithTimeout:10], @"Configure custom providers must exist in the provider menu");
+    [configure tap];
+    XCUIElement *sheet = [[self.app descendantsMatchingType:XCUIElementTypeAny] matchingIdentifier:@"omh.custom.providers"].firstMatch;
+    XCTAssertTrue([sheet waitForExistenceWithTimeout:10], @"Custom provider config sheet must open");
+
+    // Fill in Custom OpenAI config and save. The URL is a non-routable
+    // test endpoint; the test verifies configuration and selection, not a
+    // live provider round-trip.
+    XCUIElement *urlField = self.app.textFields[@"omh.custom.openai.url"];
+    XCTAssertTrue([urlField waitForExistenceWithTimeout:10], @"Custom OpenAI URL field must exist");
+    [urlField tap];
+    [urlField typeText:@"https://example.com/v1"];
+    XCUIElement *keyField = self.app.secureTextFields[@"omh.custom.openai.key"];
+    XCTAssertTrue([keyField waitForExistenceWithTimeout:10], @"Custom OpenAI key field must exist");
+    [keyField tap];
+    [keyField typeText:@"omh-test-custom-key"];
+    XCUIElement *modelField = self.app.textFields[@"omh.custom.openai.model"];
+    XCTAssertTrue([modelField waitForExistenceWithTimeout:10], @"Custom OpenAI model field must exist");
+    [modelField tap];
+    [modelField typeText:@"omh-test-model"];
+    XCUIElement *save = self.app.buttons[@"omh.custom.openai.save"];
+    XCTAssertTrue([save waitForExistenceWithTimeout:10], @"Save Custom OpenAI must exist");
+    [save tap];
+    XCTAssertTrue([self.app.staticTexts[@"Saved."] waitForExistenceWithTimeout:10], @"Save must report Saved.");
+    [self attachScreenshot:@"custom-provider-configured"];
+
+    // Dismiss the sheet, reopen the provider menu, and confirm the custom
+    // provider is listed and selectable.
+    XCUIElement *done = self.app.buttons[@"omh.custom.done"];
+    XCTAssertTrue([done waitForExistenceWithTimeout:10], @"Done must exist to dismiss the config sheet");
+    [done tap];
+    [providerMenu tap];
+    XCUIElement *customOpenAI = [[self.app.buttons matchingPredicate:[NSPredicate predicateWithFormat:@"label CONTAINS 'Custom OpenAI'"]].firstMatch;
+    XCTAssertTrue([customOpenAI waitForExistenceWithTimeout:10], @"Custom OpenAI must appear in the provider menu after configuration");
+    [customOpenAI tap];
+
+    // Selecting a configured custom provider enables the composer send
+    // button once there is draft text, proving the provider is selected
+    // and available. Do not send: the test endpoint is not a real provider.
+    XCUIElement *composer = [[self.app descendantsMatchingType:XCUIElementTypeAny] matchingIdentifier:@"omh.native.chat.composer"].firstMatch;
+    XCTAssertTrue([composer waitForExistenceWithTimeout:10], @"Composer must exist");
+    [composer tap];
+    [composer typeText:@"test"];
+    XCUIElement *send = self.app.buttons[@"omh.native.chat.send"];
+    XCTAssertTrue(send.enabled, @"Send must be enabled once a configured custom provider is selected and there is draft text");
+
+    // Clean up: remove the throwaway custom provider so later runs start clean.
+    [providerMenu tap];
+    XCUIElement *configureAgain = self.app.buttons[@"omh.custom.configure"];
+    XCTAssertTrue([configureAgain waitForExistenceWithTimeout:10], @"Configure custom providers must exist for cleanup");
+    [configureAgain tap];
+    XCTAssertTrue([sheet waitForExistenceWithTimeout:10], @"Custom provider config sheet must open for cleanup");
+    XCUIElement *remove = self.app.buttons[@"omh.custom.openai.remove"];
+    XCTAssertTrue([remove waitForExistenceWithTimeout:10], @"Remove Custom OpenAI must exist for cleanup");
+    [remove tap];
+    XCTAssertTrue([self.app.staticTexts[@"Removed."] waitForExistenceWithTimeout:10], @"Remove must report Removed.");
+    XCUIElement *doneAgain = self.app.buttons[@"omh.custom.done"];
+    [doneAgain tap];
+}
+
 @end
