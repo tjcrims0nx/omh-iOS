@@ -330,9 +330,9 @@ private struct PurpleWave: View {
 // controller is still built on the main actor, via assumeIsolated — the
 // SceneDelegate calls this from UIKit lifecycle code, which is
 // main-thread, so the assumption holds.
-@objc(OMHReferenceDashboardFactory) final class OMHReferenceDashboardFactory: NSObject {
+@objc(OMHReferenceDashboardFactory) public final class OMHReferenceDashboardFactory: NSObject {
     @objc(makeWithBaseURL:settings:workspace:runtime:)
-    static func make(baseURL: URL, settings: @escaping () -> Void, workspace: @escaping () -> Void, runtime: @escaping () -> Void) -> UIViewController {
+    public static func make(baseURL: URL, settings: @escaping () -> Void, workspace: @escaping () -> Void, runtime: @escaping () -> Void) -> UIViewController {
         MainActor.assumeIsolated {
             UIHostingController(rootView: ReferenceDashboard(model: DashboardModel(base: baseURL), settings: settings, workspace: workspace, runtime: runtime))
         }
@@ -343,6 +343,6 @@ private struct PurpleWave: View {
 // generated OMH-Swift.h but the factory does not, the problem is specific
 // to the factory. If neither appears, the Swift compiler is not emitting
 // ANY @objc declarations for this target. Remove once the cause is found.
-@objc(OMHTestFactory) final class OMHTestFactory: NSObject {
-    @objc static func ping() -> String { "pong" }
+@objc(OMHTestFactory) public final class OMHTestFactory: NSObject {
+    @objc public static func ping() -> String { "pong" }
 }
