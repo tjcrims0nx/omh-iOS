@@ -303,3 +303,43 @@ test('custom providers are registered, configurable and routed natively',async()
  assert.match(ui,/omh\.custom\.openai\.save/);
  assert.match(ui,/omh\.custom\.openai\.remove/);
 });
+test('custom provider persistence is proven by a mock-endpoint regression test',async()=>{
+ const ui=await read('tests/OMHUITests/OMHLaunchUITests.m');
+ const mock=await read('tests/mock-custom-provider-server.py');
+ const workflow=await read('.github/workflows/build-ipa.yml');
+ // The mock server is deterministic and local: it answers the OpenAI and
+ // Anthropic chat protocols plus the models list, and it returns a 302
+ // for the redirect probe. It must never log credential header names, and
+ // its log_message must print only the method and path (never headers or
+ // bodies, which can carry API keys).
+ assert.match(mock,/127\.0\.0\.1/);
+ assert.match(mock,/18080/);
+ assert.match(mock,/\/v1\/chat\/completions/);
+ assert.match(mock,/\/v1\/messages/);
+ assert.match(mock,/\/v1\/models/);
+ assert.match(mock,/\/redirect\/models/);
+ assert.match(mock,/mock openai reply/);
+ assert.match(mock,/mock anthropic reply/);
+ assert.doesNotMatch(mock,/Authorization|x-api-key/);
+ assert.match(mock,/def log_message[\s\S]*?print\(f"\{self\.command\} \{self\.path\}"/);
+ // The persistence test configures both providers against the mock
+ // server, restarts the app, verifies the config survived (URLs and
+ // models in UserDefaults, keys recovered from the Keychain), routes a
+ // request through each protocol after the restart, and proves removing
+ // one provider does not affect the other.
+ assert.match(ui,/testCustomProviderPersistenceAcrossRestart/);
+ assert.match(ui,/127\.0\.0\.1:18080/);
+ assert.match(ui,/mock-openai-model/);
+ assert.match(ui,/mock-anthropic-model/);
+ assert.match(ui,/API key \(saved\)/);
+ assert.match(ui,/mock openai reply/);
+ assert.match(ui,/mock anthropic reply/);
+ assert.match(ui,/Provider verification failed/);
+ assert.match(ui,/\[self\.app terminate\]/);
+ // The iPad CI job must start the mock server before the tests and run
+ // both new custom-provider UI tests; otherwise the persistence test
+ // never executes.
+ assert.match(workflow,/mock-custom-provider-server\.py/);
+ assert.match(workflow,/testCustomProviderConfigurationAppearsInSelector/);
+ assert.match(workflow,/testCustomProviderPersistenceAcrossRestart/);
+});

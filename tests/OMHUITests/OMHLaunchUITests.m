@@ -544,7 +544,7 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCTAssertTrue([done waitForExistenceWithTimeout:10], @"Done must exist to dismiss the config sheet");
     [done tap];
     [providerMenu tap];
-    XCUIElement *customOpenAI = [[self.app.buttons matchingPredicate:[NSPredicate predicateWithFormat:@"label CONTAINS 'Custom OpenAI'"]].firstMatch;
+    XCUIElement *customOpenAI = [self.app.buttons matchingPredicate:[NSPredicate predicateWithFormat:@"label CONTAINS 'Custom OpenAI'"]].firstMatch;
     XCTAssertTrue([customOpenAI waitForExistenceWithTimeout:10], @"Custom OpenAI must appear in the provider menu after configuration");
     [customOpenAI tap];
 
@@ -570,6 +570,175 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     XCTAssertTrue([self.app.staticTexts[@"Removed."] waitForExistenceWithTimeout:10], @"Remove must report Removed.");
     XCUIElement *doneAgain = self.app.buttons[@"omh.custom.done"];
     [doneAgain tap];
+}
+
+/// Opens the custom provider config sheet from the provider menu.
+- (void)openCustomProviderSheet {
+    XCUIElement *providerMenu = self.app.buttons[@"omh.native.chat.provider"];
+    XCTAssertTrue([providerMenu waitForExistenceWithTimeout:10], @"Provider menu must exist");
+    [providerMenu tap];
+    XCUIElement *configure = self.app.buttons[@"omh.custom.configure"];
+    XCTAssertTrue([configure waitForExistenceWithTimeout:10], @"Configure custom providers must exist in the provider menu");
+    [configure tap];
+    XCUIElement *sheet = [[self.app descendantsMatchingType:XCUIElementTypeAny] matchingIdentifier:@"omh.custom.providers"].firstMatch;
+    XCTAssertTrue([sheet waitForExistenceWithTimeout:10], @"Custom provider config sheet must open");
+}
+
+/// Fills in one custom provider's URL, key and model and saves it.
+/// `suffix` is @"openai" or @"anthropic". Assumes the config sheet is open.
+- (void)configureCustomProviderSuffix:(NSString *)suffix baseURL:(NSString *)url key:(NSString *)key model:(NSString *)model {
+    XCUIElement *urlField = self.app.textFields[[NSString stringWithFormat:@"omh.custom.%@.url", suffix]];
+    XCTAssertTrue([urlField waitForExistenceWithTimeout:10], @"Custom %@ URL field must exist", suffix);
+    [urlField tap];
+    [urlField typeText:url];
+    XCUIElement *keyField = self.app.secureTextFields[[NSString stringWithFormat:@"omh.custom.%@.key", suffix]];
+    XCTAssertTrue([keyField waitForExistenceWithTimeout:10], @"Custom %@ key field must exist", suffix);
+    [keyField tap];
+    [keyField typeText:key];
+    XCUIElement *modelField = self.app.textFields[[NSString stringWithFormat:@"omh.custom.%@.model", suffix]];
+    XCTAssertTrue([modelField waitForExistenceWithTimeout:10], @"Custom %@ model field must exist", suffix);
+    [modelField tap];
+    [modelField typeText:model];
+    XCUIElement *save = self.app.buttons[[NSString stringWithFormat:@"omh.custom.%@.save", suffix]];
+    XCTAssertTrue([save waitForExistenceWithTimeout:10], @"Save Custom %@ must exist", suffix);
+    [save tap];
+    XCTAssertTrue([self.app.staticTexts[@"Saved."] waitForExistenceWithTimeout:10], @"Save must report Saved.");
+}
+
+/// Sends `text` in the composer and waits for an assistant reply containing
+/// `expectedReply`. The reply comes from the mock custom-provider server.
+- (void)sendMessageExpectingReply:(NSString *)text expectedReply:(NSString *)expectedReply {
+    XCUIElement *composer = [[self.app descendantsMatchingType:XCUIElementTypeAny] matchingIdentifier:@"omh.native.chat.composer"].firstMatch;
+    XCTAssertTrue([composer waitForExistenceWithTimeout:10], @"Composer must exist");
+    [composer tap];
+    [composer typeText:text];
+    XCUIElement *send = self.app.buttons[@"omh.native.chat.send"];
+    XCTAssertTrue(send.enabled, @"Send must be enabled once a configured custom provider is selected and there is draft text");
+    [send tap];
+    XCTAssertTrue([[self.app.staticTexts matchingPredicate:[NSPredicate predicateWithFormat:@"label CONTAINS %@", expectedReply]].firstMatch waitForExistenceWithTimeout:30],
+                  @"Assistant reply '%@' must appear", expectedReply);
+}
+
+- (void)testCustomProviderPersistenceAcrossRestart {
+    // The mock custom-provider server (tests/mock-custom-provider-server.py)
+    // is started by the CI workflow on 127.0.0.1:18080. The simulator
+    // shares the Mac's network, so the app reaches it at that address.
+    // All keys here are throwaway test values, never real credentials.
+    NSString *mockOpenAIURL = @"http://127.0.0.1:18080/v1";
+    NSString *mockAnthropicURL = @"http://127.0.0.1:18080";
+    NSString *mockKey = @"omh-test-mock-key";
+    NSString *mockOpenAIModel = @"mock-openai-model";
+    NSString *mockAnthropicModel = @"mock-anthropic-model";
+
+    [self openCustomProviderSheet];
+
+    // Redirect protection: a base URL whose models endpoint returns a 302
+    // must NOT verify. The app blocks redirects, so the 302 is the
+    // response and verification reports failure, not success.
+    [self configureCustomProviderSuffix:@"openai" baseURL:@"http://127.0.0.1:18080/redirect" key:mockKey model:mockOpenAIModel];
+    XCUIElement *verifyOpenAI = self.app.buttons[@"omh.custom.openai.verify"];
+    XCTAssertTrue([verifyOpenAI waitForExistenceWithTimeout:10], @"Verify Custom OpenAI must exist");
+    [verifyOpenAI tap];
+    XCTAssertTrue([self.app.staticTexts[@"Provider verification failed"] waitForExistenceWithTimeout:15],
+                  @"A redirecting endpoint must not verify: redirect protection must remain intact");
+    // Clear the redirect probe config before configuring the real mock URL.
+    XCUIElement *removeOpenAI = self.app.buttons[@"omh.custom.openai.remove"];
+    XCTAssertTrue([removeOpenAI waitForExistenceWithTimeout:10], @"Remove Custom OpenAI must exist");
+    [removeOpenAI tap];
+    XCTAssertTrue([self.app.staticTexts[@"Removed."] waitForExistenceWithTimeout:10], @"Remove must report Removed.");
+
+    // Configure both custom providers independently against the mock server.
+    [self configureCustomProviderSuffix:@"openai" baseURL:mockOpenAIURL key:mockKey model:mockOpenAIModel];
+    [self configureCustomProviderSuffix:@"anthropic" baseURL:mockAnthropicURL key:mockKey model:mockAnthropicModel];
+    [self attachScreenshot:@"custom-providers-configured"];
+    XCUIElement *done = self.app.buttons[@"omh.custom.done"];
+    XCTAssertTrue([done waitForExistenceWithTimeout:10], @"Done must exist to dismiss the config sheet");
+    [done tap];
+
+    // Both providers must appear in the menu. Select Custom OpenAI so the
+    // selected provider can be checked after the restart.
+    XCUIElement *providerMenu = self.app.buttons[@"omh.native.chat.provider"];
+    [providerMenu tap];
+    XCUIElement *customOpenAI = [self.app.buttons matchingPredicate:[NSPredicate predicateWithFormat:@"label CONTAINS 'Custom OpenAI'"]].firstMatch;
+    XCTAssertTrue([customOpenAI waitForExistenceWithTimeout:10], @"Custom OpenAI must appear in the provider menu after configuration");
+    XCUIElement *customAnthropic = [self.app.buttons matchingPredicate:[NSPredicate predicateWithFormat:@"label CONTAINS 'Custom Anthropic'"]].firstMatch;
+    XCTAssertTrue([customAnthropic waitForExistenceWithTimeout:10], @"Custom Anthropic must appear in the provider menu after configuration");
+    [customOpenAI tap];
+
+    // Complete app termination and relaunch. This is a stronger check than
+    // backgrounding: the app process is recreated and must re-read the
+    // persisted config (UserDefaults for URL/model, Keychain for the key).
+    [self.app terminate];
+    [self.app launch];
+    [self waitForDashboardLaunch];
+
+    // Both providers must still be listed after the restart, proving the
+    // endpoint URLs and model IDs survived.
+    [providerMenu tap];
+    XCUIElement *customOpenAIAfter = [self.app.buttons matchingPredicate:[NSPredicate predicateWithFormat:@"label CONTAINS 'Custom OpenAI'"]].firstMatch;
+    XCTAssertTrue([customOpenAIAfter waitForExistenceWithTimeout:10], @"Custom OpenAI must still be listed after relaunch");
+    XCUIElement *customAnthropicAfter = [self.app.buttons matchingPredicate:[NSPredicate predicateWithFormat:@"label CONTAINS 'Custom Anthropic'"]].firstMatch;
+    XCTAssertTrue([customAnthropicAfter waitForExistenceWithTimeout:10], @"Custom Anthropic must still be listed after relaunch");
+    // Dismiss the menu without changing the selection.
+    [providerMenu tap];
+
+    // The config sheet must still show the persisted URLs and models, and
+    // the key fields must report a saved key (recovered from the Keychain).
+    [self openCustomProviderSheet];
+    XCUIElement *openAIURLField = self.app.textFields[@"omh.custom.openai.url"];
+    XCTAssertTrue([openAIURLField waitForExistenceWithTimeout:10], @"Custom OpenAI URL field must exist after relaunch");
+    XCTAssertTrue([((NSString *)openAIURLField.value) containsString:@"127.0.0.1:18080/v1"], @"Custom OpenAI URL must survive relaunch");
+    XCUIElement *openAIModelField = self.app.textFields[@"omh.custom.openai.model"];
+    XCTAssertEqualObjects((NSString *)openAIModelField.value, mockOpenAIModel, @"Custom OpenAI model must survive relaunch");
+    XCUIElement *openAIKeyField = self.app.secureTextFields[@"omh.custom.openai.key"];
+    XCTAssertEqualObjects(openAIKeyField.placeholderValue, @"API key (saved)", @"Custom OpenAI key must be recovered from the Keychain after relaunch");
+    XCUIElement *anthropicURLField = self.app.textFields[@"omh.custom.anthropic.url"];
+    XCTAssertTrue([((NSString *)anthropicURLField.value) containsString:@"127.0.0.1:18080"], @"Custom Anthropic URL must survive relaunch");
+    XCUIElement *anthropicModelField = self.app.textFields[@"omh.custom.anthropic.model"];
+    XCTAssertEqualObjects((NSString *)anthropicModelField.value, mockAnthropicModel, @"Custom Anthropic model must survive relaunch");
+    XCUIElement *anthropicKeyField = self.app.secureTextFields[@"omh.custom.anthropic.key"];
+    XCTAssertEqualObjects(anthropicKeyField.placeholderValue, @"API key (saved)", @"Custom Anthropic key must be recovered from the Keychain after relaunch");
+    XCUIElement *doneAgain2 = self.app.buttons[@"omh.custom.done"];
+    [doneAgain2 tap];
+
+    // The selected provider (Custom OpenAI) must have survived the
+    // relaunch, and its protocol must route after restarting: sending
+    // without re-selecting must reach the mock OpenAI endpoint.
+    [self sendMessageExpectingReply:@"Hello mock OpenAI" expectedReply:@"mock openai reply"];
+    [self attachScreenshot:@"custom-openai-reply-after-restart"];
+
+    // Switch to Custom Anthropic and verify its protocol routes after
+    // restarting too.
+    [providerMenu tap];
+    XCUIElement *anthropicMenuItem = [self.app.buttons matchingPredicate:[NSPredicate predicateWithFormat:@"label CONTAINS 'Custom Anthropic'"]].firstMatch;
+    XCTAssertTrue([anthropicMenuItem waitForExistenceWithTimeout:10], @"Custom Anthropic must be selectable after relaunch");
+    [anthropicMenuItem tap];
+    [self sendMessageExpectingReply:@"Hello mock Anthropic" expectedReply:@"mock anthropic reply"];
+    [self attachScreenshot:@"custom-anthropic-reply-after-restart"];
+
+    // Removing one custom provider must not affect the other.
+    [self openCustomProviderSheet];
+    XCUIElement *removeOpenAIAgain = self.app.buttons[@"omh.custom.openai.remove"];
+    XCTAssertTrue([removeOpenAIAgain waitForExistenceWithTimeout:10], @"Remove Custom OpenAI must exist");
+    [removeOpenAIAgain tap];
+    XCTAssertTrue([self.app.staticTexts[@"Removed."] waitForExistenceWithTimeout:10], @"Remove must report Removed.");
+    XCUIElement *doneAfterRemove = self.app.buttons[@"omh.custom.done"];
+    [doneAfterRemove tap];
+    [providerMenu tap];
+    XCUIElement *anthropicStillThere = [self.app.buttons matchingPredicate:[NSPredicate predicateWithFormat:@"label CONTAINS 'Custom Anthropic'"]].firstMatch;
+    XCTAssertTrue([anthropicStillThere waitForExistenceWithTimeout:10], @"Custom Anthropic must remain after Custom OpenAI is removed");
+    XCUIElement *openAIGone = [self.app.buttons matchingPredicate:[NSPredicate predicateWithFormat:@"label CONTAINS 'Custom OpenAI'"]].firstMatch;
+    XCTAssertFalse(openAIGone.exists, @"Custom OpenAI must be gone after removal");
+    [anthropicStillThere tap];
+
+    // Clean up: remove the remaining custom provider so later runs start clean.
+    [self openCustomProviderSheet];
+    XCUIElement *removeAnthropic = self.app.buttons[@"omh.custom.anthropic.remove"];
+    XCTAssertTrue([removeAnthropic waitForExistenceWithTimeout:10], @"Remove Custom Anthropic must exist for cleanup");
+    [removeAnthropic tap];
+    XCTAssertTrue([self.app.staticTexts[@"Removed."] waitForExistenceWithTimeout:10], @"Remove must report Removed.");
+    XCUIElement *doneCleanup = self.app.buttons[@"omh.custom.done"];
+    [doneCleanup tap];
 }
 
 @end

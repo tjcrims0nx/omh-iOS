@@ -246,6 +246,21 @@ jobs:
           grep -q 'OMH.app/OMH' OMH.xcodeproj/project.pbxproj
           grep -q 'PRODUCT_NAME = OMH' app/AppOMH.xcconfig
 
+      - name: Start mock custom-provider server
+        run: |
+          python3 tests/mock-custom-provider-server.py > "$RUNNER_TEMP/mock-server.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/mock-server.pid"
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            if curl -fsS http://127.0.0.1:18080/v1/models > /dev/null 2>&1; then
+              echo "Mock custom-provider server is up"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Mock custom-provider server did not start" >&2
+          cat "$RUNNER_TEMP/mock-server.log" || true
+          exit 1
+
       - name: Simulator smoke test (iPad)
         run: |
           SIM="$(scripts/pick-simulator.sh)"
@@ -258,7 +273,17 @@ jobs:
             -parallel-testing-enabled NO -resultBundlePath "$RUNNER_TEMP/ipad.xcresult" \
             -only-testing:OMHUITests/OMHLaunchUITests/testHarnessBootsAndShowsNativeUI \
             -only-testing:OMHUITests/OMHLaunchUITests/testProviderCredentialSurvivesHarnessRestart \
+            -only-testing:OMHUITests/OMHLaunchUITests/testCustomProviderConfigurationAppearsInSelector \
+            -only-testing:OMHUITests/OMHLaunchUITests/testCustomProviderPersistenceAcrossRestart \
             test
+
+      - name: Stop mock custom-provider server
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/mock-server.pid" ]; then
+            kill "$(cat "$RUNNER_TEMP/mock-server.pid")" 2>/dev/null || true
+          fi
+          pkill -f mock-custom-provider-server.py 2>/dev/null || true
 
       - name: Export iPad screenshots and test diagnostics
         if: always()
