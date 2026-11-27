@@ -747,9 +747,47 @@ static const NSTimeInterval kBootTimeout = 300;   // first launch imports the ro
     [providerMenu tap];
     XCUIElement *anthropicStillThere = [self.app.buttons matchingPredicate:[NSPredicate predicateWithFormat:@"label CONTAINS 'Custom Anthropic'"]].firstMatch;
     XCTAssertTrue([anthropicStillThere waitForExistenceWithTimeout:10], @"Custom Anthropic must remain after Custom OpenAI is removed");
-    XCUIElement *openAIGone = [self.app.buttons matchingPredicate:[NSPredicate predicateWithFormat:@"label CONTAINS 'Custom OpenAI'"]].firstMatch;
-    XCTAssertFalse(openAIGone.exists, @"Custom OpenAI must be gone after removal");
+    // The provider Menu lists every provider and only disables the
+    // unavailable ones, so a removed provider stays visible as a disabled
+    // entry labelled "<label> — Not configured". Assert exactly that:
+    // present, disabled, and showing "Not configured" — not absent.
+    XCUIElement *openAIDisabled = [self.app.buttons matchingPredicate:[NSPredicate predicateWithFormat:@"label CONTAINS 'Custom OpenAI'"]].firstMatch;
+    XCTAssertTrue([openAIDisabled waitForExistenceWithTimeout:10], @"Custom OpenAI must remain in the menu as a disabled entry after removal");
+    XCTAssertTrue([openAIDisabled.label isEqualToString:@"Custom OpenAI — Not configured"], @"Removed provider must display 'Custom OpenAI — Not configured'");
+    XCTAssertFalse(openAIDisabled.isEnabled, @"Removed provider must be disabled in the menu so it cannot be selected for requests");
     [anthropicStillThere tap];
+
+    // Credential security: removal must clear the saved Keychain credential
+    // (and the stored URL/model) for the removed provider only. Reopen the
+    // config sheet and verify the removed provider's fields are empty and
+    // its key is no longer saved, while the other provider stays saved.
+    [self openCustomProviderSheet];
+    XCUIElement *openAIURLAfterRemove = self.app.textFields[@"omh.custom.openai.url"];
+    XCTAssertTrue([openAIURLAfterRemove waitForExistenceWithTimeout:10], @"OpenAI URL field must exist after removal");
+    XCTAssertTrue([((NSString *)openAIURLAfterRemove.value) length] == 0, @"Removed provider URL must be cleared");
+    XCUIElement *openAIModelAfterRemove = self.app.textFields[@"omh.custom.openai.model"];
+    XCTAssertTrue([openAIModelAfterRemove waitForExistenceWithTimeout:10], @"OpenAI model field must exist after removal");
+    XCTAssertTrue([((NSString *)openAIModelAfterRemove.value) length] == 0, @"Removed provider model must be cleared");
+    XCUIElement *openAIKeyAfterRemove = self.app.secureTextFields[@"omh.custom.openai.key"];
+    XCTAssertTrue([openAIKeyAfterRemove waitForExistenceWithTimeout:10], @"OpenAI key field must exist after removal");
+    XCTAssertTrue([openAIKeyAfterRemove.placeholderValue isEqualToString:@"API key"], @"Removed provider key must be cleared from Keychain (placeholder must be 'API key', not 'API key (saved)')");
+    // The other provider must be untouched by the removal.
+    XCUIElement *anthropicURLAfterRemove = self.app.textFields[@"omh.custom.anthropic.url"];
+    BOOL anthropicURLFound = [anthropicURLAfterRemove waitForExistenceWithTimeout:5];
+    if (!anthropicURLFound) {
+        XCUIElement *sheet = [[self.app descendantsMatchingType:XCUIElementTypeAny] matchingIdentifier:@"omh.custom.providers"].firstMatch;
+        if (sheet.exists) {
+            [sheet swipeUp];
+        }
+        anthropicURLFound = [anthropicURLAfterRemove waitForExistenceWithTimeout:10];
+    }
+    XCTAssertTrue(anthropicURLFound, @"Custom Anthropic URL field must exist after removing Custom OpenAI");
+    XCTAssertTrue([((NSString *)anthropicURLAfterRemove.value) isEqualToString:mockAnthropicURL], @"Removing Custom OpenAI must not clear Custom Anthropic's URL");
+    XCUIElement *anthropicKeyAfterRemove = self.app.secureTextFields[@"omh.custom.anthropic.key"];
+    XCTAssertTrue([anthropicKeyAfterRemove waitForExistenceWithTimeout:10], @"Custom Anthropic key field must exist after removing Custom OpenAI");
+    XCTAssertTrue([anthropicKeyAfterRemove.placeholderValue isEqualToString:@"API key (saved)"], @"Removing Custom OpenAI must not clear Custom Anthropic's saved key");
+    XCUIElement *doneAfterVerify = self.app.buttons[@"omh.custom.done"];
+    [doneAfterVerify tap];
 
     // Clean up: remove the remaining custom provider so later runs start clean.
     [self openCustomProviderSheet];
